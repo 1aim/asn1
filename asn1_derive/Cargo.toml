@@ -1,8 +1,8 @@
 [package]
-name = "asn1_derive"
+name    = "asn1_derive"
 version = "0.1.0"
 authors = ["meh. <meh@schizofreni.co>"]
-edition = "2018"
+license = "MIT/Apache-2.0"
 
 [lib]
 name = "serde_derive"
@@ -10,5 +10,5 @@ proc-macro = true
 
 [dependencies]
 proc-macro2 = "0.4"
-quote = "0.6"
-syn = { version = "0.15", features = ["visit"] }
+quote       = "0.6"
+syn         = { version = "0.15", features = ["visit"] }
