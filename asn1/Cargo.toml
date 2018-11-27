@@ -1,0 +1,19 @@
+[package]
+name    = "asn1"
+version = "0.1.0"
+authors = ["meh. <meh@1aim.com>"]
+
+[dependencies]
+bitvec  = "0.6"
+chrono  = "0.4"
+decorum = "0.1"
+bytes   = "0.4"
+
+num-traits  = "0.2"
+num-integer = "0.1"
+num-bigint  = "0.2"
+
+asn1_derive = { path = "../asn1_derive", version = "0.1", optional = true }
+
+[features]
+derive = ["asn1_derive"]

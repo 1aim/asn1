@@ -1,0 +1,6 @@
+[workspace]
+members = [
+	"asn1",
+	"asn1_derive",
+	"serde_asn1",
+]

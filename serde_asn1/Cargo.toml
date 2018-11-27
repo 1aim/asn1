@@ -1,0 +1,13 @@
+[package]
+name = "serde_asn1"
+version = "0.1.0"
+authors = ["meh. <meh@1aim.com>"]
+
+[dependencies]
+asn1 = { path = "../asn1", version = "0.1" }
+serde = "1"
+bytes = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+compiletest_rs = "0.3"
+serde_derive = "1.0"
