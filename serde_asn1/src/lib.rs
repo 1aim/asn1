@@ -5,10 +5,10 @@ extern crate bytes;
 extern crate asn1;
 
 pub mod error;
-pub use error::*;
+pub use crate::error::*;
 
 pub mod ser;
-pub use ser::Serializer;
+pub use crate::ser::Serializer;
 
 use std::io::prelude::*;
 use serde::Serialize;

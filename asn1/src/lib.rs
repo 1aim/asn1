@@ -1,10 +1,3 @@
-extern crate bitvec;
-extern crate chrono;
-extern crate decorum;
-extern crate bytes;
-extern crate num_bigint as bigint;
-extern crate num_traits;
-
 #[cfg(feature = "asn1_derive")]
 #[allow(unused_imports)]
 #[macro_use]
@@ -14,14 +7,14 @@ extern crate asn1_derive;
 pub use asn1_derive::*;
 
 pub mod error;
-pub use error::*;
+pub use crate::error::*;
 
 pub mod tag;
 mod support;
-pub use support::*;
+pub use crate::support::*;
 
 pub mod encoder;
-pub use self::encoder::{Encoder, Encode};
+pub use crate::encoder::{Encoder, Encode};
 
 pub mod der;
 

@@ -3,12 +3,13 @@ name    = "asn1_derive"
 version = "0.1.0"
 authors = ["meh. <meh@schizofreni.co>"]
 license = "MIT/Apache-2.0"
+edition = "2018"
 
 [lib]
-name = "serde_derive"
+name = "asn1_derive"
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "0.4"
+proc-macro2 = { version = "0.4", features = ["nightly"] }
 quote       = "0.6"
-syn         = { version = "0.15", features = ["visit"] }
+syn         = { version = "0.15", features = ["extra-traits"] }

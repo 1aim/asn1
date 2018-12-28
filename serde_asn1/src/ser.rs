@@ -1,10 +1,10 @@
 use std::io::prelude::*;
 use std::fmt;
 
-use serde::ser::{self, Impossible, Serialize};
+use serde::ser::{self, Serialize};
 use bytes::{buf, BytesMut, BufMut};
 
-use error::{Error, Result};
+use crate::error::{Error, Result};
 use asn1::{self, encoder::{Encoder as Super, Encode, Primitive}, tag::{self, Tag}};
 
 pub struct Serializer<W, E> {
@@ -396,7 +396,7 @@ impl<'a, W, E> ser::SerializeStruct for Construct<'a, W, E>
 	type Error = Error;
 
 	#[inline]
-	fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<()>
+	fn serialize_field<T: ?Sized>(&mut self, _key: &'static str, value: &T) -> Result<()>
 		where T: Serialize
 	{
 		value.serialize(&mut self.current)

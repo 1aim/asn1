@@ -1,7 +1,7 @@
 use std::io::{self, prelude::*};
 use bytes::{buf, BytesMut, Buf, BufMut, IntoBuf};
 
-use tag::Tag;
+use crate::tag::Tag;
 
 #[derive(Clone, Debug)]
 pub struct Primitive<V: AsRef<[u8]>> {

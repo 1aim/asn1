@@ -2,9 +2,9 @@ use std::io::{self, prelude::*};
 use bigint::{BigInt, BigUint};
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
 
-use encoder::{Primitive, Encoder as Super, Encode};
-use tag::{self, Tag};
-use support::ObjectId;
+use crate::encoder::{Primitive, Encoder as Super, Encode};
+use crate::tag::{self, Tag};
+use crate::support::ObjectId;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Encoder;
@@ -37,7 +37,7 @@ fn encode_length<W: Write + ?Sized>(writer: &mut W, length: usize) -> io::Result
 }
 
 fn encode_tag<W: Write + ?Sized>(writer: &mut W, tag: Tag) -> io::Result<()> {
-	use tag::Class::*;
+	use crate::tag::Class::*;
 
 	writer.write_all(&[match tag.class {
 		Universal   => 0 << 6,
