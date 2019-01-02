@@ -4,9 +4,8 @@ ModuleDefinition = {
 }
 
 ModuleIdentifier = { ReferenceIdentifier ~ DefinitiveIdentification? }
-DefinitiveIdentification = { DefinitiveOID | DefinitiveOIDandIRI }
+DefinitiveIdentification = { DefinitiveOID ~ IRIValue? }
 DefinitiveOID = { "{" ~ DefinitiveObjIdComponent+ ~ "}" }
-DefinitiveOIDandIRI = { DefinitiveOID ~ IRIValue }
 DefinitiveObjIdComponent = { DefinitiveNameAndNumberForm | DefinitiveNumberForm | NameForm }
 NameForm = { Identifier }
 DefinitiveNumberForm = @{ ASCII_DIGIT+ }
@@ -17,8 +16,7 @@ ExtensionDefault = { "EXTENSIBILITY" ~ "IMPLIED" }
 ModuleBody = { Exports? ~ Imports? ~ Assignment* }
 Exports = { "EXPORTS" ~ ("ALL" | SymbolsExported?) ~ ";" }
 SymbolsExported = { SymbolList }
-Imports = { "IMPORTS" ~ SymbolsImported? ~ ";" }
-SymbolsImported = { SymbolsFromModule+ }
+Imports = { "IMPORTS" ~ SymbolsFromModule* ~ ";" }
 SymbolsFromModule = { SymbolList ~ "FROM" ~ GlobalModuleReference }
 GlobalModuleReference = { ReferenceIdentifier ~ AssignedIdentifier? }
 AssignedIdentifier = { ObjectIdentifierValue | DefinedValue }
@@ -229,8 +227,7 @@ Class = { "UNIVERSAL" | "APPLICATION" | "PRIVATE" }
 ObjectIdentifierType = { "OBJECT" ~ "IDENTIFIER" }
 // TODO: Figure out how DefinedValue can be parsed in ObjectIdentifierValue.
 ObjectIdentifierValue = { "{" ~ ObjIdComponents+ ~ "}" }
-ObjIdComponentsList = { ObjIdComponents+ }
-ObjIdComponents = { NameAndNumberForm | DefinedValue | Identifier | NumberForm }
+ObjIdComponents = { NameAndNumberForm | Identifier | NumberForm | DefinedValue }
 NumberForm = { ASCII_DIGIT+ | DefinedValue }
 NameAndNumberForm = { Identifier ~ "(" ~ NumberForm ~ ")" }
 

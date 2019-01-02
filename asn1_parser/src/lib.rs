@@ -1,29 +1,22 @@
 #[macro_use]
 extern crate pest_derive;
 
-use std::iter::Peekable;
+mod ast;
 
-use pest::{iterators::FlatPairs, Parser};
+use pest::Parser;
+
+use self::ast::{Ast, Module};
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
-pub struct Asn1<'a> {
-    input: Peekable<FlatPairs<'a, Rule>>
-}
+pub struct Asn1;
 
-impl<'a> Asn1<'a> {
-
-    pub fn new(source: &'a str) -> Result<Self> {
+impl Asn1 {
+    pub fn new(source: &str) -> Result<Module> {
         let parsed = Asn1Parser::parse(Rule::ModuleDefinition, source)?;
         let input = parsed.flatten().peekable();
 
-        Ok(Self { input })
-    }
-
-    pub fn print_ast(&self) {
-        for pair in self.input.clone() {
-            println!("RULE: {:?}, STR: {:?}", pair.as_rule(), pair.as_str());
-        }
+        Ast::new(input).parse_module()
     }
 }
 
@@ -42,7 +35,9 @@ mod tests {
     fn basic_definition() {
         let input = include_str!("../tests/basic.asn1");
 
-        let rules = Asn1Parser::parse(Rule::ModuleDefinition, input).unwrap_or_else(|e| panic!("{}", e)).flatten();
+        let rules = Asn1Parser::parse(Rule::ModuleDefinition, input)
+            .unwrap_or_else(|e| panic!("{}", e))
+            .flatten();
 
         println!("{:#?}", rules);
     }
