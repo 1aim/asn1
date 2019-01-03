@@ -41,9 +41,8 @@ DefinedType = {
 }
 
 DefinedValue = { ExternalTypeReference | Identifier | ParameterizedValue }
-ExternalTypeReference = { ReferenceIdentifier ~ "." ~ ReferenceIdentifier }
+ExternalTypeReference = @{ ReferenceIdentifier ~ "." ~ ReferenceIdentifier }
 ExternalValueReference = { ReferenceIdentifier ~ "." ~ Identifier }
-AbsoluteReference = { "@" ~ ModuleIdentifier ~ "." ~ ItemSpec }
 // This is probably incorrect, needs to recursively work
 ItemSpec = { typereference | (typereference ~ "." ~ ComponentId) }
 ComponentId = { Identifier | ASCII_DIGIT+ | "*" }
@@ -83,12 +82,11 @@ BuiltinType = {
 }
 
 ReferencedType = {
-    AbsoluteReference |
-    DefinedType // |
+    DefinedType |
     // UsefulType |
     // SelectionType |
-    // TypeFromObject |
-    // ValueSetFromObjects
+    TypeFromObject |
+    ValueSetFromObjects
 }
 
 NamedType = { Identifier ~ Type }
@@ -123,7 +121,7 @@ NamedValue = { Identifier ~ Value }
 IntegerType = { "INTEGER" ~ ("{" ~ NamedNumberList ~ "}")? }
 NamedNumberList = { (NamedNumber ~ ",")* ~ NamedNumber }
 NamedNumber = { Identifier ~ "(" ~ (SignedNumber | DefinedValue) ~ ")" }
-SignedNumber = { "-"? ~ ASCII_DIGIT }
+SignedNumber = @{ "-"? ~ ASCII_DIGIT+ }
 IntegerValue = { SignedNumber | Identifier }
 
 ConstrainedType = { (UnconstrainedType ~ Constraint) | TypeWithConstraint }
@@ -192,7 +190,7 @@ ExtensionAdditionList = { (ExtensionAddition ~ ",")* ~ ExtensionAddition }
 ExtensionAddition = { ComponentType | ExtensionAdditionGroup }
 ExtensionAdditionGroup = { "[[" ~ VersionNumber? ~ ComponentTypeList  ~ "]]" }
 ComponentTypeList = { (ComponentType ~ ",")* ~ ComponentType }
-VersionNumber = { ASCII_DIGIT ~ ":" }
+VersionNumber = @{ ASCII_DIGIT+ ~ ":" }
 ComponentType = {
     (NamedType ~ ("OPTIONAL" | ("DEFAULT" ~ Value))?) |
     "COMPONENTS" ~ "OF" ~ Type
@@ -222,13 +220,13 @@ EncodingInstruction = { ANY+ }
 TaggedType = { Tag ~ ("IMPLICIT" | "EXPLICIT") ~ Type }
 Tag = { "[" ~ EncodingReference? ~ Class? ~ ClassNumber ~ "]" }
 EncodingReference = { encodingreference ~ ":" }
-ClassNumber = { ASCII_DIGIT+ | DefinedValue }
+ClassNumber = ${ ASCII_DIGIT+ | DefinedValue }
 Class = { "UNIVERSAL" | "APPLICATION" | "PRIVATE" }
 ObjectIdentifierType = { "OBJECT" ~ "IDENTIFIER" }
 // TODO: Figure out how DefinedValue can be parsed in ObjectIdentifierValue.
 ObjectIdentifierValue = { "{" ~ ObjIdComponents+ ~ "}" }
 ObjIdComponents = { NameAndNumberForm | Identifier | NumberForm | DefinedValue }
-NumberForm = { ASCII_DIGIT+ | DefinedValue }
+NumberForm = ${ ASCII_DIGIT+ | DefinedValue }
 NameAndNumberForm = { Identifier ~ "(" ~ NumberForm ~ ")" }
 
 ExceptionSpec = { "!" ~ ExceptionIdentification }
@@ -250,7 +248,7 @@ IRIValue = { "\"" ~ FirstArcIdentifier ~ SubsequentArcIdentifier?  ~ "\"" }
 FirstArcIdentifier = { "/" ~ ArcIdentifier }
 SubsequentArcIdentifier = { "/" ~ ArcIdentifier ~ SubsequentArcIdentifier? }
 ArcIdentifier = { integerUnicodeLabel | nonIntegerUnicodeLabel }
-integerUnicodeLabel = { ASCII_DIGIT+ }
+integerUnicodeLabel = @{ ASCII_DIGIT+ }
 nonIntegerUnicodeLabel = { OidNonIntegerCharacter+ }
 OidNonIntegerCharacter = {
     "." |

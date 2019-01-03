@@ -16,6 +16,12 @@ impl Asn1 {
         let parsed = Asn1Parser::parse(Rule::ModuleDefinition, source)?;
         let input = parsed.flatten().peekable();
 
+        /*
+        for pair in input.clone() {
+            println!("RULE: {:?}, STR: {:?}", pair.as_rule(), pair.as_str());
+        }
+        */
+
         Ast::new(input).parse_module()
     }
 }

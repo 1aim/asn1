@@ -4,7 +4,6 @@ use std::iter::Peekable;
 use pest::iterators::{FlatPairs, Pair};
 
 use super::{Result, Rule};
-use crate::module::Module;
 
 pub(crate) struct Ast<'a>(Peekable<FlatPairs<'a, Rule>>);
 
@@ -19,6 +18,10 @@ impl<'a> Ast<'a> {
 
     fn rule_peek(&mut self) -> Option<Rule> {
         self.0.peek().map(|x| x.as_rule())
+    }
+
+    fn next_rule(&mut self) -> Option<Rule> {
+        self.0.next().map(|x| x.as_rule())
     }
 
     fn next(&mut self) -> Option<Pair<Rule>> {
@@ -55,11 +58,12 @@ impl<'a> Ast<'a> {
 
         let (exports, imports, assignments) = if self.look(Rule::ModuleBody).is_some() {
             let exports = self.parse_exports();
-            let imports = self.parse_imports()?;
+            let imports = self.parse_imports();
+            let assignments = self.parse_assignments();
 
-            (exports, imports, ())
+            (exports, imports, assignments)
         } else {
-            (Exports::All, HashMap::new(), ())
+            (Exports::All, HashMap::new(), Vec::new())
         };
 
         Ok(Module {
@@ -68,14 +72,14 @@ impl<'a> Ast<'a> {
             extension: None,
             exports,
             imports,
+            assignments,
         })
     }
 
     pub fn parse_module_identifier(&mut self) -> Result<ModuleIdentifier> {
         self.take(Rule::ModuleIdentifier);
 
-        let name = self.take(Rule::ReferenceIdentifier).as_str();
-        let mut module_identifier = ModuleIdentifier::new(name.to_owned());
+        let mut module_identifier = ModuleIdentifier::new(self.parse_reference_identifier());
 
         if self.look(Rule::DefinitiveIdentification).is_some() {
             self.take(Rule::DefinitiveOID);
@@ -89,7 +93,7 @@ impl<'a> Ast<'a> {
                         DefinitiveObjIdComponent::Number(pair.as_str().parse()?)
                     }
                     Rule::DefinitiveNameAndNumberForm => {
-                        let name = self.take(Rule::Identifier).as_str().to_owned();
+                        let name = self.parse_identifier();
                         let number = self.take(Rule::DefinitiveNumberForm).as_str().parse()?;
                         DefinitiveObjIdComponent::NameAndNumber(name, number)
                     }
@@ -148,7 +152,7 @@ impl<'a> Ast<'a> {
         symbols
     }
 
-    pub fn parse_imports(&mut self) -> Result<HashMap<ModuleReference, Vec<Symbol>>> {
+    pub fn parse_imports(&mut self) -> HashMap<ModuleReference, Vec<Symbol>> {
         let mut imports = HashMap::new();
 
         if self.look(Rule::Imports).is_some() {
@@ -160,7 +164,7 @@ impl<'a> Ast<'a> {
                 let identification = if self.look(Rule::AssignedIdentifier).is_some() {
                     let identification = match self.rule_peek().unwrap() {
                         Rule::ObjectIdentifierValue => AssignedIdentifier::ObjectIdentifier(
-                            self.parse_object_identifier_value()?,
+                            self.parse_object_identifier_value(),
                         ),
                         Rule::DefinedValue => {
                             AssignedIdentifier::Defined(self.parse_defined_value())
@@ -180,10 +184,10 @@ impl<'a> Ast<'a> {
             }
         }
 
-        Ok(imports)
+        imports
     }
 
-    pub fn parse_object_identifier_value(&mut self) -> Result<Vec<ObjIdComponent>> {
+    pub fn parse_object_identifier_value(&mut self) -> Vec<ObjIdComponent> {
         self.take(Rule::ObjectIdentifierValue);
         let mut components = Vec::new();
 
@@ -191,17 +195,15 @@ impl<'a> Ast<'a> {
             use self::DefinitiveObjIdComponent::*;
 
             let component = match self.rule_peek().unwrap() {
-                Rule::Identifier => ObjIdComponent::Definitive(Name(
-                    self.take(Rule::Identifier).as_str().to_owned(),
-                )),
+                Rule::Identifier => ObjIdComponent::Definitive(Name(self.parse_identifier())),
                 Rule::NumberForm => ObjIdComponent::Definitive(Number(
-                    self.take(Rule::NumberForm).as_str().parse()?,
+                    self.take(Rule::NumberForm).as_str().parse().unwrap(),
                 )),
                 Rule::DefinedValue => ObjIdComponent::DefinedValue(self.parse_defined_value()),
                 Rule::NameAndNumberForm => {
                     self.take(Rule::NameAndNumberForm);
-                    let name = self.take(Rule::Identifier).as_str().to_owned();
-                    let number = self.take(Rule::NumberForm).as_str().parse()?;
+                    let name = self.parse_identifier();
+                    let number = self.take(Rule::NumberForm).as_str().parse().unwrap();
 
                     ObjIdComponent::Definitive(NameAndNumber(name, number))
                 }
@@ -211,7 +213,7 @@ impl<'a> Ast<'a> {
             components.push(component)
         }
 
-        Ok(components)
+        components
     }
 
     fn parse_defined_value(&mut self) -> DefinedValue {
@@ -221,16 +223,283 @@ impl<'a> Ast<'a> {
         match self.rule_peek().unwrap() {
             Rule::ExternalTypeReference => {
                 self.take(Rule::ExternalTypeReference);
-                let parent = self.take(Rule::ReferenceIdentifier).as_str().to_owned();
-                let child = self.take(Rule::ReferenceIdentifier).as_str().to_owned();
+                let parent = self.parse_reference_identifier();
+                let child = self.parse_reference_identifier();
 
                 DefinedValue::Simple(Reference(parent, child))
             }
 
-            Rule::Identifier => {
-                DefinedValue::Simple(Value(self.take(Rule::Identifier).as_str().to_owned()))
-            }
+            Rule::Identifier => DefinedValue::Simple(Value(self.parse_identifier())),
             Rule::ParameterizedReference => unimplemented!(),
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_assignments(&mut self) -> Vec<Assignment> {
+        let mut assignments = Vec::new();
+
+        while self.look(Rule::Assignment).is_some() {
+            let assignment = match self.rule_peek().unwrap() {
+                Rule::TypeAssignment => {
+                    self.take(Rule::TypeAssignment);
+
+                    let ident = self.parse_reference_identifier();
+                    let r#type = self.parse_type();
+
+                    Assignment::Type(ident, r#type)
+                }
+                Rule::ValueAssignment => {
+                    self.take(Rule::ValueAssignment);
+
+                    let ident = self.take(Rule::valuereference).as_str().to_owned();
+                    let value_type = self.parse_type();
+                    let value = self.parse_value();
+
+                    Assignment::Value(ident, value_type, value)
+                }
+                Rule::ObjectClassAssignment => unimplemented!(),
+                Rule::ObjectAssignment => unimplemented!(),
+                Rule::ObjectSetAssignment => unimplemented!(),
+                _ => unreachable!(),
+            };
+
+            assignments.push(assignment)
+        }
+
+        assignments
+    }
+
+    fn parse_type(&mut self) -> Type {
+        self.take(Rule::Type);
+
+        match self.rule_peek().unwrap() {
+            Rule::UnconstrainedType => self.parse_unconstrained_type().into(),
+            Rule::ConstrainedType => {
+                self.take(Rule::ConstrainedType);
+
+                if self.peek(Rule::TypeWithConstraint) {
+                    unimplemented!()
+                } else {
+                    let raw_type = self.parse_unconstrained_type();
+                    self.take(Rule::Constraint);
+                    self.take(Rule::ConstraintSpec);
+
+                    if self.peek(Rule::GeneralConstraint) {
+                        unimplemented!("GeneralConstraint");
+                    } else {
+                        let is_extendable =
+                            self.take(Rule::ElementSetSpecs).as_str().contains("...");
+                        let constraint = self.parse_element_set_spec();
+
+                        Type {
+                            raw_type,
+                            constraint,
+                        }
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_element_set_spec(&mut self) -> Vec<Vec<Element>> {
+        self.take(Rule::ElementSetSpec);
+        self.take(Rule::Unions);
+        let mut constraint = Vec::new();
+
+        while self.look(Rule::Intersections).is_some() {
+            let mut intersections = Vec::new();
+            while self.look(Rule::IntersectionElements).is_some() {
+                intersections.push(self.parse_elements());
+                self.look(Rule::IntersectionMark);
+            }
+
+            constraint.push(intersections);
+            self.look(Rule::UnionMark);
+        }
+
+        constraint
+    }
+
+    fn parse_unconstrained_type(&mut self) -> RawType {
+        self.take(Rule::UnconstrainedType);
+
+        if self.look(Rule::BuiltinType).is_some() {
+            let pair = self.next().unwrap();
+            match pair.as_rule() {
+                Rule::IntegerType => {
+                    let mut named_numbers = HashMap::new();
+
+                    if self.look(Rule::NamedNumberList).is_some() {
+                        while self.look(Rule::NamedNumber).is_some() {
+                            let ident = self.parse_identifier();
+
+                            let value = match self.rule_peek().unwrap() {
+                                Rule::SignedNumber => {
+                                    NumberOrDefinedValue::Number(self.parse_signed_number())
+                                }
+                                Rule::DefinedValue => {
+                                    NumberOrDefinedValue::DefinedValue(self.parse_defined_value())
+                                }
+                                _ => unreachable!(),
+                            };
+
+                            named_numbers.insert(ident, value);
+                        }
+                    }
+
+                    RawType::Builtin(BuiltinType::Integer(named_numbers))
+                }
+                Rule::ObjectClassFieldType => unimplemented!(),
+                Rule::ObjectIdentifierType => RawType::Builtin(BuiltinType::ObjectIdentifier),
+                Rule::OctetStringType => RawType::Builtin(BuiltinType::OctetString),
+                Rule::SequenceType => {
+                    RawType::Builtin(BuiltinType::Sequence(self.parse_component_type_lists()))
+                }
+                Rule::SequenceOfType => {
+                    if self.peek(Rule::Type) {
+                        RawType::Builtin(BuiltinType::SequenceOf(Box::new(SequenceOfType::Type(self.parse_type()))))
+                    } else {
+                        let (ident, r#type) = self.parse_named_type();
+                        RawType::Builtin(BuiltinType::SequenceOf(Box::new(SequenceOfType::Named(ident, r#type))))
+                    }
+                },
+                Rule::SetType => unimplemented!(),
+                Rule::SetOfType => unimplemented!(),
+                Rule::PrefixedType => unimplemented!(),
+                _ => unreachable!(),
+            }
+        } else {
+            self.take(Rule::ReferencedType);
+
+            match self.next_rule().unwrap() {
+                Rule::DefinedType => match self.rule_peek().unwrap() {
+                    Rule::ExternalTypeReference => {
+                        self.take(Rule::ExternalTypeReference);
+                        let module = self.parse_reference_identifier();
+                        let subtype = self.parse_reference_identifier();
+
+                        ReferenceType::Defined(DefinedType::External(module, subtype)).into()
+                    }
+
+                    Rule::ReferenceIdentifier => ReferenceType::Defined(DefinedType::Internal(
+                        self.parse_reference_identifier(),
+                    ))
+                    .into(),
+
+                    _ => unreachable!(),
+                },
+                Rule::TypeFromObject => unimplemented!(),
+                Rule::ValueSetFromObjects => unimplemented!(),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    fn parse_value(&mut self) -> Value {
+        self.take(Rule::Value);
+
+        match self.rule_peek().unwrap() {
+            Rule::BuiltinValue => self.parse_builtin_value().into(),
+            Rule::ReferencedValue => unimplemented!(),
+            Rule::ObjectClassFieldType => unimplemented!(),
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_builtin_value(&mut self) -> BuiltinValue {
+        self.take(Rule::BuiltinValue);
+
+        match self.rule_peek().unwrap() {
+            Rule::IntegerValue => {
+                self.take(Rule::IntegerValue);
+
+                let value = match self.rule_peek().unwrap() {
+                    Rule::SignedNumber => IntegerValue::Literal(self.parse_signed_number()),
+                    Rule::Identifier => IntegerValue::Identifier(self.parse_identifier()),
+                    _ => unreachable!(),
+                };
+
+                BuiltinValue::Integer(value)
+            }
+            Rule::ObjectIdentifierValue => {
+                BuiltinValue::ObjectIdentifier(self.parse_object_identifier_value())
+            }
+
+            e => unreachable!("Unexpected Rule {:?}", e),
+        }
+    }
+
+    fn parse_signed_number(&mut self) -> i64 {
+        self.take(Rule::SignedNumber).as_str().parse().unwrap()
+    }
+
+    fn parse_identifier(&mut self) -> String {
+        self.take(Rule::Identifier).as_str().to_owned()
+    }
+
+    fn parse_reference_identifier(&mut self) -> String {
+        self.take(Rule::ReferenceIdentifier).as_str().to_owned()
+    }
+
+    fn parse_component_type_lists(&mut self) -> Vec<ComponentType> {
+        self.take(Rule::ComponentTypeLists);
+
+        self.parse_component_type_list()
+    }
+
+    fn parse_component_type_list(&mut self) -> Vec<ComponentType> {
+        self.take(Rule::ComponentTypeList);
+
+        let mut component_types = Vec::new();
+
+        while self.peek(Rule::ComponentType) {
+            component_types.push(self.parse_component_type());
+        }
+
+        component_types
+    }
+
+    fn parse_component_type(&mut self) -> ComponentType {
+        let raw = self.take(Rule::ComponentType).as_str().to_owned();
+
+        if raw.contains("COMPONENTS") {
+            ComponentType::ComponentsOf(self.parse_type())
+        } else {
+            let (identifier, value_type) = self.parse_named_type();
+            let optional = raw.contains("OPTIONAL");
+            let default = match raw.contains("DEFAULT") {
+                true => Some(self.parse_value()),
+                false => None,
+            };
+
+            ComponentType::Type {
+                identifier,
+                value_type,
+                optional,
+                default,
+            }
+        }
+    }
+
+    fn parse_named_type(&mut self) -> (String, Type) {
+        self.take(Rule::NamedType);
+
+        (self.parse_identifier(), self.parse_type())
+    }
+
+    fn parse_elements(&mut self) -> Element {
+        self.take(Rule::Elements);
+
+        match self.rule_peek().unwrap() {
+            Rule::ElementSetSpec => Element::ElementSet(self.parse_element_set_spec()),
+            Rule::SubtypeElements => {
+                self.take(Rule::SubtypeElements);
+                match self.rule_peek().unwrap() {
+                    Rule::Value => Element::SubType(SubTypeElement::Value(self.parse_value())),
+                    _ => unreachable!(),
+                }
+            }
             _ => unreachable!(),
         }
     }
@@ -238,11 +507,12 @@ impl<'a> Ast<'a> {
 
 #[derive(Debug)]
 pub struct Module {
-    pub identifier: ModuleIdentifier,
-    pub tag: Tag,
-    pub extension: Option<()>,
-    pub exports: Exports,
-    pub imports: HashMap<ModuleReference, Vec<Symbol>>,
+    identifier: ModuleIdentifier,
+    tag: Tag,
+    extension: Option<()>,
+    exports: Exports,
+    imports: HashMap<ModuleReference, Vec<Symbol>>,
+    assignments: Vec<Assignment>,
 }
 
 #[derive(Debug)]
@@ -329,3 +599,134 @@ pub enum AssignedIdentifier {
     ObjectIdentifier(Vec<ObjIdComponent>),
     Defined(DefinedValue),
 }
+
+// First argument is always the identifier.
+#[derive(Debug)]
+pub enum Assignment {
+    Type(String, Type),
+    Value(String, Type, Value),
+}
+
+#[derive(Debug)]
+pub struct Type {
+    raw_type: RawType,
+    // First `Vec` is a list of unions, the second a list of intersections.
+    constraint: Vec<Vec<Element>>,
+}
+
+impl From<RawType> for Type {
+    fn from(raw_type: RawType) -> Self {
+        Type {
+            raw_type,
+            constraint: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum RawType {
+    Builtin(BuiltinType),
+    Referenced(ReferenceType),
+}
+
+impl From<BuiltinType> for RawType {
+    fn from(builtin: BuiltinType) -> Self {
+        RawType::Builtin(builtin)
+    }
+}
+
+impl From<ReferenceType> for RawType {
+    fn from(reference: ReferenceType) -> Self {
+        RawType::Referenced(reference)
+    }
+}
+
+#[derive(Debug)]
+pub enum BuiltinType {
+    Integer(HashMap<String, NumberOrDefinedValue>),
+    ObjectClassField,
+    ObjectIdentifier,
+    OctetString,
+    Sequence(Vec<ComponentType>),
+    SequenceOf(Box<SequenceOfType>),
+    SetType,
+    SetOf,
+    Prefixed,
+}
+
+#[derive(Debug)]
+pub enum ReferenceType {
+    Defined(DefinedType),
+}
+
+impl From<DefinedType> for ReferenceType {
+    fn from(def: DefinedType) -> Self {
+        ReferenceType::Defined(def)
+    }
+}
+
+#[derive(Debug)]
+pub enum DefinedType {
+    External(String, String),
+    Internal(String),
+}
+
+#[derive(Debug)]
+pub enum Value {
+    Builtin(BuiltinValue),
+    Reference,
+    ObjectClassField,
+}
+
+impl From<BuiltinValue> for Value {
+    fn from(builtin: BuiltinValue) -> Self {
+        Value::Builtin(builtin)
+    }
+}
+
+#[derive(Debug)]
+pub enum BuiltinValue {
+    Integer(IntegerValue),
+    ObjectIdentifier(Vec<ObjIdComponent>),
+}
+
+#[derive(Debug)]
+pub enum IntegerValue {
+    Literal(i64),
+    Identifier(String),
+}
+
+#[derive(Debug)]
+pub enum ComponentType {
+    Type {
+        identifier: String,
+        value_type: Type,
+        optional: bool,
+        default: Option<Value>,
+    },
+    ComponentsOf(Type),
+}
+
+#[derive(Debug)]
+pub enum NumberOrDefinedValue {
+    Number(i64),
+    DefinedValue(DefinedValue),
+}
+
+#[derive(Debug)]
+pub enum Element {
+    SubType(SubTypeElement),
+    ElementSet(Vec<Vec<Element>>),
+}
+
+#[derive(Debug)]
+pub enum SubTypeElement {
+    Value(Value),
+}
+
+#[derive(Debug)]
+pub enum SequenceOfType {
+    Type(Type),
+    Named(String, Type),
+}
+
