@@ -3,6 +3,8 @@ extern crate pest_derive;
 
 mod ast;
 
+use std::{fs, path::Path};
+
 use pest::Parser;
 
 use self::ast::{Ast, Module};
@@ -12,14 +14,34 @@ pub type Result<T> = std::result::Result<T, failure::Error>;
 pub struct Asn1;
 
 impl Asn1 {
-    pub fn new(source: &str) -> Result<Module> {
+    pub fn new<A: AsRef<Path>>(source: &str, dependency_folder: A) -> Result<Module> {
         let parsed = Asn1Parser::parse(Rule::ModuleDefinition, source)?;
         let input = parsed.flatten().peekable();
 
-        /*
-        */
+        let module = Ast::parse(input)?;
 
-        Ast::new(input).parse_module()
+        for entry in fs::read_dir(dependency_folder)? {
+            let entry = entry?;
+
+            if entry.file_type()?.is_dir() {
+                continue;
+            }
+
+            let path = entry.path();
+
+            if path.extension().map(|x| x != "asn1").unwrap_or(true) {
+                continue;
+            }
+
+            let source = fs::read_to_string(path)?;
+            let parsed = Asn1Parser::parse(Rule::ModuleDefinition, &source)?;
+            let input = parsed.flatten().peekable();
+            let header = Ast::parse_header(input)?;
+
+            println!("{:#?}", header);
+        }
+
+        Ok(module)
     }
 }
 

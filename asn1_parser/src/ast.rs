@@ -9,8 +9,23 @@ use super::{Result, Rule};
 pub(crate) struct Ast<'a>(Peekable<FlatPairs<'a, Rule>>);
 
 impl<'a> Ast<'a> {
-    pub fn new(input: Peekable<FlatPairs<'a, Rule>>) -> Self {
-        Ast(input)
+    /// Parse asn1 module into an Abstract Syntax Tree (AST) represented by the `Module` struct.
+    pub fn parse(input: Peekable<FlatPairs<'a, Rule>>) -> Result<Module> {
+        for pair in input.clone() {
+            //println!("RULE: {:?}, STR: {:?}", pair.as_rule(), pair.as_str());
+        }
+
+        Ast(input).parse_module()
+    }
+
+    /// Copies the lexer output and parses the module's identifying information into an Abstract
+    /// Syntax Tree (AST) represented by the `ModuleIdentifier` struct.
+    pub fn parse_header(input: Peekable<FlatPairs<'a, Rule>>) -> Result<ModuleIdentifier> {
+        let mut ast = Ast(input);
+
+        ast.take(Rule::ModuleDefinition);
+
+        ast.parse_module_identifier()
     }
 
     fn peek(&mut self, rule: Rule) -> bool {
@@ -54,7 +69,7 @@ impl<'a> Ast<'a> {
         }
     }
 
-    pub fn parse_module(&mut self) -> Result<Module> {
+    fn parse_module(&mut self) -> Result<Module> {
         self.take(Rule::ModuleDefinition);
 
         let identifier = self.parse_module_identifier()?;
@@ -81,7 +96,7 @@ impl<'a> Ast<'a> {
         })
     }
 
-    pub fn parse_module_identifier(&mut self) -> Result<ModuleIdentifier> {
+    fn parse_module_identifier(&mut self) -> Result<ModuleIdentifier> {
         self.take(Rule::ModuleIdentifier);
 
         let mut module_identifier = ModuleIdentifier::new(self.parse_reference_identifier());
@@ -93,7 +108,7 @@ impl<'a> Ast<'a> {
                 let pair = self.next().unwrap();
 
                 let component = match pair.as_rule() {
-                    Rule::NameForm => DefinitiveObjIdComponent::Name(pair.as_str().to_owned()),
+                    Rule::NameForm => DefinitiveObjIdComponent::Name(self.parse_identifier()),
                     Rule::DefinitiveNumberForm => {
                         DefinitiveObjIdComponent::Number(pair.as_str().parse()?)
                     }
@@ -515,9 +530,13 @@ impl<'a> Ast<'a> {
 
                 BuiltinValue::Integer(value)
             }
+
             Rule::ObjectIdentifierValue => {
                 BuiltinValue::ObjectIdentifier(self.parse_object_identifier_value())
             }
+
+            Rule::SequenceValue => BuiltinValue::Sequence(self.parse_sequence_value()),
+            Rule::EnumeratedValue => self.parse_enumerated_value(),
 
             e => unreachable!("Unexpected Rule {:?}", e),
         }
@@ -553,6 +572,10 @@ impl<'a> Ast<'a> {
 
     fn parse_encoding_reference(&mut self) -> String {
         self.take(Rule::encodingreference).as_str().to_owned()
+    }
+
+    fn parse_literal(&mut self) -> String {
+        self.take(Rule::Literal).as_str().to_owned()
     }
 
     fn parse_component_type_lists(&mut self) -> Vec<ComponentType> {
@@ -609,7 +632,8 @@ impl<'a> Ast<'a> {
                 self.take(Rule::SubtypeElements);
                 match self.rule_peek().unwrap() {
                     Rule::Value => Element::SubType(SubTypeElement::Value(self.parse_value())),
-                    _ => unreachable!(),
+                    Rule::Type => Element::SubType(SubTypeElement::Type(self.parse_type())),
+                    e => unreachable!("{:?}", e),
                 }
             }
             Rule::ObjectSetElements => {
@@ -717,7 +741,7 @@ impl<'a> Ast<'a> {
 
                             ObjectDefn::Setting(setting)
                         } else {
-                            unimplemented!("Literal")
+                            ObjectDefn::Literal(self.parse_literal())
                         };
 
                         tokens.push(token);
@@ -733,6 +757,31 @@ impl<'a> Ast<'a> {
             Rule::ParameterizedObject => unimplemented!("ParameterizedObject"),
             _ => unreachable!(),
         }
+    }
+
+    fn parse_sequence_value(&mut self) -> Vec<NamedValue> {
+        self.take(Rule::SequenceValue);
+
+        self.parse_component_value_list()
+    }
+
+    fn parse_component_value_list(&mut self) -> Vec<NamedValue> {
+        self.take(Rule::ComponentValueList);
+
+        let mut values = Vec::new();
+
+        while self.look(Rule::NamedValue).is_some() {
+            values.push(NamedValue(self.parse_identifier(), self.parse_value()));
+        }
+
+        values
+    }
+
+    fn parse_enumerated_value(&mut self) -> BuiltinValue {
+        self.take(Rule::EnumeratedValue);
+
+        BuiltinValue::Enumerated(self.parse_identifier())
+
     }
 }
 
@@ -933,6 +982,8 @@ impl From<BuiltinValue> for Value {
 pub enum BuiltinValue {
     Integer(IntegerValue),
     ObjectIdentifier(Vec<ObjIdComponent>),
+    Sequence(Vec<NamedValue>),
+    Enumerated(String),
 }
 
 #[derive(Debug)]
@@ -968,6 +1019,7 @@ pub enum Element {
 #[derive(Debug)]
 pub enum SubTypeElement {
     Value(Value),
+    Type(Type),
 }
 
 #[derive(Debug)]
@@ -1057,6 +1109,7 @@ pub enum Object {
 #[derive(Debug)]
 pub enum ObjectDefn {
     Setting(Setting),
+    Literal(String)
 }
 
 #[derive(Debug)]
@@ -1066,3 +1119,6 @@ pub enum Setting {
     Object(Object),
     ObjectSet(Vec<Vec<Element>>),
 }
+
+#[derive(Debug)]
+pub struct NamedValue(String, Value);
