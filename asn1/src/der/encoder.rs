@@ -1,13 +1,42 @@
 use std::io::{self, prelude::*};
 use bigint::{BigInt, BigUint};
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
+use bytes::{buf, Buf, BufMut, IntoBuf};
 
-use crate::encoder::{Primitive, Encoder as Super, Encode};
+use crate::encoder::{Encoder as Super, Encode};
 use crate::tag::{self, Tag};
 use crate::support::ObjectId;
+use crate::der::{Construct, Primitive};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Encoder;
+
+impl Super for Encoder {
+	const CANONICAL: bool = true;
+}
+
+impl Encoder {
+	pub fn encode_primitive<W, V>(&mut self, writer: &mut W, primitive: Primitive<V>) -> io::Result<()>
+		where W: Write + ?Sized, V: AsRef<[u8]>
+	{
+		encode_header(writer, primitive.implicit, primitive.explicit, primitive.value.as_ref().len())?;
+		writer.write_all(primitive.value.as_ref())?;
+
+		Ok(())
+	}
+
+	pub fn encode_construct<W, B, F>(&mut self, writer: &mut W, mut construct: Construct<B>, func: F) -> io::Result<()>
+		where W: Write + ?Sized, B: IntoBuf + BufMut, F: for<'a> FnOnce(buf::Writer<&'a mut B>, &mut Self) -> io::Result<()>
+	{
+		func((&mut construct.buffer).writer(), self)?;
+
+		self.encode_primitive(writer, Primitive {
+			implicit: construct.implicit,
+			explicit: construct.explicit,
+			value:    construct.buffer.into_buf().bytes()
+		})
+	}
+}
 
 fn encode_length<W: Write + ?Sized>(writer: &mut W, length: usize) -> io::Result<()> {
 	if length >= 128 {
@@ -39,12 +68,21 @@ fn encode_length<W: Write + ?Sized>(writer: &mut W, length: usize) -> io::Result
 fn encode_tag<W: Write + ?Sized>(writer: &mut W, tag: Tag) -> io::Result<()> {
 	use crate::tag::Class::*;
 
-	writer.write_all(&[match tag.class {
+	let class = match tag.class {
 		Universal   => 0 << 6,
 		Application => 1 << 6,
 		Context     => 2 << 6,
 		Private     => 3 << 6,
-	} | tag.number])
+	};
+
+	let constructed = if tag.constructed {
+		0x20
+	}
+	else {
+		0
+	};
+
+	writer.write_all(&[class | constructed | tag.number])
 }
 
 fn encode_header<W: Write + ?Sized>(writer: &mut W, implicit: Tag, explicit: Option<Tag>, length: usize) -> io::Result<()> {
@@ -82,18 +120,6 @@ fn encode_base128<W: Write + ?Sized>(writer: &mut W, value: &BigUint) -> io::Res
 	}
 
 	Ok(())
-}
-
-impl Super for Encoder {
-	#[inline]
-	fn encode_primitive<W, V>(&mut self, writer: &mut W, primitive: Primitive<V>) -> io::Result<()>
-		where W: Write + ?Sized, V: AsRef<[u8]>
-	{
-		encode_header(writer, primitive.implicit, primitive.explicit, primitive.value.as_ref().len())?;
-		writer.write_all(primitive.value.as_ref())?;
-
-		Ok(())
-	}
 }
 
 impl Encode<()> for Encoder {
@@ -146,6 +172,8 @@ impl<'a> Encode<&'a BigInt> for Encoder {
 	fn encode<W>(&mut self, writer: &mut W, value: &'a BigInt) -> io::Result<()>
 		where W: Write + ?Sized
 	{
+		println!("{}", value);
+
 		self.encode_primitive(writer, Primitive {
 			implicit: tag::INTEGER,
 			explicit: None,

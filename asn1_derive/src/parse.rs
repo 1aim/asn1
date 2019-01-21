@@ -6,6 +6,17 @@ use syn::{
 	},
 };
 
+macro_rules! try_parse {
+	($body:expr) => (
+		if let Some(value) = $crate::parse::Emit::emit($body) {
+			value
+		}
+		else {
+			return $crate::proc_macro::TokenStream::new();
+		}
+	);
+}
+
 pub fn string(lit: &Lit) -> Result<&LitStr, Error> {
 	match lit {
 		Lit::Str(s) =>

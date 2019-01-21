@@ -1,4 +1,6 @@
+use proc_macro2::TokenStream;
 use syn::{self, Error, spanned::Spanned};
+use quote::{TokenStreamExt, ToTokens};
 use crate::{parse::Emit, attribute};
 
 /// A source data structure annotated with `#[derive(ASN1)]`, parsed into an
@@ -57,7 +59,7 @@ pub enum Style {
 }
 
 impl<'a> Container<'a> {
-	pub fn parse<'b>(input: &'b syn::DeriveInput) -> Result<Container<'b>, syn::Error> {
+	pub fn parse<'b>(input: &'b syn::DeriveInput) -> syn::Result<Container<'b>> {
 		let this = Container {
 			ident: &input.ident,
 			syn: input,
@@ -80,6 +82,74 @@ impl<'a> Container<'a> {
 		};
 
 		Ok(this)
+	}
+
+	pub fn to_der(&self) -> syn::Result<TokenStream> {
+		let name = self.ident;
+		let body = match &self.data {
+			Data::Struct(Style::Struct, fields) => {
+				let construct = quote! {
+					asn1::der::Construct::<bytes::BytesMut>::new(asn1::tag::SEQUENCE)
+				};
+
+				let fields = fields.iter().map(|field|
+					if let syn::Member::Named(name) = &field.member {
+						quote! {
+							encoder.encode(&mut writer, value.#name)?;
+						}
+					}
+					else {
+						unreachable!();
+					}
+				).collect::<TokenStream>();
+
+				quote! {
+					self.encode_construct(&mut writer, #construct, |mut writer, encoder| { #fields; Ok(()) })
+				}
+			}
+
+			Data::Struct(Style::Tuple, fields) => {
+				quote! {
+
+				}
+			}
+
+			Data::Struct(Style::Newtype, fields) => {
+				quote! {
+
+				}
+			}
+
+			Data::Struct(Style::Unit, fields) => {
+				quote! {
+
+				}
+			}
+
+			Data::Enum(variants) => {
+				quote! {
+
+				}
+			}
+		};
+
+		Ok(quote! {
+			impl<'a> asn1::Encode<&'a #name> for asn1::der::Encoder {
+				fn encode<W>(&mut self, mut writer: &mut W, value: &'a #name) -> std::io::Result<()>
+					where W: std::io::Write + ?Sized
+				{
+					#body
+				}
+			}
+
+			impl asn1::Encode<#name> for asn1::der::Encoder {
+				fn encode<W>(&mut self, writer: &mut W, value: #name) -> std::io::Result<()>
+					where W: std::io::Write + ?Sized
+				{
+					asn1::der::Encoder::encode(self, writer, &value)
+				}
+			}
+		})
 	}
 }
 

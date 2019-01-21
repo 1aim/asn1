@@ -17,5 +17,8 @@ bigint  = { version = "0.2", package = "num-bigint" }
 
 asn1_derive = { path = "../asn1_derive", version = "0.1", optional = true }
 
+[dev-dependencies]
+asn1_derive = { path = "../asn1_derive" }
+
 [features]
 derive = ["asn1_derive"]

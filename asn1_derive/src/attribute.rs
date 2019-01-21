@@ -26,7 +26,7 @@ pub struct Variant {
 
 #[derive(Debug)]
 pub struct Field {
-	name: String,
+	name: Option<String>,
 }
 
 impl<T> Attribute<T> {
@@ -65,7 +65,7 @@ impl Container {
 		}
 
 		Ok(Self {
-			name: name.value.unwrap(),
+			name: name.value.unwrap_or_else(|| item.ident.to_string()),
 		})
 	}
 }
@@ -90,7 +90,7 @@ impl Field {
 		}
 
 		Ok(Self {
-			name: name.value.unwrap(),
+			name: name.value.or_else(|| item.ident.clone().map(|i| i.to_string()))
 		})
 	}
 }
@@ -115,7 +115,7 @@ impl Variant {
 		}
 
 		Ok(Self {
-			name: name.value.unwrap(),
+			name: name.value.unwrap_or_else(|| item.ident.to_string()),
 		})
 	}
 }
