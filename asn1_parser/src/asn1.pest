@@ -23,19 +23,19 @@ AssignedIdentifier = { ObjectIdentifierValue | DefinedValue }
 SymbolList = { (Symbol ~ ",")* ~ Symbol }
 Symbol = { ReferenceIdentifier | Identifier | ParameterizedReference }
 Assignment = {
+    ParameterizedAssignment |
     TypeAssignment |
+    ObjectClassAssignment |
     ValueAssignment |
     ValueSetAssignment |
-    ObjectClassAssignment |
     ObjectAssignment |
-    ObjectSetAssignment |
-    ParameterizedAssignment
+    ObjectSetAssignment
 }
 
 DefinedType = {
+    ParameterizedType |
     ExternalTypeReference |
     ReferenceIdentifier |
-    ParameterizedType |
     ParameterizedValueSet
 }
 
@@ -52,6 +52,7 @@ ValueSet = { "{" ~ ElementSetSpecs ~ "}" }
 Type = { ConstrainedType | UnconstrainedType }
 UnconstrainedType = { BuiltinType | ReferencedType }
 BuiltinType = {
+    EnumeratedType |
     BitStringType |
     BooleanType |
     CharacterStringType |
@@ -60,12 +61,11 @@ BuiltinType = {
     DateTimeType |
     DurationType |
     EmbeddedPDVType |
-    EnumeratedType |
     ExternalType |
     // InstanceOftype |
     IntegerType |
     // IRIType |
-    // NullType |
+    NullType |
     ObjectClassFieldType |
     ObjectIdentifierType |
     OctetStringType |
@@ -82,10 +82,10 @@ BuiltinType = {
 }
 
 ReferencedType = {
+    TypeFromObject |
     DefinedType |
     UsefulType |
     SelectionType |
-    TypeFromObject |
     ValueSetFromObjects
 }
 
@@ -101,7 +101,7 @@ BuiltinValue = {
     // InstanceOfValue |
     IntegerValue |
     // IRIValue |
-    // NullValue |
+    NullValue |
     ObjectIdentifierValue |
     // OctetStringValue |
     // RealValue |
@@ -126,7 +126,7 @@ IntegerValue = { SignedNumber | Identifier }
 EnumeratedType = { "ENUMERATED" ~ "{" ~ Enumerations ~ "}" }
 Enumerations = { Enumeration ~ ("," ~ "..." ~ ExceptionSpec? ~ ("," ~ Enumeration)?)? }
 Enumeration = { (EnumerationItem ~ ",")* ~ EnumerationItem }
-EnumerationItem = { Identifier | NamedNumber }
+EnumerationItem = { NamedNumber | Identifier }
 EnumeratedValue = { Identifier }
 BitStringType = { "BIT" ~ "STRING" ~ ("{" ~ NamedBitList ~ "}")? }
 NamedBitList = { (NamedBit ~ ",")* ~ NamedBit }
@@ -136,7 +136,7 @@ IdentifierList = { (Identifier ~ ",")* ~ Identifier }
 
 UsefulType = { typereference }
 ConstrainedType = { (UnconstrainedType ~ Constraint) | TypeWithConstraint }
-TypeWithConstraint = { ("SET" | "SEQUENCE") ~ (Constraint | SizeConstraint) ~ (UnconstrainedType | NamedType) }
+TypeWithConstraint = { ("SET" | "SEQUENCE") ~ (Constraint | SizeConstraint) ~ "OF" ~ (NamedType | Type) }
 Constraint = { "(" ~ ConstraintSpec ~ ExceptionSpec? ~ ")" }
 ConstraintSpec = { GeneralConstraint | ElementSetSpecs }
 
@@ -150,18 +150,18 @@ UnionMark = { "|" | "UNION" }
 IntersectionMark = { "^" | "INTERSECTION" }
 Elements = { SubtypeElements | ObjectSetElements | ( "(" ~ ElementSetSpec ~ ")" ) }
 SubtypeElements = {
-    Value |
-    ContainedSubtype |
     ValueRange |
+    ContainedSubtype |
     PermittedAlphabet |
     SizeConstraint |
     Type |
     InnerTypeConstraints |
-    PatternConstraint // |
+    PatternConstraint |
     // PropertySettings |
     // DurationRange |
     // TimePointRange |
     // RecurrenceRange
+    Value
 }
 
 ContainedSubtype = { "INCLUDES" ~ Type }
@@ -186,6 +186,8 @@ PresenceConstraint = { "PRESENT" | "ABSENT" | "OPTIONAL" }
 PatternConstraint = { "PATTERN" ~ Value }
 
 OctetStringType = { "OCTET" ~ "STRING" }
+NullType = { "NULL" }
+NullValue = { "NULL" }
 SequenceType = {
     "SEQUENCE" ~
     "{" ~
@@ -366,12 +368,12 @@ ObjectClassAssignment = { EncodingIdentifier ~ "::=" ~ ObjectClass }
 ObjectClass = {  ObjectClassDefn | ParameterizedObjectClass | DefinedObjectClass }
 ObjectClassDefn = { "CLASS" ~ "{" ~ (FieldSpec ~ ",")* ~ FieldSpec  ~ "}" ~ WithSyntaxSpec? }
 FieldSpec = {
-    TypeFieldSpec |
     FixedTypeValueFieldSpec |
     VariableTypeValueFieldSpec |
     FixedTypeValueSetFieldSpec |
     VariableTypeValueSetFieldSpec |
     ObjectFieldSpec |
+    TypeFieldSpec |
     ObjectSetFieldSpec
 }
 PrimitiveFieldName = {
@@ -452,10 +454,10 @@ ContentsConstraint = { ("CONTAINING" ~ Type) | ("ENCODED" ~ "BY" ~ Value) | ("CO
 
 // X.683
 ParameterizedAssignment = {
+    ParameterizedObjectClassAssignment |
     ParameterizedTypeAssignment |
     ParameterizedValueAssignment |
     ParameterizedValueSetAssignment |
-    ParameterizedObjectClassAssignment |
     ParameterizedObjectAssignment |
     ParameterizedObjectSetAssignment
 }
@@ -463,7 +465,7 @@ ParameterizedAssignment = {
 ParameterizedTypeAssignment = { typereference ~ ParameterList ~ "::=" ~ Type }
 ParameterizedValueAssignment = { valuereference ~ ParameterList ~ Type ~ "::=" ~ Value }
 ParameterizedValueSetAssignment = { typereference ~ ParameterList ~ Type ~ "::=" ~ ValueSet }
-ParameterizedObjectClassAssignment = { objectclassreference ~ ParameterList ~ Type ~ "::=" ~ ObjectClass }
+ParameterizedObjectClassAssignment = { objectclassreference ~ ParameterList ~ "::=" ~ ObjectClass }
 ParameterizedObjectAssignment = { objectreference ~ ParameterList ~ DefinedObjectClass ~ "::=" ~ Object }
 ParameterizedObjectSetAssignment = { objectsetreference ~ ParameterList ~ DefinedObjectClass ~ "::=" ~ ObjectSet }
 
@@ -507,7 +509,7 @@ valuefieldreference = @{ "&" ~ valuereference }
 valuesetfieldreference = @{ "&" ~ typereference }
 objectfieldreference = @{ "&" ~ objectreference }
 objectsetfieldreference = @{ "&" ~ objectsetreference }
-word = @{ !WORD_KEYWORDS ~ ASCII_ALPHA_UPPER+ }
+word = @{ !WORD_KEYWORDS ~ ASCII_ALPHA_UPPER ~ (hyphen ~ ASCII_ALPHA_UPPER+)* }
 hyphen = { "–" | "-" }
 bstring = @{ "'" ~ ("0" | "1")* ~ "'B" }
 hstring = @{
@@ -522,13 +524,12 @@ hstring = @{
 cstring = { "\"" ~ ("\"\"" | (!"\"" ~ ANY))*  ~ "\"" }
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{
-    ("--" ~ (!NEWLINE ~ ANY)*) |
-    ("--" ~ (!("--" | NEWLINE) ~ ANY)* ~ "--") |
+    ("--" ~ (!("--" | NEWLINE) ~ ANY)* ~ ("--" | NEWLINE)) |
     ("/*" ~ (!"*/" ~ ANY)* ~ "*/")
 }
 
 KEYWORDS = {
-    "ABSENT" | "ENCODED" | "INTERSECTION" | "SEQUENCE"
+    ("ABSENT" | "ENCODED" | "INTERSECTION" | "SEQUENCE"
         | "ABSTRACT-SYNTAX" | "ENCODING-CONTROL" | "ISO646String" | "SET"
         | "ALL" | "END" | "MAX" | "SETTINGS"
         | "APPLICATION" | "ENUMERATED" | "MIN" | "SIZE"
@@ -550,11 +551,12 @@ KEYWORDS = {
         | "DEFAULT" | "INCLUDES" | "PRIVATE" | "VideotexString"
         | "DEFINITIONS" | "INSTANCE" | "REAL" | "VisibleString"
         | "DURATION" | "INSTRUCTIONS" | "RELATIVE-OID" | "WITH"
-        | "EMBEDDED" | "INTEGER" | "RELATIVE-OID-IRI"
+        | "EMBEDDED" | "INTEGER" | "RELATIVE-OID-IRI")
+    ~ !(hyphen | ASCII_ALPHANUMERIC)
 }
 
 WORD_KEYWORDS = {
-    "BIT" |
+    ("BIT" |
     "BOOLEAN" |
     "CHARACTER" |
     "CHOICE" |
@@ -581,5 +583,6 @@ WORD_KEYWORDS = {
     "TIME" |
     "TIME-OF-DAY" |
     "TRUE" |
-    "UNION"
+    "UNION")
+    ~ !(hyphen | ASCII_ALPHA_UPPER)
 }

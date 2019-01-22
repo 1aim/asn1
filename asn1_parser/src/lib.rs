@@ -38,7 +38,6 @@ impl Asn1 {
             let input = parsed.flatten().peekable();
             let header = Ast::parse_header(input)?;
 
-            println!("{:#?}", header);
         }
 
         Ok(module)

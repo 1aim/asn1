@@ -11,9 +11,6 @@ pub(crate) struct Ast<'a>(Peekable<FlatPairs<'a, Rule>>);
 impl<'a> Ast<'a> {
     /// Parse asn1 module into an Abstract Syntax Tree (AST) represented by the `Module` struct.
     pub fn parse(input: Peekable<FlatPairs<'a, Rule>>) -> Result<Module> {
-        for pair in input.clone() {
-            //println!("RULE: {:?}, STR: {:?}", pair.as_rule(), pair.as_str());
-        }
 
         Ast(input).parse_module()
     }
@@ -22,7 +19,6 @@ impl<'a> Ast<'a> {
     /// Syntax Tree (AST) represented by the `ModuleIdentifier` struct.
     pub fn parse_header(input: Peekable<FlatPairs<'a, Rule>>) -> Result<ModuleIdentifier> {
         let mut ast = Ast(input);
-
         ast.take(Rule::ModuleDefinition);
 
         ast.parse_module_identifier()
