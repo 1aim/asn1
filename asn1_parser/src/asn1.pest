@@ -90,19 +90,19 @@ ReferencedType = {
 }
 
 NamedType = { Identifier ~ Type }
-Value = { BuiltinValue | ReferencedValue | ObjectClassFieldType }
+Value = { ReferencedValue | BuiltinValue | ObjectClassFieldType }
 BuiltinValue = {
     BitStringValue |
     BooleanValue |
     CharacterStringValue |
     ChoiceValue |
+    ObjectIdentifierValue |
     SequenceValue |
     EnumeratedValue |
     // InstanceOfValue |
     IntegerValue |
     // IRIValue |
     NullValue |
-    ObjectIdentifierValue |
     // OctetStringValue |
     // RealValue |
     // RelativeIRIValue |
@@ -425,8 +425,8 @@ ObjectSetElements = { Object | DefinedObjectSet | ObjectSetFromObjects | Paramet
 ObjectClassFieldType = { DefinedObjectClass ~ "." ~ FieldName }
 ObjectClassFieldValue = { OpenTypeFieldVal | FixedTypeFieldVal }
 OpenTypeFieldVal = { Type ~ ":" ~ Value }
-FixedTypeFieldVal = { BuiltinValue | ReferencedValue }
-ReferencedObjects = { DefinedObject | ParameterizedObject | DefinedObjectSet | ParameterizedObjectSet }
+FixedTypeFieldVal = { ReferencedValue | BuiltinValue }
+ReferencedObjects = { ParameterizedObject | DefinedObject | ParameterizedObjectSet | DefinedObjectSet }
 ValueFromObject = { ReferencedObjects ~ "." ~ FieldName }
 ValueSetFromObjects = { ReferencedObjects ~ "." ~ FieldName }
 TypeFromObject = { ReferencedObjects ~ "." ~ FieldName }
