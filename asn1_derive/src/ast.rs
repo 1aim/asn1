@@ -84,6 +84,7 @@ impl<'a> Container<'a> {
 		Ok(this)
 	}
 
+	/// Generate the encoder for DER.
 	pub fn to_der(&self) -> syn::Result<TokenStream> {
 		let name = self.ident;
 		let body = match &self.data {
@@ -109,8 +110,23 @@ impl<'a> Container<'a> {
 			}
 
 			Data::Struct(Style::Tuple, fields) => {
-				quote! {
+				let construct = quote! {
+					asn1::der::Construct::<bytes::BytesMut>::new(asn1::tag::SEQUENCE)
+				};
 
+				let fields = fields.iter().map(|field|
+					if let syn::Member::Named(name) = &field.member {
+						quote! {
+							encoder.encode(&mut writer, value.#name)?;
+						}
+					}
+					else {
+						unreachable!();
+					}
+				).collect::<TokenStream>();
+
+				quote! {
+					self.encode_construct(&mut writer, #construct, |mut writer, encoder| { #fields; Ok(()) })
 				}
 			}
 
