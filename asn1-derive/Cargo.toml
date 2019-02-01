@@ -1,5 +1,5 @@
 [package]
-name    = "asn1_derive"
+name    = "asn1-derive"
 version = "0.1.0"
 authors = ["meh. <meh@schizofreni.co>"]
 license = "MIT/Apache-2.0"
@@ -13,3 +13,6 @@ proc-macro = true
 proc-macro2 = { version = "0.4", features = ["nightly"] }
 quote       = "0.6"
 syn         = { version = "0.15", features = ["extra-traits"] }
+
+[features]
+der = []

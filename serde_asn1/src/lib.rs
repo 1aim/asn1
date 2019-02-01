@@ -1,9 +1,5 @@
 #![feature(trait_alias)]
 
-extern crate serde;
-extern crate bytes;
-extern crate asn1;
-
 pub mod error;
 pub use crate::error::*;
 
@@ -22,6 +18,7 @@ pub fn to_writer<W, E, T>(writer: W, encoder: E, value: &T) -> Result<()>
 	Ok(())
 }
 
+#[cfg(feature = "der")]
 #[inline]
 pub fn to_der<W, T>(writer: W, value: &T) -> Result<()>
 	where W: Write, T: ?Sized + Serialize

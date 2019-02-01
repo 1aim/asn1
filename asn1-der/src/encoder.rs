@@ -3,10 +3,10 @@ use bigint::{BigInt, BigUint};
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
 use bytes::{buf, Buf, BufMut, IntoBuf};
 
-use crate::encoder::{Encoder as Super, Encode};
-use crate::tag::{self, Tag};
-use crate::support::ObjectId;
-use crate::der::{Construct, Primitive};
+use core::{Encoder as Super, Encode};
+use core::tag::{self, Tag};
+use core::ObjectId;
+use crate::{Construct, Primitive};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Encoder;
@@ -66,7 +66,7 @@ fn encode_length<W: Write + ?Sized>(writer: &mut W, length: usize) -> io::Result
 }
 
 fn encode_tag<W: Write + ?Sized>(writer: &mut W, tag: Tag) -> io::Result<()> {
-	use crate::tag::Class::*;
+	use core::tag::Class::*;
 
 	let class = match tag.class {
 		Universal   => 0 << 6,

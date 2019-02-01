@@ -1,0 +1,13 @@
+[package]
+name = "asn1-der"
+version = "0.1.0"
+authors = ["meh. <meh@1aim.com>"]
+edition = "2018"
+
+[dependencies]
+core  = { version = "0.1", package = "asn1-core", path = "../asn1-core" }
+bytes = "0.4"
+
+bigint  = { version = "0.2", package = "num-bigint" }
+num-traits  = "0.2"
+num-integer = "0.1"

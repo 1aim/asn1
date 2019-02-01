@@ -1,6 +1,5 @@
 extern crate asn1;
-#[macro_use]
-extern crate asn1_derive;
+use asn1::ASN1;
 
 #[test]
 fn simple() {

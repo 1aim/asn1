@@ -23,7 +23,10 @@ pub fn derive_asn1(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as DeriveInput);
 	let container = try_parse!(ast::Container::parse(&input));
 
+	#[cfg(feature = "der")]
 	let der = try_parse!(container.to_der());
+	#[cfg(not(feature = "der"))]
+	let der = proc_macro2::TokenStream::new();
 
 	TokenStream::from(quote! {
 		#der

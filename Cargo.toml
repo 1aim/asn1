@@ -1,7 +1,8 @@
 [workspace]
 members = [
 	"asn1",
-	"asn1_derive",
-	"serde_asn1",
-        "asn1_parser"
+	"asn1-core",
+	"asn1-derive",
+	"asn1-der",
+	"asn1_parser"
 ]

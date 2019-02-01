@@ -1,36 +1,31 @@
-#[cfg(feature = "asn1_derive")]
 #[allow(unused_imports)]
 #[macro_use]
-extern crate asn1_derive;
-#[cfg(feature = "asn1_derive")]
+extern crate derive;
+
 #[doc(hidden)]
-pub use asn1_derive::*;
+pub use derive::*;
+pub use core::*;
 
 pub mod error;
 pub use crate::error::*;
 
-pub mod tag;
-mod support;
-pub use crate::support::*;
+#[cfg(feature = "der")]
+pub use impl_der as der;
 
-pub mod encoder;
-pub use crate::encoder::{Encoder, Encode};
-
-pub mod der;
-
-use std::io::prelude::*;
+use std::io;
 
 #[inline]
 pub fn to_writer<W, E, T>(writer: &mut W, mut encoder: E, value: T) -> Result<()>
-	where W: Write, E: Encoder + Encode<T>
+	where W: io::Write, E: core::Encoder + core::Encode<T>
 {
 	encoder.encode(writer, value)?;
 	Ok(())
 }
 
+#[cfg(feature = "der")]
 #[inline]
 pub fn to_der<W, T>(writer: &mut W, value: T) -> Result<()>
-	where W: Write, der::Encoder: Encode<T>
+	where W: io::Write, impl_der::Encoder: Encode<T>
 {
-	to_writer(writer, der::Encoder, value)
+	to_writer(writer, impl_der::Encoder, value)
 }

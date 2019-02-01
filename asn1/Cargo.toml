@@ -6,19 +6,14 @@ license = "MIT/Apache-2.0"
 edition = "2018"
 
 [dependencies]
+derive = { version = "0.1", package = "asn1-derive", path = "../asn1-derive" }
+core   = { version = "0.1", package = "asn1-core", path = "../asn1-core" }
+
+impl-der = { version = "0.1", package = "asn1-der", path = "../asn1-der", optional = true }
+
 bitvec  = "0.6"
-chrono  = "0.4"
 decorum = "0.1"
 bytes   = "0.4"
 
-num-traits  = "0.2"
-num-integer = "0.1"
-bigint  = { version = "0.2", package = "num-bigint" }
-
-asn1_derive = { path = "../asn1_derive", version = "0.1", optional = true }
-
-[dev-dependencies]
-asn1_derive = { path = "../asn1_derive" }
-
 [features]
-derive = ["asn1_derive"]
+der = ["derive/der", "impl-der"]

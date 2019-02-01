@@ -5,7 +5,7 @@ use serde::ser::{self, Serialize};
 use bytes::{buf, BytesMut, BufMut};
 
 use crate::error::{Error, Result};
-use asn1::{self, encoder::{Encoder as Super, Encode, Primitive}, tag::{self, Tag}};
+use asn1::{self, encoder::{Encoder as Super, Encode}, tag::{self, Tag}};
 
 pub struct Serializer<W, E> {
 	writer:  W,

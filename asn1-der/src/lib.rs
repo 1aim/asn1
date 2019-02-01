@@ -1,8 +1,5 @@
-mod encoder;
-pub use self::encoder::Encoder;
-
-use bytes::{BytesMut, BufMut};
-use crate::tag::Tag;
+use bytes::{BufMut, BytesMut};
+use core::Tag;
 
 #[derive(Clone, Debug)]
 pub struct Primitive<V: AsRef<[u8]>> {
@@ -55,3 +52,6 @@ impl<B: BufMut> Construct<B> {
 		self
 	}
 }
+
+mod encoder;
+pub use crate::encoder::Encoder;
