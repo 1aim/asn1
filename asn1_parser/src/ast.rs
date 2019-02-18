@@ -9,6 +9,8 @@ use variation::Variation;
 use super::{Result, Rule};
 use crate::oid::{ObjIdComponent, ObjectIdentifier};
 
+type ElementSet = Vec<Vec<Element>>;
+
 pub(crate) struct Ast<'a>(Peekable<FlatPairs<'a, Rule>>);
 
 impl<'a> Ast<'a> {
@@ -21,7 +23,7 @@ impl<'a> Ast<'a> {
     /// Syntax Tree (AST) represented by the `ModuleIdentifier` struct.
     pub fn parse_header(input: Peekable<FlatPairs<'a, Rule>>) -> Result<ModuleIdentifier> {
         let mut ast = Ast(input);
-        ast.take(Rule::ModuleDefinition);
+        ast.take(Rule::ModuleHeaderOnly);
 
         ast.parse_module_identifier()
     }
@@ -52,7 +54,16 @@ impl<'a> Ast<'a> {
     /// If `rule` doesn't match the next rule in the iterator.
     fn take(&mut self, rule: Rule) -> Pair<Rule> {
         let pair = self.0.next().unwrap();
-        assert_eq!(rule, pair.as_rule());
+        let expected = pair.as_rule();
+        if rule != expected {
+            eprintln!("Parse Error: {:?} != {:?}", expected, rule);
+            eprintln!("===================LINE==================");
+            eprintln!("{}", pair.as_str());
+            eprintln!("===================REST==================");
+            eprintln!("{:#?}", &self.0.clone().collect::<Vec<_>>()[..5]);
+            eprintln!("=========================================");
+            ::std::process::exit(-1);
+        }
 
         pair
     }
@@ -81,7 +92,7 @@ impl<'a> Ast<'a> {
 
             (exports, imports, assignments)
         } else {
-            (Exports::All, HashMap::new(), Vec::new())
+            (Exports::All, Vec::new(), Vec::new())
         };
 
         Ok(Module {
@@ -147,35 +158,35 @@ impl<'a> Ast<'a> {
         }
     }
 
-    pub fn parse_symbol_list(&mut self) -> Vec<Symbol> {
+    pub fn parse_symbol_list(&mut self) -> Vec<String> {
         self.take(Rule::SymbolList);
         let mut symbols = Vec::new();
 
         while self.look(Rule::Symbol).is_some() {
-            let pair = self.next().unwrap();
-            let raw = pair.as_str().to_owned();
-
-            let symbol = match pair.as_rule() {
-                Rule::ReferenceIdentifier => Symbol::Reference(raw),
-                Rule::Identifier => Symbol::Value(raw),
-                Rule::ParameterizedReference => Symbol::Parameterized(raw),
-                _ => unreachable!(),
-            };
-
-            symbols.push(symbol);
+            match self.rule_peek().unwrap() {
+                // TODO(Aaron): Support parameterization
+                Rule::Reference => {
+                    symbols.push(self.parse_reference());
+                }
+                Rule::ParameterizedReference => {
+                    self.take(Rule::ParameterizedReference);
+                    symbols.push(self.parse_reference());
+                }
+                r => unreachable!("Unexpected rule: {:?}", r),
+            }
         }
 
         symbols
     }
 
-    pub fn parse_imports(&mut self) -> HashMap<ModuleReference, Vec<Symbol>> {
-        let mut imports = HashMap::new();
+    pub fn parse_imports(&mut self) -> Vec<(ModuleReference, Vec<String>)> {
+        let mut imports = Vec::new();
 
         if self.look(Rule::Imports).is_some() {
             while self.look(Rule::SymbolsFromModule).is_some() {
                 let symbol_list = self.parse_symbol_list();
                 self.take(Rule::GlobalModuleReference);
-                let module_name = self.take(Rule::ReferenceIdentifier).as_str().to_owned();
+                let module_name = self.parse_reference_identifier();
 
                 let identification = if self.look(Rule::AssignedIdentifier).is_some() {
                     let identification = match self.rule_peek().unwrap() {
@@ -193,10 +204,10 @@ impl<'a> Ast<'a> {
                     None
                 };
 
-                imports.insert(
+                imports.push((
                     ModuleReference::new(module_name, identification),
                     symbol_list,
-                );
+                ));
             }
         }
 
@@ -235,10 +246,7 @@ impl<'a> Ast<'a> {
 
         match self.rule_peek().unwrap() {
             Rule::ExternalTypeReference => {
-                self.take(Rule::ExternalTypeReference);
-                let parent = self.parse_reference_identifier();
-                let child = self.parse_reference_identifier();
-
+                let (parent, child) = self.parse_external_type_reference();
                 DefinedValue::Simple(Reference(parent, child))
             }
 
@@ -252,39 +260,72 @@ impl<'a> Ast<'a> {
         let mut assignments = Vec::new();
 
         while self.look(Rule::Assignment).is_some() {
-            let assignment = match self.next_rule().unwrap() {
-                Rule::TypeAssignment => {
-                    let ident = self.parse_reference_identifier();
-                    let r#type = self.parse_type();
+            let is_parameterized = self.look(Rule::ParameterizedAssignment).is_some();
+            let assignment_type = self.next_rule().unwrap();
+            let ident = self.parse_reference();
 
-                    Assignment::Type(ident, r#type)
+            let parameter_list = if is_parameterized {
+                self.take(Rule::ParameterList);
+                let mut parameters = Vec::new();
+
+                while self.look(Rule::Parameter).is_some() {
+                    let governor = if self.look(Rule::ParamGovernor).is_some() {
+                        match self.rule_peek().unwrap() {
+                            Rule::Governor => {
+                                self.take(Rule::Governor);
+                                let g = match self.rule_peek().unwrap() {
+                                    Rule::Type => ParamGovernor::Type(self.parse_type()),
+                                    Rule::DefinedObjectClass => {
+                                        ParamGovernor::Class(self.parse_defined_object_class())
+                                    }
+                                    _ => unreachable!(),
+                                };
+
+                                Some(g)
+                            }
+                            Rule::Reference => {
+                                Some(ParamGovernor::Reference(self.parse_reference()))
+                            }
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        None
+                    };
+
+                    parameters.push((governor, self.parse_reference()));
                 }
-                Rule::ValueAssignment => {
-                    let ident = self.take(Rule::valuereference).as_str().to_owned();
-                    let value_type = self.parse_type();
-                    let value = self.parse_value();
 
-                    Assignment::Value(ident, value_type, value)
+                Some(parameters)
+            } else {
+                None
+            };
+
+            let kind = match assignment_type {
+                Rule::TypeAssignment | Rule::ParameterizedTypeAssignment => {
+                    AssignmentType::Type(self.parse_type())
                 }
-                Rule::ObjectClassAssignment => unimplemented!(),
-                Rule::ObjectAssignment => {
-                    let name = self.parse_object_reference();
-                    let class = self.parse_defined_object_class();
-                    let object = self.parse_object();
-
-                    Assignment::Object(name, class, object)
+                Rule::ValueAssignment | Rule::ParameterizedValueAssignment => {
+                    AssignmentType::Value(self.parse_type(), self.parse_value())
                 }
-                Rule::ObjectSetAssignment => {
-                    let name = self.parse_object_set_reference();
-                    let class = self.parse_defined_object_class();
-                    let set = self.parse_object_set();
-
-                    Assignment::ObjectSet(name, class, set)
+                Rule::ValueSetAssignment | Rule::ParameterizedValueSetAssignment => {
+                    AssignmentType::ValueSet(self.parse_type(), self.parse_value_set())
+                }
+                Rule::ObjectClassAssignment | Rule::ParameterizedObjectClassAssignment => {
+                    AssignmentType::ObjectClass(self.parse_object_class())
+                }
+                Rule::ObjectAssignment | Rule::ParameterizedObjectAssignment => {
+                    AssignmentType::Object(self.parse_defined_object_class(), self.parse_object())
+                }
+                Rule::ObjectSetAssignment | Rule::ParameterizedObjectSetAssignment => {
+                    AssignmentType::ObjectSet(
+                        self.parse_defined_object_class(),
+                        self.parse_object_set(),
+                    )
                 }
                 _ => unreachable!(),
             };
 
-            assignments.push(assignment)
+            assignments.push(Assignment::new(ident, kind, parameter_list))
         }
 
         assignments
@@ -302,14 +343,15 @@ impl<'a> Ast<'a> {
                     unimplemented!()
                 } else {
                     let raw_type = self.parse_unconstrained_type();
-                    self.take(Rule::Constraint);
-                    self.take(Rule::ConstraintSpec);
+                    let mut constraints = Vec::new();
 
-                    let constraint = Some(self.parse_constraint());
+                    while self.peek(Rule::Constraint) {
+                        constraints.push(self.parse_constraint());
+                    }
 
                     Type {
                         raw_type,
-                        constraint,
+                        constraints: Some(constraints),
                     }
                 }
             }
@@ -318,6 +360,9 @@ impl<'a> Ast<'a> {
     }
 
     fn parse_constraint(&mut self) -> Constraint {
+        self.take(Rule::Constraint);
+        self.take(Rule::ConstraintSpec);
+
         if self.look(Rule::GeneralConstraint).is_some() {
             match self.rule_peek().unwrap() {
                 Rule::TableConstraint => {
@@ -360,11 +405,35 @@ impl<'a> Ast<'a> {
         }
     }
 
-    fn parse_element_set_spec(&mut self) -> Vec<Vec<Element>> {
-        let mut constraint = Vec::new();
+    fn parse_size_constraint(&mut self) -> Constraint {
+        self.take(Rule::SizeConstraint);
+        self.parse_constraint()
+    }
+
+    fn parse_element_set_specs(&mut self) -> ElementSetSpec {
+        let has_ellipsis = self.take(Rule::ElementSetSpecs).as_str().contains("...");
+        let set = self.parse_element_set_spec();
+
+        let extensible = if has_ellipsis {
+            if self.peek(Rule::ElementSetSpec) {
+                let with = self.parse_element_set_spec();
+
+                Extensible::YesWith(with)
+            } else {
+                Extensible::Yes
+            }
+        } else {
+            Extensible::No
+        };
+
+        ElementSetSpec { set, extensible }
+    }
+
+    fn parse_element_set_spec(&mut self) -> ElementSet {
+        let mut element_set = Vec::new();
 
         if self.look(Rule::ElementSetSpec).is_none() {
-            return constraint;
+            return element_set;
         }
 
         self.take(Rule::Unions);
@@ -376,11 +445,11 @@ impl<'a> Ast<'a> {
                 self.look(Rule::IntersectionMark);
             }
 
-            constraint.push(intersections);
+            element_set.push(intersections);
             self.look(Rule::UnionMark);
         }
 
-        constraint
+        element_set
     }
 
     fn parse_unconstrained_type(&mut self) -> RawType {
@@ -478,7 +547,49 @@ impl<'a> Ast<'a> {
                         unimplemented!("Encoding prefixed types are not supported currently.")
                     }
                 }
-                _ => unreachable!(),
+
+                Rule::ChoiceType => {
+                    self.take(Rule::AlternativeTypeLists);
+                    self.take(Rule::AlternativeTypeList);
+                    let mut alternatives = Vec::new();
+
+                    while self.peek(Rule::NamedType) {
+                        alternatives.push(self.parse_named_type());
+                    }
+
+                    let extension = self.parse_extension_and_exception();
+
+                    RawType::Builtin(BuiltinType::Choice(Choice {
+                        alternatives,
+                        extension,
+                    }))
+                }
+                Rule::CharacterStringType => {
+                    let pair = self.next().unwrap();
+                    let char_type = if pair.as_rule() == Rule::UnrestrictedCharacterStringType {
+                        CharacterStringType::Unrestricted
+                    } else {
+                        match pair.as_str() {
+                            "BMPString" => CharacterStringType::Bmp,
+                            "GeneralString" => CharacterStringType::General,
+                            "GraphicString" => CharacterStringType::Graphic,
+                            "IA5String" => CharacterStringType::Ia5,
+                            "ISO646String" => CharacterStringType::Iso646,
+                            "NumericString" => CharacterStringType::Numeric,
+                            "PrintableString" => CharacterStringType::Printable,
+                            "TeletexString" => CharacterStringType::Teletex,
+                            "T61String" => CharacterStringType::T61,
+                            "UniversalString" => CharacterStringType::Universal,
+                            "UTF8String" => CharacterStringType::Utf8,
+                            "VideotexString" => CharacterStringType::Videotex,
+                            "VisibleString" => CharacterStringType::Visible,
+                            _ => unreachable!(),
+                        }
+                    };
+
+                    RawType::Builtin(BuiltinType::CharacterString(char_type))
+                }
+                r => unreachable!("Unexpected rule: {:?}", r),
             }
         } else {
             self.take(Rule::ReferencedType);
@@ -486,24 +597,46 @@ impl<'a> Ast<'a> {
             match self.next_rule().unwrap() {
                 Rule::DefinedType => match self.rule_peek().unwrap() {
                     Rule::ExternalTypeReference => {
-                        self.take(Rule::ExternalTypeReference);
-                        let module = self.parse_reference_identifier();
-                        let subtype = self.parse_reference_identifier();
+                        let (module, subtype) = self.parse_external_type_reference();
 
                         ReferenceType::External(module, subtype).into()
                     }
 
-                    Rule::ReferenceIdentifier => {
-                        ReferenceType::Internal(self.parse_reference_identifier()).into()
+                    Rule::typereference => {
+                        ReferenceType::Internal(self.parse_type_reference()).into()
                     }
 
-                    _ => unreachable!(),
+                    Rule::ParameterizedType => {
+                        self.take(Rule::ParameterizedType);
+                        self.take(Rule::SimpleDefinedType);
+
+                        match self.rule_peek().unwrap() {
+                            Rule::ExternalTypeReference => {
+                                let (parent, child) = self.parse_external_type_reference();
+
+                                ReferenceType::External(parent, child).into()
+                            }
+                            Rule::typereference => {
+                                ReferenceType::Internal(self.parse_type_reference()).into()
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    Rule::ParameterizedValueSet => unimplemented!(),
+
+                    r => unreachable!("Unexpected rule: {:?}", r),
                 },
                 Rule::TypeFromObject => unimplemented!(),
                 Rule::ValueSetFromObjects => unimplemented!(),
                 _ => unreachable!(),
             }
         }
+    }
+
+    fn parse_value_set(&mut self) -> ElementSetSpec {
+        self.take(Rule::ValueSet);
+
+        self.parse_element_set_specs()
     }
 
     fn parse_value(&mut self) -> Value {
@@ -568,27 +701,87 @@ impl<'a> Ast<'a> {
     }
 
     fn parse_identifier(&mut self) -> String {
-        self.take(Rule::Identifier).as_str().to_owned()
+        self.parse_to_str(Rule::Identifier)
+    }
+
+    fn parse_value_reference(&mut self) -> String {
+        self.parse_to_str(Rule::valuereference)
+    }
+
+    fn parse_reference(&mut self) -> String {
+        const VALID_RULES: [Rule; 8] = [
+            Rule::Reference,
+            // These rules are also allowed, so that this can be called in parse_assignment.
+            Rule::EncodingIdentifier,
+            Rule::ReferenceIdentifier,
+            Rule::typereference,
+            Rule::valuereference,
+            Rule::objectclassreference,
+            Rule::objectreference,
+            Rule::objectsetreference,
+        ];
+
+        let pair = self.next().unwrap();
+
+        let is_valid = VALID_RULES.into_iter().any(|rule| pair.as_rule() == *rule);
+
+        if is_valid {
+            pair.as_str().to_owned()
+        } else {
+            panic!("{:?} != {:?}", pair.as_rule(), VALID_RULES);
+        }
     }
 
     fn parse_reference_identifier(&mut self) -> String {
-        self.take(Rule::ReferenceIdentifier).as_str().to_owned()
+        self.parse_to_str(Rule::ReferenceIdentifier)
+    }
+
+    fn parse_type_reference(&mut self) -> String {
+        self.parse_to_str(Rule::typereference)
     }
 
     fn parse_encoding_identifier(&mut self) -> String {
-        self.take(Rule::EncodingIdentifier).as_str().to_owned()
+        self.parse_to_str(Rule::EncodingIdentifier)
     }
 
     fn parse_module_reference(&mut self) -> String {
-        self.take(Rule::modulereference).as_str().to_owned()
+        self.parse_to_str(Rule::modulereference)
     }
 
     fn parse_object_reference(&mut self) -> String {
-        self.take(Rule::objectreference).as_str().to_owned()
+        self.parse_to_str(Rule::objectreference)
     }
 
     fn parse_object_set_reference(&mut self) -> String {
-        self.take(Rule::objectsetreference).as_str().to_owned()
+        self.parse_to_str(Rule::objectsetreference)
+    }
+
+    fn parse_to_str(&mut self, rule: Rule) -> String {
+        self.take(rule).as_str().to_owned()
+    }
+
+    fn parse_value_field_reference(&mut self) -> String {
+        self.parse_field_reference(Rule::valuefieldreference)
+    }
+
+    fn parse_value_set_field_reference(&mut self) -> String {
+        self.parse_field_reference(Rule::valuesetfieldreference)
+    }
+
+    fn parse_object_field_reference(&mut self) -> String {
+        self.parse_field_reference(Rule::objectfieldreference)
+    }
+
+    fn parse_object_set_field_reference(&mut self) -> String {
+        self.parse_field_reference(Rule::objectsetfieldreference)
+    }
+
+    fn parse_type_field_reference(&mut self) -> String {
+        self.parse_field_reference(Rule::typefieldreference)
+    }
+
+    fn parse_field_reference(&mut self, rule: Rule) -> String {
+        self.take(rule).as_str().trim_matches('&').to_owned()
     }
 
     fn parse_encoding_reference(&mut self) -> String {
@@ -651,11 +844,35 @@ impl<'a> Ast<'a> {
             Rule::ElementSetSpec => Element::ElementSet(self.parse_element_set_spec()),
             Rule::SubtypeElements => {
                 self.take(Rule::SubtypeElements);
-                match self.rule_peek().unwrap() {
-                    Rule::Value => Element::SubType(SubTypeElement::Value(self.parse_value())),
-                    Rule::Type => Element::SubType(SubTypeElement::Type(self.parse_type())),
+                let subtype = match self.rule_peek().unwrap() {
+                    Rule::Value => SubTypeElement::Value(self.parse_value()),
+                    Rule::Type => SubTypeElement::Type(self.parse_type()),
+                    Rule::SizeConstraint => SubTypeElement::Size(self.parse_size_constraint()),
+                    Rule::ValueRange => {
+                        self.take(Rule::ValueRange);
+                        let is_low_inclusive =
+                            self.take(Rule::LowerEndpoint).as_str().contains('<');
+                        let low_value = if self.take(Rule::LowerEndValue).as_str().contains("MIN") {
+                            RangeValue::Min(is_low_inclusive)
+                        } else {
+                            RangeValue::Value(self.parse_value(), is_low_inclusive)
+                        };
+
+                        let is_high_inclusive =
+                            self.take(Rule::UpperEndpoint).as_str().contains('<');
+                        let high_value = if self.take(Rule::UpperEndValue).as_str().contains("MAX")
+                        {
+                            RangeValue::Max(is_high_inclusive)
+                        } else {
+                            RangeValue::Value(self.parse_value(), is_high_inclusive)
+                        };
+
+                        SubTypeElement::Range(low_value, high_value)
+                    }
                     e => unreachable!("{:?}", e),
-                }
+                };
+
+                Element::SubType(subtype)
             }
             Rule::ObjectSetElements => {
                 self.take(Rule::ObjectSetElements);
@@ -748,7 +965,7 @@ impl<'a> Ast<'a> {
         }
     }
 
-    fn parse_object_set(&mut self) -> (Vec<Vec<Element>>, bool) {
+    fn parse_object_set(&mut self) -> (ElementSet, bool) {
         self.take(Rule::ObjectSet);
 
         let is_extendable = self.take(Rule::ObjectSetSpec).as_str().contains("...");
@@ -820,6 +1037,187 @@ impl<'a> Ast<'a> {
 
         Value::Enumerated(self.parse_identifier())
     }
+
+    fn parse_object_class(&mut self) -> ObjectClass {
+        self.take(Rule::ObjectClass);
+
+        match self.rule_peek().unwrap() {
+            Rule::ObjectClassDefn => ObjectClass::Def(self.parse_object_class_defn()),
+            Rule::ParameterizedObjectClass => unimplemented!("ParameterizedObjectClass"),
+            Rule::DefinedObjectClass => ObjectClass::Defined(self.parse_defined_object_class()),
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_object_class_defn(&mut self) -> ClassDef {
+        self.take(Rule::ObjectClassDefn);
+        let mut fields = Vec::new();
+
+        while self.look(Rule::FieldSpec).is_some() {
+            let field = match self.rule_peek().unwrap() {
+                Rule::FixedTypeValueFieldSpec => self.parse_fixed_type_value_field_spec(),
+                Rule::VariableTypeValueFieldSpec => self.parse_variable_type_value_field_spec(),
+                Rule::FixedTypeValueSetFieldSpec => self.parse_fixed_type_value_set_field_spec(),
+                Rule::VariableTypeValueSetFieldSpec => {
+                    self.parse_variable_type_value_set_field_spec()
+                }
+                Rule::ObjectFieldSpec => self.parse_object_field_spec(),
+                Rule::TypeFieldSpec => self.parse_type_field_spec(),
+                Rule::ObjectSetFieldSpec => self.parse_object_set_field_spec(),
+                _ => unreachable!(),
+            };
+
+            fields.push(field);
+        }
+
+        ClassDef {
+            fields,
+            syntax: None,
+        }
+    }
+
+    fn parse_fixed_type_value_field_spec(&mut self) -> FieldSpec {
+        let is_unique = self
+            .take(Rule::FixedTypeValueFieldSpec)
+            .as_str()
+            .contains("UNIQUE");
+        let ident = self.parse_value_field_reference();
+        let ty = self.parse_type();
+        let optionality = self.parse_value_optionality_spec();
+
+        FieldSpec::FixedTypeValue(ident, ty, is_unique, optionality)
+    }
+
+    fn parse_variable_type_value_field_spec(&mut self) -> FieldSpec {
+        self.take(Rule::VariableTypeValueFieldSpec);
+
+        let ident = self.parse_value_field_reference();
+        let field_name = self.parse_field_name();
+        let optionality = self.parse_value_optionality_spec();
+
+        FieldSpec::VariableTypeValue(ident, field_name, optionality)
+    }
+
+    fn parse_fixed_type_value_set_field_spec(&mut self) -> FieldSpec {
+        self.take(Rule::FixedTypeValueSetFieldSpec);
+
+        let ident = self.parse_value_set_field_reference();
+        let ty = self.parse_type();
+        let optionality = self.parse_value_set_optionality_spec();
+
+        FieldSpec::FixedValueSet(ident, ty, optionality)
+    }
+
+    fn parse_variable_type_value_set_field_spec(&mut self) -> FieldSpec {
+        self.take(Rule::VariableTypeValueSetFieldSpec);
+        let ident = self.parse_value_set_field_reference();
+        let field = self.parse_field_name();
+        let optionality = self.parse_value_optionality_spec();
+
+        FieldSpec::VariableTypeValue(ident, field, optionality)
+    }
+
+    fn parse_object_field_spec(&mut self) -> FieldSpec {
+        self.take(Rule::ObjectFieldSpec);
+        let ident = self.parse_object_field_reference();
+        let class = self.parse_defined_object_class();
+        let optionality = self.parse_object_optionality_spec();
+
+        FieldSpec::ObjectField(ident, class, optionality)
+    }
+
+    fn parse_type_field_spec(&mut self) -> FieldSpec {
+        self.take(Rule::TypeFieldSpec);
+        let ident = self.parse_type_field_reference();
+        let optionality = self.parse_type_optionality_spec();
+
+        FieldSpec::Type(ident, optionality)
+    }
+
+    fn parse_object_set_field_spec(&mut self) -> FieldSpec {
+        self.take(Rule::ObjectSetFieldSpec);
+
+        let ident = self.parse_object_set_field_reference();
+        let class = self.parse_defined_object_class();
+        let optionality = self.parse_object_set_optionality_spec();
+
+        FieldSpec::ObjectSet(ident, class, optionality)
+    }
+
+    fn parse_value_optionality_spec(&mut self) -> Optionality<Value> {
+        self.parse_optionality_spec(Rule::ValueOptionalitySpec, &Self::parse_value)
+    }
+
+    fn parse_value_set_optionality_spec(&mut self) -> Optionality<ElementSetSpec> {
+        self.parse_optionality_spec(Rule::ValueSetOptionalitySpec, &Self::parse_value_set)
+    }
+
+    fn parse_object_optionality_spec(&mut self) -> Optionality<Object> {
+        self.parse_optionality_spec(Rule::ObjectOptionalitySpec, &Self::parse_object)
+    }
+
+    fn parse_type_optionality_spec(&mut self) -> Optionality<Type> {
+        self.parse_optionality_spec(Rule::TypeOptionalitySpec, &Self::parse_type)
+    }
+
+    fn parse_object_set_optionality_spec(&mut self) -> Optionality<(ElementSet, bool)> {
+        self.parse_optionality_spec(Rule::ObjectSetOptionalitySpec, &Self::parse_object_set)
+    }
+
+    fn parse_optionality_spec<T>(
+        &mut self,
+        rule: Rule,
+        parse_fn: &Fn(&mut Self) -> T,
+    ) -> Optionality<T> {
+        if !self.peek(rule) {
+            Optionality::None
+        } else {
+            let pair = self.take(rule);
+
+            if pair.as_str().contains("OPTIONAL") {
+                Optionality::Optional
+            } else {
+                Optionality::Default((parse_fn)(self))
+            }
+        }
+    }
+
+    fn parse_external_type_reference(&mut self) -> (String, String) {
+        self.take(Rule::ExternalTypeReference);
+
+        (
+            self.parse_reference_identifier(),
+            self.parse_reference_identifier(),
+        )
+    }
+
+    fn parse_extension_and_exception(&mut self) -> Option<ExtensionAndException> {
+        if !self.peek(Rule::ExtensionAndException) {
+            return None;
+        }
+
+        self.take(Rule::ExtensionAndException);
+
+        if self.look(Rule::ExceptionSpec).is_some() {
+            self.take(Rule::ExceptionIdentification);
+
+            let identification = match self.rule_peek().unwrap() {
+                Rule::SignedNumber => ExceptionIdentification::Number(self.parse_signed_number()),
+                Rule::DefinedValue => {
+                    ExceptionIdentification::Reference(self.parse_defined_value())
+                }
+                Rule::Type => ExceptionIdentification::Arbitrary(
+                    Box::new(self.parse_type()),
+                    self.parse_value(),
+                ),
+                _ => unreachable!(),
+            };
+
+            Some(ExtensionAndException::Exception(identification))
+        } else {
+            Some(ExtensionAndException::Extension)
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -828,11 +1226,11 @@ pub(crate) struct Module {
     pub tag: Tag,
     pub extension: Option<()>,
     pub exports: Exports,
-    pub imports: HashMap<ModuleReference, Vec<Symbol>>,
+    pub imports: Vec<(ModuleReference, Vec<String>)>,
     pub assignments: Vec<Assignment>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, Hash, PartialEq)]
 pub struct ModuleIdentifier {
     pub name: String,
     pub identification: ObjectIdentifier,
@@ -858,14 +1256,7 @@ pub enum Tag {
 #[derive(Debug, Variation)]
 pub enum Exports {
     All,
-    Symbols(Vec<Symbol>),
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum Symbol {
-    Reference(String),
-    Value(String),
-    Parameterized(String),
+    Symbols(Vec<String>),
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Variation)]
@@ -897,8 +1288,32 @@ impl ModuleReference {
         }
     }
 
+    pub fn into_identifier(&self) -> Option<ModuleIdentifier> {
+        Some(ModuleIdentifier {
+            name: self.name.clone(),
+            identification: match self.identification.as_ref()? {
+                AssignedIdentifier::ObjectIdentifier(oid) => oid.clone(),
+                _ => return None,
+            },
+        })
+    }
+
     pub fn has_identification(&self) -> bool {
         self.identification.is_some()
+    }
+
+    pub fn as_identification_mut(&mut self) -> Option<&mut AssignedIdentifier> {
+        match self.identification {
+            Some(ref mut id) => Some(id),
+            _ => None,
+        }
+    }
+
+    pub fn identification_uses_defined_value(&self) -> bool {
+        self.identification
+            .as_ref()
+            .map(|i| i.is_defined())
+            .unwrap_or(false)
     }
 }
 
@@ -908,37 +1323,50 @@ pub enum AssignedIdentifier {
     Defined(DefinedValue),
 }
 
-impl AssignedIdentifier {
-    pub fn is_defined(&self) -> bool {
-        match self {
-            AssignedIdentifier::Defined(_) => true,
-            _ => false,
+#[derive(Debug, Clone)]
+pub struct Assignment {
+    pub name: String,
+    pub kind: AssignmentType,
+    pub parameters: Option<Vec<(Option<ParamGovernor>, String)>>,
+}
+
+impl Assignment {
+    fn new(
+        name: String,
+        kind: AssignmentType,
+        parameters: Option<Vec<(Option<ParamGovernor>, String)>>,
+    ) -> Self {
+        Self {
+            name,
+            kind,
+            parameters,
         }
     }
 }
 
 // First argument is always the identifier.
-#[derive(Debug, Variation)]
-pub enum Assignment {
-    Type(String, Type),
-    Value(String, Type, Value),
-    Object(String, DefinedObjectClass, Object),
-    ObjectSet(String, DefinedObjectClass, (Vec<Vec<Element>>, bool)),
+#[derive(Clone, Debug, Variation)]
+pub enum AssignmentType {
+    Type(Type),
+    Value(Type, Value),
+    ValueSet(Type, ElementSetSpec),
+    Object(DefinedObjectClass, Object),
+    ObjectClass(ObjectClass),
+    ObjectSet(DefinedObjectClass, (ElementSet, bool)),
 }
 
 #[derive(Clone, Debug, Derefable)]
 pub struct Type {
     #[deref]
     pub raw_type: RawType,
-    // First `Vec` is a list of unions, the second a list of intersections.
-    constraint: Option<Constraint>,
+    constraints: Option<Vec<Constraint>>,
 }
 
 impl From<RawType> for Type {
     fn from(raw_type: RawType) -> Self {
         Type {
             raw_type,
-            constraint: None,
+            constraints: None,
         }
     }
 }
@@ -963,27 +1391,29 @@ impl From<ReferenceType> for RawType {
 
 #[derive(Clone, Debug, Variation)]
 pub enum BuiltinType {
+    CharacterString(CharacterStringType),
+    Choice(Choice),
     Integer(HashMap<String, NumberOrDefinedValue>),
     ObjectClassField(DefinedObjectClass, Vec<Field>),
     ObjectIdentifier,
     OctetString,
+    Prefixed(Prefix, Box<Type>),
     Sequence(Vec<ComponentType>),
     SequenceOf(Box<TypeKind>),
-    SetType,
     SetOf(Box<TypeKind>),
-    Prefixed(Prefix, Box<Type>),
+    SetType,
 }
 
 #[derive(Clone, Debug, Variation)]
 pub enum Constraint {
     General(GeneralConstraint),
-    ElementSet(Vec<Vec<Element>>, bool),
+    ElementSet(ElementSet, bool),
 }
 
 #[derive(Clone, Debug, Variation)]
 pub enum GeneralConstraint {
     Table(DefinedObjectSet, Vec<Vec<String>>),
-    ObjectSet(Vec<Vec<Element>>, bool),
+    ObjectSet(ElementSet, bool),
 }
 
 #[derive(Clone, Debug, Variation)]
@@ -1029,7 +1459,7 @@ pub enum NumberOrDefinedValue {
 #[derive(Clone, Debug, Variation)]
 pub enum Element {
     SubType(SubTypeElement),
-    ElementSet(Vec<Vec<Element>>),
+    ElementSet(ElementSet),
     ObjectSet(ObjectSetElements),
 }
 
@@ -1037,12 +1467,44 @@ pub enum Element {
 pub enum SubTypeElement {
     Value(Value),
     Type(Type),
+    Size(Constraint),
+    Range(RangeValue, RangeValue),
 }
 
 #[derive(Clone, Debug, Variation)]
 pub enum TypeKind {
     Type(Type),
     Named(String, Type),
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum ObjectClass {
+    Def(ClassDef),
+    Defined(DefinedObjectClass),
+    Parameterized(String, Option<()>),
+}
+
+#[derive(Clone, Debug)]
+pub struct ClassDef {
+    fields: Vec<FieldSpec>,
+    syntax: Option<()>,
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum FieldSpec {
+    FixedTypeValue(String, Type, bool, Optionality<Value>),
+    VariableTypeValue(String, Vec<Field>, Optionality<Value>),
+    FixedValueSet(String, Type, Optionality<ElementSetSpec>),
+    ObjectField(String, DefinedObjectClass, Optionality<Object>),
+    Type(String, Optionality<Type>),
+    ObjectSet(String, DefinedObjectClass, Optionality<(ElementSet, bool)>),
+}
+
+#[derive(Clone, Debug)]
+pub enum Optionality<T> {
+    Optional,
+    Default(T),
+    None,
 }
 
 #[derive(Clone, Debug, Variation)]
@@ -1138,8 +1600,72 @@ pub enum Setting {
     Type(Type),
     Value(Value),
     Object(Object),
-    ObjectSet(Vec<Vec<Element>>),
+    ObjectSet(ElementSet),
 }
 
 #[derive(Clone, Debug)]
 pub struct NamedValue(String, Value);
+
+#[derive(Clone, Debug, Variation)]
+pub enum Extensible {
+    Yes,
+    YesWith(ElementSet),
+    No,
+}
+
+#[derive(Clone, Debug)]
+pub struct ElementSetSpec {
+    set: ElementSet,
+    extensible: Extensible,
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum ParamGovernor {
+    Type(Type),
+    Class(DefinedObjectClass),
+    Reference(String),
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum ExtensionAndException {
+    Extension,
+    Exception(ExceptionIdentification),
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum ExceptionIdentification {
+    Number(i64),
+    Reference(DefinedValue),
+    Arbitrary(Box<Type>, Value),
+}
+
+#[derive(Clone, Debug)]
+pub struct Choice {
+    alternatives: Vec<(String, Type)>,
+    extension: Option<ExtensionAndException>,
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum CharacterStringType {
+    Bmp,
+    General,
+    Graphic,
+    Ia5,
+    Iso646,
+    Numeric,
+    Printable,
+    T61,
+    Teletex,
+    Universal,
+    Unrestricted,
+    Utf8,
+    Videotex,
+    Visible,
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum RangeValue {
+    Min(bool),
+    Max(bool),
+    Value(Value, bool),
+}

@@ -3,6 +3,10 @@ ModuleDefinition = {
     "END" ~ EOI
 }
 
+ModuleHeaderOnly = {
+    SOI ~ ModuleIdentifier
+}
+
 ModuleIdentifier = { ReferenceIdentifier ~ DefinitiveIdentification? }
 DefinitiveIdentification = { DefinitiveOID ~ IRIValue? }
 DefinitiveOID = { "{" ~ DefinitiveObjIdComponent+ ~ "}" }
@@ -21,7 +25,7 @@ SymbolsFromModule = { SymbolList ~ "FROM" ~ GlobalModuleReference }
 GlobalModuleReference = { ReferenceIdentifier ~ AssignedIdentifier? }
 AssignedIdentifier = { ObjectIdentifierValue | DefinedValue }
 SymbolList = { (Symbol ~ ",")* ~ Symbol }
-Symbol = { ReferenceIdentifier | Identifier | ParameterizedReference }
+Symbol = { ParameterizedReference | Reference }
 Assignment = {
     ParameterizedAssignment |
     TypeAssignment |
@@ -34,16 +38,15 @@ Assignment = {
 
 DefinedType = {
     ParameterizedType |
+    ParameterizedValueSet |
     ExternalTypeReference |
-    ReferenceIdentifier |
-    ParameterizedValueSet
+    typereference
 }
 
 DefinedValue = { ExternalTypeReference | Identifier | ParameterizedValue }
 ExternalTypeReference = @{ ReferenceIdentifier ~ "." ~ ReferenceIdentifier }
 ExternalValueReference = { ReferenceIdentifier ~ "." ~ Identifier }
-// This is probably incorrect, needs to recursively work
-ItemSpec = { typereference | ((typereference ~ ".")* ~ ComponentId) }
+ItemSpec = { ((typereference ~ ".")+ ~ ComponentId) | typereference }
 ComponentId = { Identifier | ASCII_DIGIT+ | "*" }
 TypeAssignment = { ReferenceIdentifier ~ "::=" ~ Type }
 ValueAssignment = { valuereference ~ Type ~ "::=" ~ Value }
@@ -52,6 +55,7 @@ ValueSet = { "{" ~ ElementSetSpecs ~ "}" }
 Type = { ConstrainedType | UnconstrainedType }
 UnconstrainedType = { BuiltinType | ReferencedType }
 BuiltinType = {
+    PrefixedType |
     EnumeratedType |
     BitStringType |
     BooleanType |
@@ -75,8 +79,7 @@ BuiltinType = {
     SequenceType |
     SequenceOfType |
     SetType |
-    SetOfType |
-    PrefixedType // |
+    SetOfType // |
     // Timetype |
     // TimeOfdayType
 }
@@ -135,7 +138,7 @@ BitStringValue = { bstring | hstring | ("{" ~ IdentifierList? ~ "}") | ("CONTAIN
 IdentifierList = { (Identifier ~ ",")* ~ Identifier }
 
 UsefulType = { typereference }
-ConstrainedType = { (UnconstrainedType ~ Constraint) | TypeWithConstraint }
+ConstrainedType = { (UnconstrainedType ~ Constraint+) | TypeWithConstraint }
 TypeWithConstraint = { ("SET" | "SEQUENCE") ~ (Constraint | SizeConstraint) ~ "OF" ~ (NamedType | Type) }
 Constraint = { "(" ~ ConstraintSpec ~ ExceptionSpec? ~ ")" }
 ConstraintSpec = { GeneralConstraint | ElementSetSpecs }
@@ -326,7 +329,7 @@ NumberForm = ${ ASCII_DIGIT+ | DefinedValue }
 NameAndNumberForm = { Identifier ~ "(" ~ NumberForm ~ ")" }
 
 ExceptionSpec = { "!" ~ ExceptionIdentification }
-ExceptionIdentification = { SignedNumber | DefinedValue | Type ~ ":" ~ Value }
+ExceptionIdentification = { SignedNumber | DefinedValue | (Type ~ ":" ~ Value) }
 
 IRIValue = { "\"" ~ FirstArcIdentifier ~ SubsequentArcIdentifier?  ~ "\"" }
 FirstArcIdentifier = { "/" ~ ArcIdentifier }
@@ -376,6 +379,7 @@ FieldSpec = {
     TypeFieldSpec |
     ObjectSetFieldSpec
 }
+
 PrimitiveFieldName = {
     typefieldreference |
     valuefieldreference |
@@ -434,7 +438,7 @@ ObjectFromObject = { ReferencedObjects ~ "." ~ FieldName }
 ObjectSetFromObjects = { ReferencedObjects ~ "." ~ FieldName }
 
 // X.682
-GeneralConstraint = { TableConstraint | ContentsConstraint | UserDefinedConstraint }
+GeneralConstraint = { UserDefinedConstraint | TableConstraint | ContentsConstraint }
 UserDefinedConstraint = {
     "CONSTRAINED" ~ "BY" ~ "{" ~
         (UserDefinedConstraintParameter ~ ",")* ~ UserDefinedConstraintParameter?
@@ -473,7 +477,7 @@ ParameterList = { "{" ~ (Parameter ~ ",")* ~ Parameter ~ "}" }
 Parameter = { (ParamGovernor ~ ":")? ~ Reference }
 ParamGovernor = { Governor | Reference }
 Governor = { Type | DefinedObjectClass }
-ParameterizedReference  = { Identifier ~ ("{" ~ "}")? }
+ParameterizedReference  = { Reference ~ ("{" ~ "}")? }
 SimpleDefinedType = { ExternalTypeReference | typereference }
 SimpleDefinedValue = { ExternalValueReference | valuereference }
 ParameterizedType = { SimpleDefinedType ~ ActualParameterList }

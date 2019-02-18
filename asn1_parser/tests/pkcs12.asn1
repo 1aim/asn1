@@ -30,8 +30,35 @@ PKCS-12 {
     PrivateKeyInfo, EncryptedPrivateKeyInfo
     FROM PKCS-8 {iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-8(8) modules(1) pkcs-8(1)}
 
-    pkcs-9, friendlyName, localKeyId, certTypes, crlTypes
-    FROM PKCS-9 {iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-9(9) modules(0) pkcs-9(1)};
+    -- Inlined from PKCS#9
+    -- pkcs-9, friendlyName, localKeyId, certTypes, crlTypes
+    -- FROM PKCS-9 {iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-9(9) modules(0) pkcs-9(1)};
+    octetStringMatch, caseIgnoreMatch
+        FROM SelectedAttributeTypes selectedAttributeTypes;
+
+    pkcs-9 OBJECT IDENTIFIER ::= {iso(1) member-body(2) us(840)
+                                  rsadsi(113549) pkcs(1) 9}
+    -- Main arc for S/MIME (RFC 2633)
+    certTypes                          OBJECT IDENTIFIER ::= {pkcs-9 22}
+    -- Main arc for certificate types defined in PKCS #12
+    crlTypes                           OBJECT IDENTIFIER ::= {pkcs-9 23}
+
+    pkcs-9-ub-pkcs9String INTEGER ::= 255
+    pkcs-9-ub-friendlyName INTEGER ::= pkcs-9-ub-pkcs9String
+
+    friendlyName ATTRIBUTE ::= {
+        WITH SYNTAX BMPString (SIZE(1..pkcs-9-ub-friendlyName))
+        EQUALITY MATCHING RULE caseIgnoreMatch
+        SINGLE VALUE TRUE
+        ID pkcs-9-at-friendlyName
+    }
+
+    localKeyId ATTRIBUTE ::= {
+        WITH SYNTAX OCTET STRING
+        EQUALITY MATCHING RULE octetStringMatch
+        SINGLE VALUE TRUE
+        ID pkcs-9-at-localKeyId
+    }
 
     -- ============================
     -- Object identifiers

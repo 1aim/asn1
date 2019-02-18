@@ -1,7 +1,9 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+};
 
 use derefable::Derefable;
-use unwrap_to::unwrap_to;
 use variation::Variation;
 
 #[derive(Clone, Debug, Derefable, Default, Hash, PartialEq, PartialOrd, Eq)]
@@ -32,23 +34,16 @@ impl ObjectIdentifier {
         false
     }
 
-    pub fn name_forms(&self) -> impl Iterator<Item = &String> {
-        self.0
-            .iter()
-            .filter(|c| c.is_name())
-            .map(|c| &*unwrap_to!(c => ObjIdComponent::Name))
-    }
-
     pub fn replace(&mut self, map: &HashMap<String, ObjectIdentifier>) {
         for (name, id) in map {
             while let Ok(index) = self.0.binary_search(&ObjIdComponent::Name(name.clone())) {
-                self.0.splice(index..(index+1), id.0.iter().cloned());
+                self.0.splice(index..(index + 1), id.0.iter().cloned());
             }
         }
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialOrd, Ord, Variation)]
+#[derive(Clone, Debug, Eq, PartialOrd, Ord, Variation)]
 pub enum ObjIdComponent {
     Name(String),
     Number(i64),
@@ -58,12 +53,26 @@ pub enum ObjIdComponent {
 impl ObjIdComponent {
     pub fn is_reserved_name_form(&self) -> bool {
         match self {
-            ObjIdComponent::NameAndNumber(name, _)| ObjIdComponent::Name(name) => match &**name {
+            ObjIdComponent::NameAndNumber(name, _) | ObjIdComponent::Name(name) => match &**name {
                 "ITU-T" | "itu-t" | "ccitt" | "ISO" | "iso" | "Joint-ISO-ITU-T"
                 | "joint-iso-itu-t" | "joint-iso-ccitt" => true,
                 _ => false,
             },
             _ => false,
+        }
+    }
+}
+
+impl Hash for ObjIdComponent {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            ObjIdComponent::Name(s) => s.hash(state),
+            ObjIdComponent::Number(n) => n.hash(state),
+            ObjIdComponent::NameAndNumber(s, _) if self.is_reserved_name_form() => s.hash(state),
+            ObjIdComponent::NameAndNumber(s, n) => {
+                s.hash(state);
+                n.hash(state);
+            }
         }
     }
 }
@@ -90,13 +99,56 @@ impl PartialEq for ObjIdComponent {
             match (self, rhs) {
                 (ObjIdComponent::Name(lhs), ObjIdComponent::Name(rhs)) => lhs == rhs,
                 (ObjIdComponent::Number(lhs), ObjIdComponent::Number(rhs)) => lhs == rhs,
-                (ObjIdComponent::NameAndNumber(lhs_s, lhs_n), ObjIdComponent::NameAndNumber(rhs_s, rhs_n)) => {
-                    lhs_s == rhs_s && lhs_n == rhs_n
-                }
+                (
+                    ObjIdComponent::NameAndNumber(lhs_s, lhs_n),
+                    ObjIdComponent::NameAndNumber(rhs_s, rhs_n),
+                ) => lhs_s == rhs_s && lhs_n == rhs_n,
                 _ => false,
             }
         }
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    fn two_oids() -> (ObjectIdentifier, ObjectIdentifier) {
+        (
+            ObjectIdentifier::from_components(vec![
+                ObjIdComponent::NameAndNumber("joint-iso-itu-t".into(), 2),
+                ObjIdComponent::NameAndNumber("ds".into(), 5),
+                ObjIdComponent::NameAndNumber("module".into(), 1),
+                ObjIdComponent::NameAndNumber("usefulDefinitions".into(), 0),
+                ObjIdComponent::Number(3),
+            ]),
+            ObjectIdentifier::from_components(vec![
+                ObjIdComponent::Name("joint-iso-itu-t".into()),
+                ObjIdComponent::NameAndNumber("ds".into(), 5),
+                ObjIdComponent::NameAndNumber("module".into(), 1),
+                ObjIdComponent::NameAndNumber("usefulDefinitions".into(), 0),
+                ObjIdComponent::Number(3),
+            ]),
+        )
+    }
+
+    #[test]
+    fn oid_partialeq() {
+        let (a, b) = two_oids();
+        assert_eq!(a, b);
+        assert_eq!(b, a);
+    }
+
+    #[test]
+    fn oid_hash() {
+        let (a, b) = two_oids();
+
+        let mut a_hasher = DefaultHasher::new();
+        a.hash(&mut a_hasher);
+
+        let mut b_hasher = DefaultHasher::new();
+        b.hash(&mut b_hasher);
+
+        assert_eq!(a_hasher.finish(), b_hasher.finish());
+    }
+}

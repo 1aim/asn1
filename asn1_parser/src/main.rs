@@ -16,9 +16,8 @@ fn main() {
     let directory = matches.value_of("dependencies").unwrap_or("./definitions");
 
     for file in matches.values_of("input").unwrap() {
-        let module = asn1_parser::Asn1::new(&std::fs::read_to_string(file).unwrap(), directory)
-            .unwrap_or_else(|e| panic!("{}", e));
-
-        println!("{:#?}", module);
+        let mut module =
+            asn1_parser::Asn1::new(file, directory).unwrap_or_else(|e| panic!("{}", e));
+        module.build();
     }
 }
