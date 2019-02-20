@@ -1,3 +1,5 @@
+pub mod types;
+
 use std::collections::HashMap;
 use std::iter::Peekable;
 use std::str::FromStr;
@@ -8,6 +10,8 @@ use variation::Variation;
 
 use super::{Result, Rule};
 use crate::oid::{ObjIdComponent, ObjectIdentifier};
+
+pub use self::types::*;
 
 type ElementSet = Vec<Vec<Element>>;
 
@@ -62,7 +66,8 @@ impl<'a> Ast<'a> {
             eprintln!("===================REST==================");
             eprintln!("{:#?}", &self.0.clone().collect::<Vec<_>>()[..5]);
             eprintln!("=========================================");
-            ::std::process::exit(-1);
+            panic!("Parse Error: {:?} != {:?}", expected, rule);
+            //::std::process::exit(-1);
         }
 
         pair
@@ -94,6 +99,8 @@ impl<'a> Ast<'a> {
         } else {
             (Exports::All, Vec::new(), Vec::new())
         };
+
+        self.take(Rule::EOI);
 
         Ok(Module {
             identifier: identifier,
@@ -151,7 +158,7 @@ impl<'a> Ast<'a> {
     }
 
     pub fn parse_exports(&mut self) -> Exports {
-        if self.look(Rule::Exports).is_some() && self.look(Rule::SymbolsExported).is_some() {
+        if self.look(Rule::Exports).is_some() && self.peek(Rule::SymbolList) {
             Exports::Symbols(self.parse_symbol_list())
         } else {
             Exports::All
@@ -250,8 +257,8 @@ impl<'a> Ast<'a> {
                 DefinedValue::Simple(Reference(parent, child))
             }
 
-            Rule::Identifier => DefinedValue::Simple(Value(self.parse_identifier())),
-            Rule::ParameterizedReference => unimplemented!(),
+            Rule::valuereference => DefinedValue::Simple(Value(self.parse_value_reference())),
+            Rule::ParameterizedValue => unimplemented!(),
             _ => unreachable!(),
         }
     }
@@ -260,12 +267,10 @@ impl<'a> Ast<'a> {
         let mut assignments = Vec::new();
 
         while self.look(Rule::Assignment).is_some() {
-            let is_parameterized = self.look(Rule::ParameterizedAssignment).is_some();
             let assignment_type = self.next_rule().unwrap();
             let ident = self.parse_reference();
 
-            let parameter_list = if is_parameterized {
-                self.take(Rule::ParameterList);
+            let parameter_list = if self.look(Rule::ParameterList).is_some() {
                 let mut parameters = Vec::new();
 
                 while self.look(Rule::Parameter).is_some() {
@@ -301,22 +306,22 @@ impl<'a> Ast<'a> {
             };
 
             let kind = match assignment_type {
-                Rule::TypeAssignment | Rule::ParameterizedTypeAssignment => {
+                Rule::TypeAssignment => {
                     AssignmentType::Type(self.parse_type())
                 }
-                Rule::ValueAssignment | Rule::ParameterizedValueAssignment => {
+                Rule::ValueAssignment => {
                     AssignmentType::Value(self.parse_type(), self.parse_value())
                 }
-                Rule::ValueSetAssignment | Rule::ParameterizedValueSetAssignment => {
+                Rule::ValueSetAssignment => {
                     AssignmentType::ValueSet(self.parse_type(), self.parse_value_set())
                 }
-                Rule::ObjectClassAssignment | Rule::ParameterizedObjectClassAssignment => {
+                Rule::ObjectClassAssignment => {
                     AssignmentType::ObjectClass(self.parse_object_class())
                 }
-                Rule::ObjectAssignment | Rule::ParameterizedObjectAssignment => {
+                Rule::ObjectAssignment => {
                     AssignmentType::Object(self.parse_defined_object_class(), self.parse_object())
                 }
-                Rule::ObjectSetAssignment | Rule::ParameterizedObjectSetAssignment => {
+                Rule::ObjectSetAssignment => {
                     AssignmentType::ObjectSet(
                         self.parse_defined_object_class(),
                         self.parse_object_set(),
@@ -340,7 +345,32 @@ impl<'a> Ast<'a> {
                 self.take(Rule::ConstrainedType);
 
                 if self.peek(Rule::TypeWithConstraint) {
-                    unimplemented!()
+                    let is_set = self.take(Rule::TypeWithConstraint).as_str().contains("SET");
+
+                    let constraint = if self.peek(Rule::Constraint) {
+                        self.parse_constraint()
+                    } else {
+                        self.parse_size_constraint()
+                    };
+
+                    let inner_type = if self.peek(Rule::NamedType) {
+                        self.parse_named_type()
+                    } else {
+                        self.parse_type()
+                    };
+
+                    let raw_type = if is_set {
+                        RawType::Builtin(BuiltinType::SetOf(Box::new(inner_type)))
+                    } else {
+                        RawType::Builtin(BuiltinType::SequenceOf(Box::new(inner_type)))
+                    };
+
+                    Type {
+                        raw_type,
+                        name: None,
+                        constraints: Some(vec![constraint]),
+                    }
+
                 } else {
                     let raw_type = self.parse_unconstrained_type();
                     let mut constraints = Vec::new();
@@ -351,6 +381,7 @@ impl<'a> Ast<'a> {
 
                     Type {
                         raw_type,
+                        name: None,
                         constraints: Some(constraints),
                     }
                 }
@@ -458,6 +489,71 @@ impl<'a> Ast<'a> {
         if self.look(Rule::BuiltinType).is_some() {
             let pair = self.next().unwrap();
             match pair.as_rule() {
+                Rule::BooleanType => RawType::Builtin(BuiltinType::Boolean),
+
+                Rule::CharacterStringType => {
+                    let pair = self.next().unwrap();
+                    let char_type = if pair.as_rule() == Rule::UnrestrictedCharacterStringType {
+                        CharacterStringType::Unrestricted
+                    } else {
+                        match pair.as_str() {
+                            "BMPString" => CharacterStringType::Bmp,
+                            "GeneralString" => CharacterStringType::General,
+                            "GraphicString" => CharacterStringType::Graphic,
+                            "IA5String" => CharacterStringType::Ia5,
+                            "ISO646String" => CharacterStringType::Iso646,
+                            "NumericString" => CharacterStringType::Numeric,
+                            "PrintableString" => CharacterStringType::Printable,
+                            "TeletexString" => CharacterStringType::Teletex,
+                            "T61String" => CharacterStringType::T61,
+                            "UniversalString" => CharacterStringType::Universal,
+                            "UTF8String" => CharacterStringType::Utf8,
+                            "VideotexString" => CharacterStringType::Videotex,
+                            "VisibleString" => CharacterStringType::Visible,
+                            _ => unreachable!(),
+                        }
+                    };
+
+                    RawType::Builtin(BuiltinType::CharacterString(char_type))
+                }
+
+                Rule::ChoiceType => {
+                    self.take(Rule::AlternativeTypeLists);
+                    self.take(Rule::AlternativeTypeList);
+                    let mut alternatives = Vec::new();
+
+                    while self.peek(Rule::NamedType) {
+                        alternatives.push(self.parse_named_type());
+                    }
+
+                    let extension = self.parse_extension_and_exception();
+
+                    RawType::Builtin(BuiltinType::Choice(ChoiceType {
+                        alternatives,
+                        extension,
+                    }))
+                }
+
+                Rule::EnumeratedType => {
+                    self.take(Rule::Enumerations);
+
+                    let enumerations = self.parse_enumeration();
+
+                    let exception_spec = if self.peek(Rule::ExceptionSpec) {
+                        Some(self.parse_exception_spec())
+                    } else {
+                        None
+                    };
+
+                    let extended_enumerations = if self.peek(Rule::Enumeration) {
+                        Some(self.parse_enumeration())
+                    } else {
+                        None
+                    };
+
+                    RawType::Builtin(BuiltinType::Enumeration(enumerations, exception_spec, extended_enumerations))
+                }
+
                 Rule::IntegerType => {
                     let mut named_numbers = HashMap::new();
 
@@ -481,6 +577,7 @@ impl<'a> Ast<'a> {
 
                     RawType::Builtin(BuiltinType::Integer(named_numbers))
                 }
+
                 Rule::ObjectClassFieldType => {
                     let class = self.parse_defined_object_class();
 
@@ -488,36 +585,10 @@ impl<'a> Ast<'a> {
 
                     RawType::Builtin(BuiltinType::ObjectClassField(class, field_name))
                 }
+
                 Rule::ObjectIdentifierType => RawType::Builtin(BuiltinType::ObjectIdentifier),
                 Rule::OctetStringType => RawType::Builtin(BuiltinType::OctetString),
-                Rule::SequenceType => {
-                    RawType::Builtin(BuiltinType::Sequence(self.parse_component_type_lists()))
-                }
-                Rule::SequenceOfType => {
-                    if self.peek(Rule::Type) {
-                        RawType::Builtin(BuiltinType::SequenceOf(Box::new(TypeKind::Type(
-                            self.parse_type(),
-                        ))))
-                    } else {
-                        let (ident, r#type) = self.parse_named_type();
-                        RawType::Builtin(BuiltinType::SequenceOf(Box::new(TypeKind::Named(
-                            ident, r#type,
-                        ))))
-                    }
-                }
-                Rule::SetType => unimplemented!(),
-                Rule::SetOfType => {
-                    if self.peek(Rule::Type) {
-                        RawType::Builtin(BuiltinType::SetOf(Box::new(TypeKind::Type(
-                            self.parse_type(),
-                        ))))
-                    } else {
-                        let (ident, r#type) = self.parse_named_type();
-                        RawType::Builtin(BuiltinType::SetOf(Box::new(TypeKind::Named(
-                            ident, r#type,
-                        ))))
-                    }
-                }
+
                 Rule::PrefixedType => {
                     if self.look(Rule::TaggedType).is_some() {
                         self.take(Rule::Tag);
@@ -548,47 +619,27 @@ impl<'a> Ast<'a> {
                     }
                 }
 
-                Rule::ChoiceType => {
-                    self.take(Rule::AlternativeTypeLists);
-                    self.take(Rule::AlternativeTypeList);
-                    let mut alternatives = Vec::new();
-
-                    while self.peek(Rule::NamedType) {
-                        alternatives.push(self.parse_named_type());
-                    }
-
-                    let extension = self.parse_extension_and_exception();
-
-                    RawType::Builtin(BuiltinType::Choice(Choice {
-                        alternatives,
-                        extension,
-                    }))
+                Rule::SequenceType => {
+                    RawType::Builtin(BuiltinType::Sequence(self.parse_component_type_lists()))
                 }
-                Rule::CharacterStringType => {
-                    let pair = self.next().unwrap();
-                    let char_type = if pair.as_rule() == Rule::UnrestrictedCharacterStringType {
-                        CharacterStringType::Unrestricted
+
+                Rule::SequenceOfType => {
+                    if self.peek(Rule::Type) {
+                        RawType::Builtin(BuiltinType::SequenceOf(Box::new(self.parse_type())))
                     } else {
-                        match pair.as_str() {
-                            "BMPString" => CharacterStringType::Bmp,
-                            "GeneralString" => CharacterStringType::General,
-                            "GraphicString" => CharacterStringType::Graphic,
-                            "IA5String" => CharacterStringType::Ia5,
-                            "ISO646String" => CharacterStringType::Iso646,
-                            "NumericString" => CharacterStringType::Numeric,
-                            "PrintableString" => CharacterStringType::Printable,
-                            "TeletexString" => CharacterStringType::Teletex,
-                            "T61String" => CharacterStringType::T61,
-                            "UniversalString" => CharacterStringType::Universal,
-                            "UTF8String" => CharacterStringType::Utf8,
-                            "VideotexString" => CharacterStringType::Videotex,
-                            "VisibleString" => CharacterStringType::Visible,
-                            _ => unreachable!(),
-                        }
-                    };
-
-                    RawType::Builtin(BuiltinType::CharacterString(char_type))
+                        RawType::Builtin(BuiltinType::SequenceOf(Box::new(self.parse_named_type())))
+                    }
                 }
+
+                Rule::SetType => unimplemented!(),
+                Rule::SetOfType => {
+                    if self.peek(Rule::Type) {
+                        RawType::Builtin(BuiltinType::SetOf(Box::new(self.parse_type())))
+                    } else {
+                        RawType::Builtin(BuiltinType::SetOf(Box::new(self.parse_named_type())))
+                    }
+                }
+
                 r => unreachable!("Unexpected rule: {:?}", r),
             }
         } else {
@@ -608,19 +659,11 @@ impl<'a> Ast<'a> {
 
                     Rule::ParameterizedType => {
                         self.take(Rule::ParameterizedType);
-                        self.take(Rule::SimpleDefinedType);
 
-                        match self.rule_peek().unwrap() {
-                            Rule::ExternalTypeReference => {
-                                let (parent, child) = self.parse_external_type_reference();
+                        let reference = self.parse_simple_defined_type();
+                        let parameters = self.parse_actual_parameter_list();
 
-                                ReferenceType::External(parent, child).into()
-                            }
-                            Rule::typereference => {
-                                ReferenceType::Internal(self.parse_type_reference()).into()
-                            }
-                            _ => unreachable!(),
-                        }
+                        RawType::Parameterized(reference, parameters)
                     }
                     Rule::ParameterizedValueSet => unimplemented!(),
 
@@ -631,6 +674,43 @@ impl<'a> Ast<'a> {
                 _ => unreachable!(),
             }
         }
+    }
+
+    fn parse_simple_defined_type(&mut self) -> ReferenceType {
+        self.take(Rule::SimpleDefinedType);
+
+        match self.rule_peek().unwrap() {
+            Rule::ExternalTypeReference => {
+                let (parent, child) = self.parse_external_type_reference();
+
+                ReferenceType::External(parent, child).into()
+            }
+            Rule::typereference => {
+                ReferenceType::Internal(self.parse_type_reference()).into()
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_actual_parameter_list(&mut self) -> Vec<Parameter> {
+        self.take(Rule::ActualParameterList);
+        let mut parameters = Vec::new();
+
+        while self.look(Rule::ActualParameter).is_some() {
+            let parameter = match self.rule_peek().unwrap() {
+                Rule::Type => Parameter::Type(self.parse_type()),
+                Rule::Value => Parameter::Value(self.parse_value()),
+                Rule::ValueSet => Parameter::ValueSet(self.parse_value_set()),
+                Rule::DefinedObjectClass => Parameter::ObjectClass(self.parse_defined_object_class()),
+                Rule::Object => Parameter::Object(self.parse_object()),
+                Rule::ObjectSet => Parameter::ObjectSet(self.parse_object_set()),
+                _ => unreachable!(),
+            };
+
+            parameters.push(parameter);
+        }
+
+        parameters
     }
 
     fn parse_value_set(&mut self) -> ElementSetSpec {
@@ -670,8 +750,9 @@ impl<'a> Ast<'a> {
                 Value::ObjectIdentifier(self.parse_object_identifier_value())
             }
 
-            Rule::SequenceValue => Value::Sequence(self.parse_sequence_value()),
+            Rule::SequenceValue => self.parse_sequence_value(),
             Rule::EnumeratedValue => self.parse_enumerated_value(),
+            Rule::BooleanValue => self.parse_boolean_value(),
 
             e => unreachable!("Unexpected Rule {:?}", e),
         }
@@ -816,7 +897,7 @@ impl<'a> Ast<'a> {
         if raw.contains("COMPONENTS") {
             ComponentType::ComponentsOf(self.parse_type())
         } else {
-            let (identifier, value_type) = self.parse_named_type();
+            let ty = self.parse_named_type();
             let optional = raw.contains("OPTIONAL");
             let default = match raw.contains("DEFAULT") {
                 true => Some(self.parse_value()),
@@ -824,18 +905,20 @@ impl<'a> Ast<'a> {
             };
 
             ComponentType::Type {
-                identifier,
-                value_type,
+                ty,
                 optional,
                 default,
             }
         }
     }
 
-    fn parse_named_type(&mut self) -> (String, Type) {
+    fn parse_named_type(&mut self) -> Type {
         self.take(Rule::NamedType);
+        let ident = self.parse_identifier();
+        let mut ty = self.parse_type();
+        ty.name = Some(ident);
 
-        (self.parse_identifier(), self.parse_type())
+        ty
     }
 
     fn parse_elements(&mut self) -> Element {
@@ -869,6 +952,22 @@ impl<'a> Ast<'a> {
 
                         SubTypeElement::Range(low_value, high_value)
                     }
+                    Rule::InnerTypeConstraints => {
+                        self.take(Rule::InnerTypeConstraints);
+
+                        if self.peek(Rule::Constraint) {
+                            SubTypeElement::Constraint(self.parse_constraint())
+                        } else {
+                            self.take(Rule::MultipleTypeConstraints);
+
+                            if self.look(Rule::FullSpecification).is_some() {
+                                SubTypeElement::FullSpec(self.parse_type_constraints())
+                            } else {
+                                self.take(Rule::PartialSpecification);
+                                SubTypeElement::PartialSpec(self.parse_type_constraints())
+                            }
+                        }
+                    }
                     e => unreachable!("{:?}", e),
                 };
 
@@ -878,7 +977,7 @@ impl<'a> Ast<'a> {
                 self.take(Rule::ObjectSetElements);
 
                 match self.rule_peek().unwrap() {
-                    Rule::Object => unimplemented!("Object"),
+                    Rule::Object => Element::Object(self.parse_object()),
                     Rule::DefinedObjectSet => Element::ObjectSet(ObjectSetElements::Defined(
                         self.parse_defined_object_set(),
                     )),
@@ -889,6 +988,39 @@ impl<'a> Ast<'a> {
             }
             _ => unreachable!(),
         }
+    }
+
+    fn parse_type_constraints(&mut self) -> HashMap<String, ComponentConstraint> {
+        self.take(Rule::TypeConstraints);
+        let mut map = HashMap::new();
+
+        while self.look(Rule::NamedConstraint).is_some() {
+            let name = self.parse_identifier();
+            self.take(Rule::ComponentConstraint);
+
+            let constraint = if self.peek(Rule::Constraint) {
+                Some(self.parse_constraint())
+            } else {
+                None
+            };
+
+            let presence = if self.peek(Rule::PresenceConstraint) {
+                let p = match self.next().unwrap().as_str() {
+                    "PRESENT" => Presence::Present,
+                    "ABSENT" => Presence::Absent,
+                    "OPTIONAL" => Presence::Optional,
+                    _ => unreachable!(),
+                };
+
+                Some(p)
+            } else {
+                None
+            };
+
+            map.insert(name, ComponentConstraint::new(constraint, presence));
+        }
+
+        map
     }
 
     fn parse_defined_object_class(&mut self) -> DefinedObjectClass {
@@ -925,23 +1057,27 @@ impl<'a> Ast<'a> {
         self.take(Rule::FieldName);
         let mut field_names = Vec::new();
 
-        while self.look(Rule::PrimitiveFieldName).is_some() {
-            let kind = match self.rule_peek().unwrap() {
-                Rule::typefieldreference => FieldType::Type,
-                Rule::valuefieldreference => FieldType::Value,
-                Rule::valuesetfieldreference => FieldType::ValueSet,
-                Rule::objectfieldreference => FieldType::Object,
-                Rule::objectsetfieldreference => FieldType::ObjectSet,
-                _ => unreachable!(),
-            };
-
-            field_names.push(Field::new(
-                self.next_string().unwrap().trim_matches('&').to_owned(),
-                kind,
-            ));
+        while self.peek(Rule::PrimitiveFieldName) {
+            field_names.push(self.parse_primitive_field_name());
         }
 
         field_names
+    }
+
+    fn parse_primitive_field_name(&mut self) -> Field {
+        self.take(Rule::PrimitiveFieldName);
+
+        let rule = self.rule_peek().unwrap();
+        let kind = match rule {
+            Rule::typefieldreference => FieldType::Type,
+            Rule::valuefieldreference => FieldType::Value,
+            Rule::valuesetfieldreference => FieldType::ValueSet,
+            Rule::objectfieldreference => FieldType::Object,
+            Rule::objectsetfieldreference => FieldType::ObjectSet,
+            _ => unreachable!(),
+        };
+
+        Field::new(self.parse_field_reference(rule), kind)
     }
 
     fn parse_defined_object_set(&mut self) -> DefinedObjectSet {
@@ -984,12 +1120,13 @@ impl<'a> Ast<'a> {
                 let mut tokens = Vec::new();
 
                 if self.look(Rule::DefinedSyntax).is_some() {
+                    //panic!("{:#?}", &self.0.clone().collect::<Vec<_>>()[..5]);
                     while self.look(Rule::DefinedSyntaxToken).is_some() {
                         let token = if self.look(Rule::Setting).is_some() {
                             let setting = match self.rule_peek().unwrap() {
                                 Rule::Type => Setting::Type(self.parse_type()),
                                 Rule::Value => Setting::Value(self.parse_value()),
-                                Rule::ValueSet => unimplemented!("ValueSet"),
+                                Rule::ValueSet => Setting::ValueSet(self.parse_value_set()),
                                 Rule::Object => Setting::Object(self.parse_object()),
                                 Rule::ObjectSet => Setting::ObjectSet(self.parse_object_set().0),
                                 _ => unreachable!(),
@@ -1014,10 +1151,10 @@ impl<'a> Ast<'a> {
         }
     }
 
-    fn parse_sequence_value(&mut self) -> Vec<NamedValue> {
+    fn parse_sequence_value(&mut self) -> Value {
         self.take(Rule::SequenceValue);
 
-        self.parse_component_value_list()
+        Value::Sequence(self.parse_component_value_list())
     }
 
     fn parse_component_value_list(&mut self) -> Vec<NamedValue> {
@@ -1070,10 +1207,41 @@ impl<'a> Ast<'a> {
             fields.push(field);
         }
 
+        let syntax = if self.look(Rule::WithSyntaxSpec).is_some() {
+            self.take(Rule::SyntaxList);
+            Some(self.parse_token_or_group_spec())
+        } else {
+            None
+        };
+
         ClassDef {
             fields,
-            syntax: None,
+            syntax,
         }
+    }
+
+    fn parse_token_or_group_spec(&mut self) -> Vec<Token> {
+        let mut tokens = Vec::new();
+
+        while self.look(Rule::TokenOrGroupSpec).is_some() {
+            match self.next_rule().unwrap() {
+                Rule::RequiredToken => {
+                    let token = match self.rule_peek().unwrap() {
+                        Rule::Literal => Token::Literal(self.parse_literal()),
+                        Rule::PrimitiveFieldName => Token::Field(self.parse_primitive_field_name()),
+                        _ => unreachable!(),
+                    };
+
+                    tokens.push(token);
+                }
+                Rule::OptionalGroup => {
+                    tokens.push(Token::OptionalGroup(self.parse_token_or_group_spec()));
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        tokens
     }
 
     fn parse_fixed_type_value_field_spec(&mut self) -> FieldSpec {
@@ -1186,8 +1354,17 @@ impl<'a> Ast<'a> {
         self.take(Rule::ExternalTypeReference);
 
         (
-            self.parse_reference_identifier(),
-            self.parse_reference_identifier(),
+            self.parse_module_reference(),
+            self.parse_type_reference(),
+        )
+    }
+
+    fn parse_external_value_reference(&mut self) -> (String, String) {
+        self.take(Rule::ExternalValueReference);
+
+        (
+            self.parse_module_reference(),
+            self.parse_value_reference(),
         )
     }
 
@@ -1198,24 +1375,63 @@ impl<'a> Ast<'a> {
 
         self.take(Rule::ExtensionAndException);
 
-        if self.look(Rule::ExceptionSpec).is_some() {
-            self.take(Rule::ExceptionIdentification);
-
-            let identification = match self.rule_peek().unwrap() {
-                Rule::SignedNumber => ExceptionIdentification::Number(self.parse_signed_number()),
-                Rule::DefinedValue => {
-                    ExceptionIdentification::Reference(self.parse_defined_value())
-                }
-                Rule::Type => ExceptionIdentification::Arbitrary(
-                    Box::new(self.parse_type()),
-                    self.parse_value(),
-                ),
-                _ => unreachable!(),
-            };
-
-            Some(ExtensionAndException::Exception(identification))
+        if self.peek(Rule::ExceptionSpec) {
+            Some(ExtensionAndException::Exception(self.parse_exception_spec()))
         } else {
             Some(ExtensionAndException::Extension)
+        }
+    }
+
+    fn parse_boolean_value(&mut self) -> Value {
+        Value::Boolean(self.take(Rule::BooleanValue).as_str().contains("TRUE"))
+    }
+
+    fn parse_enumeration(&mut self) -> Vec<EnumerationType> {
+        self.take(Rule::Enumeration);
+
+        let mut enumerations = Vec::new();
+
+        while self.look(Rule::EnumerationItem).is_some() {
+            let variant = if self.peek(Rule::NamedNumber) {
+                EnumerationType::NamedNumber(self.parse_named_number())
+            } else {
+                EnumerationType::Name(self.parse_identifier())
+            };
+
+            enumerations.push(variant);
+        }
+
+        enumerations
+    }
+
+    fn parse_named_number(&mut self) -> (String, NumberOrDefinedValue) {
+        self.take(Rule::NamedNumber);
+
+        let name = self.parse_identifier();
+
+        let number = if self.peek(Rule::SignedNumber) {
+            NumberOrDefinedValue::Number(self.parse_signed_number())
+        } else {
+            NumberOrDefinedValue::DefinedValue(self.parse_defined_value())
+        };
+
+        (name, number)
+    }
+
+    fn parse_exception_spec(&mut self) -> ExceptionIdentification {
+        self.take(Rule::ExceptionSpec);
+        self.take(Rule::ExceptionIdentification);
+
+        match self.rule_peek().unwrap() {
+            Rule::SignedNumber => ExceptionIdentification::Number(self.parse_signed_number()),
+            Rule::DefinedValue => {
+                ExceptionIdentification::Reference(self.parse_defined_value())
+            }
+            Rule::Type => ExceptionIdentification::Arbitrary(
+                Box::new(self.parse_type()),
+                self.parse_value(),
+                ),
+            _ => unreachable!(),
         }
     }
 }
@@ -1355,55 +1571,6 @@ pub enum AssignmentType {
     ObjectSet(DefinedObjectClass, (ElementSet, bool)),
 }
 
-#[derive(Clone, Debug, Derefable)]
-pub struct Type {
-    #[deref]
-    pub raw_type: RawType,
-    constraints: Option<Vec<Constraint>>,
-}
-
-impl From<RawType> for Type {
-    fn from(raw_type: RawType) -> Self {
-        Type {
-            raw_type,
-            constraints: None,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum RawType {
-    Builtin(BuiltinType),
-    Referenced(ReferenceType),
-}
-
-impl From<BuiltinType> for RawType {
-    fn from(builtin: BuiltinType) -> Self {
-        RawType::Builtin(builtin)
-    }
-}
-
-impl From<ReferenceType> for RawType {
-    fn from(reference: ReferenceType) -> Self {
-        RawType::Referenced(reference)
-    }
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum BuiltinType {
-    CharacterString(CharacterStringType),
-    Choice(Choice),
-    Integer(HashMap<String, NumberOrDefinedValue>),
-    ObjectClassField(DefinedObjectClass, Vec<Field>),
-    ObjectIdentifier,
-    OctetString,
-    Prefixed(Prefix, Box<Type>),
-    Sequence(Vec<ComponentType>),
-    SequenceOf(Box<TypeKind>),
-    SetOf(Box<TypeKind>),
-    SetType,
-}
-
 #[derive(Clone, Debug, Variation)]
 pub enum Constraint {
     General(GeneralConstraint),
@@ -1417,13 +1584,8 @@ pub enum GeneralConstraint {
 }
 
 #[derive(Clone, Debug, Variation)]
-pub enum ReferenceType {
-    External(String, String),
-    Internal(String),
-}
-
-#[derive(Clone, Debug, Variation)]
 pub enum Value {
+    Boolean(bool),
     Integer(IntegerValue),
     ObjectIdentifier(ObjectIdentifier),
     Sequence(Vec<NamedValue>),
@@ -1439,17 +1601,6 @@ pub enum IntegerValue {
     Identifier(String),
 }
 
-#[derive(Clone, Debug)]
-pub enum ComponentType {
-    Type {
-        identifier: String,
-        value_type: Type,
-        optional: bool,
-        default: Option<Value>,
-    },
-    ComponentsOf(Type),
-}
-
 #[derive(Clone, Debug, Variation)]
 pub enum NumberOrDefinedValue {
     Number(i64),
@@ -1460,6 +1611,7 @@ pub enum NumberOrDefinedValue {
 pub enum Element {
     SubType(SubTypeElement),
     ElementSet(ElementSet),
+    Object(Object),
     ObjectSet(ObjectSetElements),
 }
 
@@ -1469,12 +1621,9 @@ pub enum SubTypeElement {
     Type(Type),
     Size(Constraint),
     Range(RangeValue, RangeValue),
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum TypeKind {
-    Type(Type),
-    Named(String, Type),
+    Constraint(Constraint),
+    FullSpec(HashMap<String, ComponentConstraint>),
+    PartialSpec(HashMap<String, ComponentConstraint>),
 }
 
 #[derive(Clone, Debug, Variation)]
@@ -1487,7 +1636,7 @@ pub enum ObjectClass {
 #[derive(Clone, Debug)]
 pub struct ClassDef {
     fields: Vec<FieldSpec>,
-    syntax: Option<()>,
+    syntax: Option<Vec<Token>>,
 }
 
 #[derive(Clone, Debug, Variation)]
@@ -1505,14 +1654,6 @@ pub enum Optionality<T> {
     Optional,
     Default(T),
     None,
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum DefinedObjectClass {
-    External(String, String),
-    Internal(String),
-    AbstractSyntax,
-    TypeIdentifier,
 }
 
 #[derive(Clone, Debug, Variation)]
@@ -1567,23 +1708,6 @@ impl FromStr for Class {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Prefix {
-    encoding: Option<String>,
-    class: Option<Class>,
-    number: NumberOrDefinedValue,
-}
-
-impl Prefix {
-    fn new(encoding: Option<String>, class: Option<Class>, number: NumberOrDefinedValue) -> Self {
-        Self {
-            encoding,
-            class,
-            number,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Variation)]
 pub enum Object {
     Def(Vec<ObjectDefn>),
@@ -1599,6 +1723,7 @@ pub enum ObjectDefn {
 pub enum Setting {
     Type(Type),
     Value(Value),
+    ValueSet(ElementSetSpec),
     Object(Object),
     ObjectSet(ElementSet),
 }
@@ -1639,33 +1764,49 @@ pub enum ExceptionIdentification {
     Arbitrary(Box<Type>, Value),
 }
 
-#[derive(Clone, Debug)]
-pub struct Choice {
-    alternatives: Vec<(String, Type)>,
-    extension: Option<ExtensionAndException>,
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum CharacterStringType {
-    Bmp,
-    General,
-    Graphic,
-    Ia5,
-    Iso646,
-    Numeric,
-    Printable,
-    T61,
-    Teletex,
-    Universal,
-    Unrestricted,
-    Utf8,
-    Videotex,
-    Visible,
-}
-
 #[derive(Clone, Debug, Variation)]
 pub enum RangeValue {
     Min(bool),
     Max(bool),
     Value(Value, bool),
 }
+
+#[derive(Clone, Debug, Variation)]
+pub enum Token {
+    Literal(String),
+    Field(Field),
+    OptionalGroup(Vec<Token>)
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum Parameter {
+    Type(Type),
+    Value(Value),
+    ValueSet(ElementSetSpec),
+    ObjectClass(DefinedObjectClass),
+    Object(Object),
+    ObjectSet((ElementSet, bool)),
+}
+
+#[derive(Clone, Debug, Variation)]
+pub enum Presence {
+    Absent,
+    Optional,
+    Present,
+}
+
+#[derive(Clone, Debug)]
+pub struct ComponentConstraint {
+    constraint: Option<Constraint>,
+    presence: Option<Presence>,
+}
+
+impl ComponentConstraint {
+    fn new(constraint: Option<Constraint>, presence: Option<Presence>) -> Self {
+        Self {
+            constraint,
+            presence,
+        }
+    }
+}
+

@@ -1,11 +1,15 @@
 ModuleDefinition = {
-    SOI ~ ModuleIdentifier ~ "DEFINITIONS" ~ TagDefault? ~ ExtensionDefault? ~ "::=" ~ "BEGIN" ~ ModuleBody? ~
-    "END" ~ EOI
+    SOI ~
+    ModuleIdentifier ~
+    "DEFINITIONS" ~ EncodingReferenceDefault? ~ TagDefault? ~ ExtensionDefault? ~
+    "::=" ~ "BEGIN" ~
+    ModuleBody? ~
+    "END" ~
+    EOI
 }
 
-ModuleHeaderOnly = {
-    SOI ~ ModuleIdentifier
-}
+// Not in standard. Used to pull out module identifiers from dependencies.
+ModuleHeaderOnly = { SOI ~ ModuleIdentifier }
 
 ModuleIdentifier = { ReferenceIdentifier ~ DefinitiveIdentification? }
 DefinitiveIdentification = { DefinitiveOID ~ IRIValue? }
@@ -17,9 +21,9 @@ DefinitiveNameAndNumberForm = { Identifier ~ "(" ~ DefinitiveNumberForm ~ ")" }
 EncodingReferenceDefault = { EncodingIdentifier ~ "INSTRUCTIONS" }
 TagDefault = { ("EXPLICIT" | "IMPLICIT" | "AUTOMATIC") ~ "TAGS" }
 ExtensionDefault = { "EXTENSIBILITY" ~ "IMPLIED" }
+
 ModuleBody = { Exports? ~ Imports? ~ Assignment* }
-Exports = { "EXPORTS" ~ ("ALL" | SymbolsExported?) ~ ";" }
-SymbolsExported = { SymbolList }
+Exports = { "EXPORTS" ~ ("ALL" | SymbolList?) ~ ";" }
 Imports = { "IMPORTS" ~ SymbolsFromModule* ~ ";" }
 SymbolsFromModule = { SymbolList ~ "FROM" ~ GlobalModuleReference }
 GlobalModuleReference = { ReferenceIdentifier ~ AssignedIdentifier? }
@@ -27,7 +31,6 @@ AssignedIdentifier = { ObjectIdentifierValue | DefinedValue }
 SymbolList = { (Symbol ~ ",")* ~ Symbol }
 Symbol = { ParameterizedReference | Reference }
 Assignment = {
-    ParameterizedAssignment |
     TypeAssignment |
     ObjectClassAssignment |
     ValueAssignment |
@@ -43,14 +46,16 @@ DefinedType = {
     typereference
 }
 
-DefinedValue = { ExternalTypeReference | Identifier | ParameterizedValue }
-ExternalTypeReference = @{ ReferenceIdentifier ~ "." ~ ReferenceIdentifier }
-ExternalValueReference = { ReferenceIdentifier ~ "." ~ Identifier }
+DefinedValue = { ParameterizedValue | ExternalValueReference | valuereference }
+ExternalTypeReference = { modulereference ~ "." ~ typereference }
+ExternalValueReference = { modulereference ~ "." ~ valuereference }
 ItemSpec = { ((typereference ~ ".")+ ~ ComponentId) | typereference }
 ComponentId = { Identifier | ASCII_DIGIT+ | "*" }
-TypeAssignment = { ReferenceIdentifier ~ "::=" ~ Type }
-ValueAssignment = { valuereference ~ Type ~ "::=" ~ Value }
-ValueSetAssignment = { typereference ~ Type ~ "::=" ~ ValueSet }
+
+TypeAssignment = { typereference ~ ParameterList? ~ "::=" ~ Type }
+ValueAssignment = { valuereference ~ ParameterList? ~ Type ~ "::=" ~ Value }
+ValueSetAssignment = { typereference ~ ParameterList? ~ Type ~ "::=" ~ ValueSet }
+
 ValueSet = { "{" ~ ElementSetSpecs ~ "}" }
 Type = { ConstrainedType | UnconstrainedType }
 UnconstrainedType = { BuiltinType | ReferencedType }
@@ -87,7 +92,7 @@ BuiltinType = {
 ReferencedType = {
     TypeFromObject |
     DefinedType |
-    UsefulType |
+    typereference |
     SelectionType |
     ValueSetFromObjects
 }
@@ -119,25 +124,28 @@ BuiltinValue = {
 
 ReferencedValue = { DefinedValue | ValueFromObject }
 NamedValue = { Identifier ~ Value }
+
 BooleanType = { "BOOLEAN" }
 BooleanValue = { "TRUE" | "FALSE" }
+
 IntegerType = { "INTEGER" ~ ("{" ~ NamedNumberList ~ "}")? }
 NamedNumberList = { (NamedNumber ~ ",")* ~ NamedNumber }
 NamedNumber = { Identifier ~ "(" ~ (SignedNumber | DefinedValue) ~ ")" }
 SignedNumber = @{ "-"? ~ ASCII_DIGIT+ }
 IntegerValue = { SignedNumber | Identifier }
+
 EnumeratedType = { "ENUMERATED" ~ "{" ~ Enumerations ~ "}" }
 Enumerations = { Enumeration ~ ("," ~ "..." ~ ExceptionSpec? ~ ("," ~ Enumeration)?)? }
 Enumeration = { (EnumerationItem ~ ",")* ~ EnumerationItem }
 EnumerationItem = { NamedNumber | Identifier }
 EnumeratedValue = { Identifier }
+
 BitStringType = { "BIT" ~ "STRING" ~ ("{" ~ NamedBitList ~ "}")? }
 NamedBitList = { (NamedBit ~ ",")* ~ NamedBit }
 NamedBit = { Identifier ~ "(" ~ (ASCII_DIGIT+ | DefinedValue) ~ ")"}
 BitStringValue = { bstring | hstring | ("{" ~ IdentifierList? ~ "}") | ("CONTAINING" ~ Value) }
 IdentifierList = { (Identifier ~ ",")* ~ Identifier }
 
-UsefulType = { typereference }
 ConstrainedType = { (UnconstrainedType ~ Constraint+) | TypeWithConstraint }
 TypeWithConstraint = { ("SET" | "SEQUENCE") ~ (Constraint | SizeConstraint) ~ "OF" ~ (NamedType | Type) }
 Constraint = { "(" ~ ConstraintSpec ~ ExceptionSpec? ~ ")" }
@@ -173,18 +181,16 @@ LowerEndpoint = { LowerEndValue ~ "<"? }
 UpperEndpoint = { "<"? ~ UpperEndValue }
 LowerEndValue = { Value | "MIN" }
 UpperEndValue = { Value | "MAX" }
+
 SizeConstraint = { "SIZE" ~ Constraint }
-TypeConstraint = { Type }
 PermittedAlphabet = { "FROM" ~ Constraint }
-InnerTypeConstraints = { "WITH" ~ (("COMPONENT" ~ SingleTypeConstraint) | ("COMPONENTS" ~ MultipleTypeConstraints)) }
-SingleTypeConstraint = { Constraint }
+InnerTypeConstraints = { "WITH" ~ (("COMPONENT" ~ Constraint) | ("COMPONENTS" ~ MultipleTypeConstraints)) }
 MultipleTypeConstraints = { FullSpecification | PartialSpecification }
 FullSpecification = { "{" ~ TypeConstraints ~ "}" }
 PartialSpecification = { "{" ~ "..." ~ "," ~ TypeConstraints ~ "}" }
 TypeConstraints = { (NamedConstraint ~ ",")* ~ NamedConstraint }
 NamedConstraint = { Identifier ~ ComponentConstraint }
-ComponentConstraint = { ValueConstraint? ~ PresenceConstraint? }
-ValueConstraint = { Constraint }
+ComponentConstraint = { Constraint? ~ PresenceConstraint? }
 PresenceConstraint = { "PRESENT" | "ABSENT" | "OPTIONAL" }
 PatternConstraint = { "PATTERN" ~ Value }
 
@@ -367,7 +373,7 @@ OidNonIntegerCharacter = {
 DefinedObjectClass = { ExternalObjectClassReference | EncodingIdentifier | UsefulObjectClassReference }
 ExternalObjectClassReference = { ReferenceIdentifier ~ "." ~ EncodingIdentifier }
 UsefulObjectClassReference = { "TYPE-IDENTIFIER" | "ABSTRACT-SYNTAX"  }
-ObjectClassAssignment = { EncodingIdentifier ~ "::=" ~ ObjectClass }
+ObjectClassAssignment = { objectclassreference ~ ParameterList? ~ "::=" ~ ObjectClass }
 ObjectClass = {  ObjectClassDefn | ParameterizedObjectClass | DefinedObjectClass }
 ObjectClassDefn = { "CLASS" ~ "{" ~ (FieldSpec ~ ",")* ~ FieldSpec  ~ "}" ~ WithSyntaxSpec? }
 FieldSpec = {
@@ -406,11 +412,11 @@ SyntaxList = { "{" ~ TokenOrGroupSpec+ ~ "}" }
 TokenOrGroupSpec = { RequiredToken | OptionalGroup }
 OptionalGroup = { "[" ~ TokenOrGroupSpec+ ~ "]" }
 RequiredToken = { Literal | PrimitiveFieldName }
-Literal = { word | "," }
+Literal = @{ word | "," }
 DefinedObject = { ExternalObjectReference | objectreference }
 ExternalObjectReference = { modulereference ~ "." ~ objectreference }
-ObjectAssignment = { objectreference ~ DefinedObjectClass ~ "::=" ~ Object }
-Object = { DefinedObject | ObjectDefn | ObjectFromObject | ParameterizedObject }
+ObjectAssignment = { objectreference ~ ParameterList? ~ DefinedObjectClass ~ "::=" ~ Object }
+Object = { ParameterizedObject | DefinedObject | ObjectDefn | ObjectFromObject }
 ObjectDefn = { DefaultSyntax | DefinedSyntax }
 DefaultSyntax = { "{" ~ ((FieldSetting ~ ",")* ~ FieldSetting)? ~ "}" }
 FieldSetting = { PrimitiveFieldName ~ Setting }
@@ -419,7 +425,7 @@ DefinedSyntaxToken = { Setting | Literal  }
 Setting = { Type | Value | ValueSet | Object | ObjectSet }
 DefinedObjectSet = { ExternalObjectSetReference | objectsetreference }
 ExternalObjectSetReference = { modulereference ~ "." ~ objectsetreference }
-ObjectSetAssignment = { objectsetreference ~ DefinedObjectClass ~ "::=" ~ ObjectSet }
+ObjectSetAssignment = { objectsetreference ~ ParameterList? ~ DefinedObjectClass ~ "::=" ~ ObjectSet }
 ObjectSet = { "{" ~ ObjectSetSpec ~ "}" }
 ObjectSetSpec = {
     (ElementSetSpec ~ ("," ~ "..." ~ ("," ~ ElementSetSpec)?)?) |
@@ -457,21 +463,22 @@ ComponentIdList = { (Identifier ~ ".")* ~ Identifier }
 ContentsConstraint = { ("CONTAINING" ~ Type) | ("ENCODED" ~ "BY" ~ Value) | ("CONTAINING" ~ Type ~ "ENCODED" ~ "BY" ~ Value) }
 
 // X.683
-ParameterizedAssignment = {
-    ParameterizedObjectClassAssignment |
-    ParameterizedTypeAssignment |
-    ParameterizedValueAssignment |
-    ParameterizedValueSetAssignment |
-    ParameterizedObjectAssignment |
-    ParameterizedObjectSetAssignment
-}
-
-ParameterizedTypeAssignment = { typereference ~ ParameterList ~ "::=" ~ Type }
-ParameterizedValueAssignment = { valuereference ~ ParameterList ~ Type ~ "::=" ~ Value }
-ParameterizedValueSetAssignment = { typereference ~ ParameterList ~ Type ~ "::=" ~ ValueSet }
-ParameterizedObjectClassAssignment = { objectclassreference ~ ParameterList ~ "::=" ~ ObjectClass }
-ParameterizedObjectAssignment = { objectreference ~ ParameterList ~ DefinedObjectClass ~ "::=" ~ Object }
-ParameterizedObjectSetAssignment = { objectsetreference ~ ParameterList ~ DefinedObjectClass ~ "::=" ~ ObjectSet }
+// Moved into Assignments directly.
+// ParameterizedAssignment = {
+//     ParameterizedObjectClassAssignment |
+//     ParameterizedTypeAssignment |
+//     ParameterizedValueAssignment |
+//     ParameterizedValueSetAssignment |
+//     ParameterizedObjectAssignment |
+//     ParameterizedObjectSetAssignment
+// }
+//
+// ParameterizedTypeAssignment = { typereference ~ ParameterList ~ "::=" ~ Type }
+// ParameterizedValueAssignment = { valuereference ~ ParameterList ~ Type ~ "::=" ~ Value }
+// ParameterizedValueSetAssignment = { typereference ~ ParameterList ~ Type ~ "::=" ~ ValueSet }
+// ParameterizedObjectClassAssignment = { objectclassreference ~ ParameterList ~ "::=" ~ ObjectClass }
+// ParameterizedObjectAssignment = { objectreference ~ ParameterList ~ DefinedObjectClass ~ "::=" ~ Object }
+// ParameterizedObjectSetAssignment = { objectsetreference ~ ParameterList ~ DefinedObjectClass ~ "::=" ~ ObjectSet }
 
 ParameterList = { "{" ~ (Parameter ~ ",")* ~ Parameter ~ "}" }
 Parameter = { (ParamGovernor ~ ":")? ~ Reference }
@@ -513,7 +520,7 @@ valuefieldreference = @{ "&" ~ valuereference }
 valuesetfieldreference = @{ "&" ~ typereference }
 objectfieldreference = @{ "&" ~ objectreference }
 objectsetfieldreference = @{ "&" ~ objectsetreference }
-word = @{ !WORD_KEYWORDS ~ ASCII_ALPHA_UPPER ~ (hyphen ~ ASCII_ALPHA_UPPER+)* }
+word = @{ !WORD_KEYWORDS ~ ASCII_ALPHA_UPPER+ ~ (hyphen ~ ASCII_ALPHA_UPPER+)* }
 hyphen = { "–" | "-" }
 bstring = @{ "'" ~ ("0" | "1")* ~ "'B" }
 hstring = @{
@@ -525,6 +532,7 @@ hstring = @{
     )* ~
     "'H"
 }
+
 cstring = { "\"" ~ ("\"\"" | (!"\"" ~ ANY))*  ~ "\"" }
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{

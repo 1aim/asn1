@@ -18,7 +18,8 @@ PKCS-12 {
 
     IMPORTS
 
-    informationFramework
+    -- Aaron: Added selectedAttributeTypes for inlining PKCS#9
+    informationFramework, selectedAttributeTypes
     FROM UsefulDefinitions {joint-iso-itu-t(2) ds(5) module(1) usefulDefinitions(0) 3}
 
     ATTRIBUTE

@@ -112,6 +112,7 @@ impl PartialEq for ObjIdComponent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::hash_map::DefaultHasher;
 
     fn two_oids() -> (ObjectIdentifier, ObjectIdentifier) {
         (

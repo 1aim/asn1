@@ -3,20 +3,19 @@ extern crate pest_derive;
 
 mod ast;
 mod oid;
+mod registry;
 
 use std::{
     collections::HashMap,
     fs,
-    iter::FromIterator,
     mem,
     path::{Path, PathBuf},
 };
 
-use derefable::Derefable;
 use pest::Parser;
 use unwrap_to::unwrap_to;
 
-use crate::{ast::*, oid::ObjectIdentifier};
+use crate::{ast::*, registry::*};
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
@@ -28,6 +27,10 @@ pub struct Asn1 {
     module: Module,
     types: TypeRegistry,
     values: ValueRegistry,
+    // value_sets: ValueRegistry,
+    // object_sets: ValueRegistry,
+    // objects: ValueRegistry,
+    // classes: ValueRegistry,
 }
 
 impl Asn1 {
@@ -84,7 +87,18 @@ impl Asn1 {
                 AssignmentType::Value(ty, value) => {
                     self.values.insert(assignment.name, (ty, value));
                 }
-                c => println!("UNKNOWN TYPE: {:?}", c),
+                AssignmentType::ValueSet(ty, value) => {
+                    //self.value_sets.insert(assignment.name, (ty, value));
+                }
+                AssignmentType::Object(class, object) => {
+                    //self.objects.insert(assignment.name, (class, object));
+                }
+                AssignmentType::ObjectClass(class) => {
+                    //self.classes.insert(assignment.name, class);
+                }
+                AssignmentType::ObjectSet(class, set) => {
+                    //self.object_sets.insert(assignment.name, class);
+                }
             }
         }
 
@@ -216,92 +230,6 @@ impl Asn1 {
             };
 
             *value = AssignedIdentifier::ObjectIdentifier(get_value(def).into_object_identifier());
-        }
-    }
-}
-
-#[derive(Debug, Default, Derefable)]
-struct TypeRegistry {
-    #[deref(mutable)]
-    map: HashMap<String, Type>,
-}
-
-impl TypeRegistry {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl FromIterator<(String, Type)> for TypeRegistry {
-    fn from_iter<I: IntoIterator<Item = (String, Type)>>(iter: I) -> Self {
-        Self {
-            map: HashMap::from_iter(iter),
-        }
-    }
-}
-
-#[derive(Debug, Default, Derefable)]
-struct ValueRegistry {
-    #[deref(mutable)]
-    map: HashMap<String, (Type, Value)>,
-}
-
-impl ValueRegistry {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn resolve_object_identifiers(&mut self) {
-        let total_length = self
-            .map
-            .iter()
-            .filter(|(_, (_, v))| v.is_object_identifier())
-            .count();
-
-        let mut absolute_oids: HashMap<String, ObjectIdentifier> = self
-            .map
-            .clone()
-            .into_iter()
-            .filter(|(_, (_, v))| {
-                v.is_object_identifier() && unwrap_to!(v => Value::ObjectIdentifier).is_absolute()
-            })
-            .map(|(k, (_, v))| {
-                (
-                    k,
-                    match v {
-                        Value::ObjectIdentifier(s) => s,
-                        _ => unreachable!(),
-                    },
-                )
-            })
-            .collect();
-
-        while total_length > absolute_oids.len() {
-            for (name, object_identifier) in self
-                .get_object_identifiers_mut()
-                .filter(|(_, o)| o.is_relative())
-            {
-                object_identifier.replace(&absolute_oids);
-                if object_identifier.is_absolute() {
-                    absolute_oids.insert(name.clone(), object_identifier.clone());
-                }
-            }
-        }
-    }
-
-    fn get_object_identifiers_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (&String, &mut ObjectIdentifier)> {
-        self.map
-            .iter_mut()
-            .filter_map(|(k, (_, v))| v.as_object_identifier_mut().map(|v| (k, v)))
-    }
-}
-
-impl FromIterator<(String, (Type, Value))> for ValueRegistry {
-    fn from_iter<I: IntoIterator<Item = (String, (Type, Value))>>(iter: I) -> Self {
-        Self {
-            map: HashMap::from_iter(iter),
         }
     }
 }
