@@ -17,7 +17,7 @@ fn main() {
 
     for file in matches.values_of("input").unwrap() {
         let mut module =
-            asn1_parser::Asn1::new(file, directory).unwrap_or_else(|e| panic!("{}", e));
+            asn1_spec::Asn1::new(file, directory).unwrap_or_else(|e| panic!("{}", e));
         module.build();
     }
 }

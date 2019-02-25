@@ -71,22 +71,22 @@ BuiltinType = {
     DurationType |
     EmbeddedPDVType |
     ExternalType |
-    // InstanceOftype |
+    // TODO:  InstanceOftype |
     IntegerType |
-    // IRIType |
+    // TODO: IRIType |
     NullType |
     ObjectClassFieldType |
     ObjectIdentifierType |
     OctetStringType |
-    // RealType |
-    // RelativeIRIType |
-    // RelativeOIDType |
+    // TODO: RealType |
+    // TODO: RelativeIRIType |
+    // TODO: RelativeOIDType |
     SequenceType |
     SequenceOfType |
     SetType |
     SetOfType // |
-    // Timetype |
-    // TimeOfdayType
+    // TODO: Timetype |
+    // TODO: TimeOfdayType
 }
 
 ReferencedType = {
@@ -107,19 +107,19 @@ BuiltinValue = {
     ObjectIdentifierValue |
     SequenceValue |
     EnumeratedValue |
-    // InstanceOfValue |
+    // TODO: InstanceOfValue |
     IntegerValue |
-    // IRIValue |
+    // TODO: IRIValue |
     NullValue |
-    // OctetStringValue |
-    // RealValue |
-    // RelativeIRIValue |
-    // RelativeOIDValue |
+    // TODO: OctetStringValue |
+    // TODO: RealValue |
+    // TODO: RelativeIRIValue |
+    // TODO: RelativeOIDValue |
     SequenceOfValue |
     SetValue |
     SetOfValue // |
-    // PrefixedValue |
-    // TimeValue
+    // TODO: PrefixedValue |
+    // TODO: TimeValue
 }
 
 ReferencedValue = { DefinedValue | ValueFromObject }
@@ -168,10 +168,10 @@ SubtypeElements = {
     Type |
     InnerTypeConstraints |
     PatternConstraint |
-    // PropertySettings |
-    // DurationRange |
-    // TimePointRange |
-    // RecurrenceRange
+    // TODO: PropertySettings |
+    // TODO: DurationRange |
+    // TODO: TimePointRange |
+    // TODO: RecurrenceRange
     Value
 }
 
