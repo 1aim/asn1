@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    iter::FromIterator,
-};
+use std::{collections::HashMap, iter::FromIterator};
 
 use derefable::Derefable;
 use unwrap_to::unwrap_to;
@@ -93,5 +90,3 @@ impl FromIterator<(String, (Type, Value))> for ValueRegistry {
         }
     }
 }
-
-

@@ -1,3 +1,5 @@
+pub mod module;
+pub mod oid;
 pub mod types;
 
 use std::collections::HashMap;
@@ -6,30 +8,46 @@ use std::str::FromStr;
 
 use derefable::Derefable;
 use pest::iterators::{FlatPairs, Pair};
+use pest::Parser;
 use variation::Variation;
 
-use super::{Result, Rule};
-use crate::oid::{ObjIdComponent, ObjectIdentifier};
+use super::Result;
 
+pub use self::module::*;
+pub use self::oid::*;
 pub use self::types::*;
 
 type ElementSet = Vec<Vec<Element>>;
+
+#[derive(Parser)]
+#[grammar = "asn1.pest"]
+struct Asn1Parser;
 
 pub(crate) struct Ast<'a>(Peekable<FlatPairs<'a, Rule>>);
 
 impl<'a> Ast<'a> {
     /// Parse asn1 module into an Abstract Syntax Tree (AST) represented by the `Module` struct.
-    pub fn parse(input: Peekable<FlatPairs<'a, Rule>>) -> Result<Module> {
-        Ast(input).parse_module()
+    pub fn parse(source: &'a str) -> Result<Module> {
+        Self::new(Rule::ModuleDefinition, source)?.parse_module()
     }
 
     /// Copies the lexer output and parses the module's identifying information into an Abstract
     /// Syntax Tree (AST) represented by the `ModuleIdentifier` struct.
-    pub fn parse_header(input: Peekable<FlatPairs<'a, Rule>>) -> Result<ModuleIdentifier> {
-        let mut ast = Ast(input);
+    pub fn parse_header(source: &'a str) -> Result<ModuleIdentifier> {
+        let mut ast = Self::new(Rule::ModuleHeaderOnly, source)?;
         ast.take(Rule::ModuleHeaderOnly);
 
         ast.parse_module_identifier()
+    }
+
+    fn new(rule: Rule, source: &'a str) -> Result<Self> {
+        let iter = Asn1Parser::parse(rule, source)?;
+
+        Ok(Self(iter.flatten().peekable()))
+    }
+
+    fn next(&mut self) -> Option<Pair<Rule>> {
+        self.0.next()
     }
 
     fn peek(&mut self, rule: Rule) -> bool {
@@ -42,14 +60,6 @@ impl<'a> Ast<'a> {
 
     fn next_rule(&mut self) -> Option<Rule> {
         self.0.next().map(|x| x.as_rule())
-    }
-
-    fn next_string(&mut self) -> Option<String> {
-        self.0.next().map(|x| x.as_str().to_owned())
-    }
-
-    fn next(&mut self) -> Option<Pair<Rule>> {
-        self.0.next()
     }
 
     /// Takes the next pair, and asserts that's its `Rule` matches `rule`.
@@ -74,7 +84,7 @@ impl<'a> Ast<'a> {
     }
 
     /// Look at the next pair and checks if its `Rule` matches `rule`, consumes the pair if it
-    /// matches. Useful for checking for optional items.
+    /// matches. Useful for checking for optional wrapper rules.
     fn look(&mut self, rule: Rule) -> Option<Pair<Rule>> {
         if self.peek(rule) {
             Some(self.take(rule))
@@ -88,7 +98,7 @@ impl<'a> Ast<'a> {
 
         let identifier = self.parse_module_identifier()?;
         let tag = self.parse_tag_default();
-        // let extension = self.parse_extension_default();
+        //let extension = self.parse_extension_default();
 
         let (exports, imports, assignments) = if self.look(Rule::ModuleBody).is_some() {
             let exports = self.parse_exports();
@@ -103,7 +113,7 @@ impl<'a> Ast<'a> {
         self.take(Rule::EOI);
 
         Ok(Module {
-            identifier: identifier,
+            identifier,
             tag,
             extension: None,
             exports,
@@ -306,9 +316,7 @@ impl<'a> Ast<'a> {
             };
 
             let kind = match assignment_type {
-                Rule::TypeAssignment => {
-                    AssignmentType::Type(self.parse_type())
-                }
+                Rule::TypeAssignment => AssignmentType::Type(self.parse_type()),
                 Rule::ValueAssignment => {
                     AssignmentType::Value(self.parse_type(), self.parse_value())
                 }
@@ -321,12 +329,10 @@ impl<'a> Ast<'a> {
                 Rule::ObjectAssignment => {
                     AssignmentType::Object(self.parse_defined_object_class(), self.parse_object())
                 }
-                Rule::ObjectSetAssignment => {
-                    AssignmentType::ObjectSet(
-                        self.parse_defined_object_class(),
-                        self.parse_object_set(),
-                    )
-                }
+                Rule::ObjectSetAssignment => AssignmentType::ObjectSet(
+                    self.parse_defined_object_class(),
+                    self.parse_object_set(),
+                ),
                 _ => unreachable!(),
             };
 
@@ -370,7 +376,6 @@ impl<'a> Ast<'a> {
                         name: None,
                         constraints: Some(vec![constraint]),
                     }
-
                 } else {
                     let raw_type = self.parse_unconstrained_type();
                     let mut constraints = Vec::new();
@@ -551,7 +556,11 @@ impl<'a> Ast<'a> {
                         None
                     };
 
-                    RawType::Builtin(BuiltinType::Enumeration(enumerations, exception_spec, extended_enumerations))
+                    RawType::Builtin(BuiltinType::Enumeration(
+                        enumerations,
+                        exception_spec,
+                        extended_enumerations,
+                    ))
                 }
 
                 Rule::IntegerType => {
@@ -685,9 +694,7 @@ impl<'a> Ast<'a> {
 
                 ReferenceType::External(parent, child).into()
             }
-            Rule::typereference => {
-                ReferenceType::Internal(self.parse_type_reference()).into()
-            }
+            Rule::typereference => ReferenceType::Internal(self.parse_type_reference()).into(),
             _ => unreachable!(),
         }
     }
@@ -701,7 +708,9 @@ impl<'a> Ast<'a> {
                 Rule::Type => Parameter::Type(self.parse_type()),
                 Rule::Value => Parameter::Value(self.parse_value()),
                 Rule::ValueSet => Parameter::ValueSet(self.parse_value_set()),
-                Rule::DefinedObjectClass => Parameter::ObjectClass(self.parse_defined_object_class()),
+                Rule::DefinedObjectClass => {
+                    Parameter::ObjectClass(self.parse_defined_object_class())
+                }
                 Rule::Object => Parameter::Object(self.parse_object()),
                 Rule::ObjectSet => Parameter::ObjectSet(self.parse_object_set()),
                 _ => unreachable!(),
@@ -1214,10 +1223,7 @@ impl<'a> Ast<'a> {
             None
         };
 
-        ClassDef {
-            fields,
-            syntax,
-        }
+        ClassDef { fields, syntax }
     }
 
     fn parse_token_or_group_spec(&mut self) -> Vec<Token> {
@@ -1353,19 +1359,13 @@ impl<'a> Ast<'a> {
     fn parse_external_type_reference(&mut self) -> (String, String) {
         self.take(Rule::ExternalTypeReference);
 
-        (
-            self.parse_module_reference(),
-            self.parse_type_reference(),
-        )
+        (self.parse_module_reference(), self.parse_type_reference())
     }
 
     fn parse_external_value_reference(&mut self) -> (String, String) {
         self.take(Rule::ExternalValueReference);
 
-        (
-            self.parse_module_reference(),
-            self.parse_value_reference(),
-        )
+        (self.parse_module_reference(), self.parse_value_reference())
     }
 
     fn parse_extension_and_exception(&mut self) -> Option<ExtensionAndException> {
@@ -1376,7 +1376,9 @@ impl<'a> Ast<'a> {
         self.take(Rule::ExtensionAndException);
 
         if self.peek(Rule::ExceptionSpec) {
-            Some(ExtensionAndException::Exception(self.parse_exception_spec()))
+            Some(ExtensionAndException::Exception(
+                self.parse_exception_spec(),
+            ))
         } else {
             Some(ExtensionAndException::Extension)
         }
@@ -1424,55 +1426,13 @@ impl<'a> Ast<'a> {
 
         match self.rule_peek().unwrap() {
             Rule::SignedNumber => ExceptionIdentification::Number(self.parse_signed_number()),
-            Rule::DefinedValue => {
-                ExceptionIdentification::Reference(self.parse_defined_value())
+            Rule::DefinedValue => ExceptionIdentification::Reference(self.parse_defined_value()),
+            Rule::Type => {
+                ExceptionIdentification::Arbitrary(Box::new(self.parse_type()), self.parse_value())
             }
-            Rule::Type => ExceptionIdentification::Arbitrary(
-                Box::new(self.parse_type()),
-                self.parse_value(),
-                ),
             _ => unreachable!(),
         }
     }
-}
-
-#[derive(Debug)]
-pub(crate) struct Module {
-    pub identifier: ModuleIdentifier,
-    pub tag: Tag,
-    pub extension: Option<()>,
-    pub exports: Exports,
-    pub imports: Vec<(ModuleReference, Vec<String>)>,
-    pub assignments: Vec<Assignment>,
-}
-
-#[derive(Debug, Eq, Hash, PartialEq)]
-pub struct ModuleIdentifier {
-    pub name: String,
-    pub identification: ObjectIdentifier,
-    // iri: Option<Iri>
-}
-
-impl ModuleIdentifier {
-    fn new(name: String) -> Self {
-        Self {
-            name,
-            identification: ObjectIdentifier::new(),
-        }
-    }
-}
-
-#[derive(Debug, Variation)]
-pub enum Tag {
-    Explicit,
-    Implicit,
-    Automatic,
-}
-
-#[derive(Debug, Variation)]
-pub enum Exports {
-    All,
-    Symbols(Vec<String>),
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Variation)]
@@ -1488,55 +1448,6 @@ pub enum DefinedValue {
     Simple(SimpleDefinedValue),
     /// Paramaterized value
     Parameterized(SimpleDefinedValue, Vec<()>),
-}
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub(crate) struct ModuleReference {
-    name: String,
-    identification: Option<AssignedIdentifier>,
-}
-
-impl ModuleReference {
-    pub fn new(name: String, identification: Option<AssignedIdentifier>) -> Self {
-        Self {
-            name,
-            identification,
-        }
-    }
-
-    pub fn into_identifier(&self) -> Option<ModuleIdentifier> {
-        Some(ModuleIdentifier {
-            name: self.name.clone(),
-            identification: match self.identification.as_ref()? {
-                AssignedIdentifier::ObjectIdentifier(oid) => oid.clone(),
-                _ => return None,
-            },
-        })
-    }
-
-    pub fn has_identification(&self) -> bool {
-        self.identification.is_some()
-    }
-
-    pub fn as_identification_mut(&mut self) -> Option<&mut AssignedIdentifier> {
-        match self.identification {
-            Some(ref mut id) => Some(id),
-            _ => None,
-        }
-    }
-
-    pub fn identification_uses_defined_value(&self) -> bool {
-        self.identification
-            .as_ref()
-            .map(|i| i.is_defined())
-            .unwrap_or(false)
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Variation)]
-pub enum AssignedIdentifier {
-    ObjectIdentifier(ObjectIdentifier),
-    Defined(DefinedValue),
 }
 
 #[derive(Debug, Clone)]
@@ -1775,7 +1686,7 @@ pub enum RangeValue {
 pub enum Token {
     Literal(String),
     Field(Field),
-    OptionalGroup(Vec<Token>)
+    OptionalGroup(Vec<Token>),
 }
 
 #[derive(Clone, Debug, Variation)]
@@ -1810,3 +1721,24 @@ impl ComponentConstraint {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use pest::Parser;
+
+    use super::Asn1Parser;
+    use super::Rule;
+
+    #[test]
+    fn basic_definition() {
+        let input = include_str!("../tests/basic.asn1");
+
+        Asn1Parser::parse(Rule::ModuleDefinition, input).unwrap_or_else(|e| panic!("{}", e));
+    }
+
+    #[test]
+    fn pkcs12() {
+        let input = include_str!("../tests/pkcs12.asn1");
+
+        Asn1Parser::parse(Rule::ModuleDefinition, input).unwrap_or_else(|e| panic!("{}", e));
+    }
+}

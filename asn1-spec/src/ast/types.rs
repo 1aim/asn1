@@ -1,4 +1,3 @@
-
 use crate::ast::*;
 
 #[derive(Clone, Debug, Derefable)]
@@ -23,7 +22,7 @@ impl From<RawType> for Type {
 pub enum RawType {
     Builtin(BuiltinType),
     Referenced(ReferenceType),
-    Parameterized(ReferenceType, Vec<Parameter>)
+    Parameterized(ReferenceType, Vec<Parameter>),
 }
 
 impl From<BuiltinType> for RawType {
@@ -43,7 +42,11 @@ pub enum BuiltinType {
     Boolean,
     CharacterString(CharacterStringType),
     Choice(ChoiceType),
-    Enumeration(Vec<EnumerationType>, Option<ExceptionIdentification>, Option<Vec<EnumerationType>>),
+    Enumeration(
+        Vec<EnumerationType>,
+        Option<ExceptionIdentification>,
+        Option<Vec<EnumerationType>>,
+    ),
     Integer(HashMap<String, NumberOrDefinedValue>),
     ObjectClassField(DefinedObjectClass, Vec<Field>),
     ObjectIdentifier,
@@ -106,9 +109,11 @@ pub struct Prefix {
 }
 
 impl Prefix {
-    pub fn new(encoding: Option<String>, class: Option<Class>, number: NumberOrDefinedValue)
-        -> Self
-    {
+    pub fn new(
+        encoding: Option<String>,
+        class: Option<Class>,
+        number: NumberOrDefinedValue,
+    ) -> Self {
         Self {
             encoding,
             class,
@@ -126,4 +131,3 @@ pub enum ComponentType {
     },
     ComponentsOf(Type),
 }
-

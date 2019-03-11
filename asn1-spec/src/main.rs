@@ -15,9 +15,10 @@ fn main() {
 
     let directory = matches.value_of("dependencies").unwrap_or("./definitions");
 
-    for file in matches.values_of("input").unwrap() {
-        let mut module =
-            asn1_spec::Asn1::new(file, directory).unwrap_or_else(|e| panic!("{}", e));
-        module.build();
-    }
+    let mut module = asn1_spec::Asn1::new(matches.value_of("input").unwrap())
+        .dependencies(directory)
+        .build()
+        .unwrap_or_else(|e| panic!("{}", e));
+
+    println!("{}", module);
 }
