@@ -522,18 +522,16 @@ objectfieldreference = @{ "&" ~ objectreference }
 objectsetfieldreference = @{ "&" ~ objectsetreference }
 word = @{ !WORD_KEYWORDS ~ ASCII_ALPHA_UPPER+ ~ (hyphen ~ ASCII_ALPHA_UPPER+)* }
 hyphen = { "–" | "-" }
-bstring = @{ "'" ~ ("0" | "1")* ~ "'B" }
-hstring = @{
-    "'" ~
-    (
-        "A" | "B" | "C" | "D" | "E" | "F" |
-        "0" | "1" | "2" | "3" | "4" | "5" |
-        "6" | "7" | "8" | "9"
-    )* ~
-    "'H"
+bstring = @{ "'" ~ bits? ~ "'B" }
+bits = { ("0" | "1")+ }
+hstring = @{ "'" ~ hexes? ~ "'H" }
+hexes = {
+    ( "A" | "B" | "C" | "D" | "E" | "F" | "0" | "1" |
+      "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" )+
 }
 
-cstring = { "\"" ~ ("\"\"" | (!"\"" ~ ANY))*  ~ "\"" }
+cstring = { "\"" ~ characters?  ~ "\"" }
+characters = { ("\"\"" | (!"\"" ~ ANY))+ }
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{
     ("--" ~ (!("--" | NEWLINE) ~ ANY)* ~ ("--" | NEWLINE)) |

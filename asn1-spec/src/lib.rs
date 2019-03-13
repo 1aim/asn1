@@ -1,5 +1,5 @@
-#[macro_use]
-extern crate pest_derive;
+#[macro_use] extern crate pest_derive;
+#[macro_use] extern crate log;
 
 mod ast;
 mod registry;
@@ -33,7 +33,8 @@ impl Asn1 {
         let source = fs::read_to_string(&self.path)?;
         let ast = Ast::parse(&source)?;
 
-        let fixed_tree = SemanticChecker::new(ast, self.dependencies);
+        let mut fixed_tree = SemanticChecker::new(ast);
+        fixed_tree.build()?;
 
         Ok(format!("{:?} parsed successfully", self.path))
     }

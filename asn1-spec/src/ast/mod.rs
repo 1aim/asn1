@@ -17,6 +17,7 @@ pub use self::module::*;
 pub use self::oid::*;
 pub use self::types::*;
 
+// First Vec is a Vec of Unions, containing a Vec of intersections.
 type ElementSet = Vec<Vec<Element>>;
 
 #[derive(Parser)]
@@ -587,6 +588,8 @@ impl<'a> Ast<'a> {
                     RawType::Builtin(BuiltinType::Integer(named_numbers))
                 }
 
+                Rule::NullType => RawType::Builtin(BuiltinType::Null),
+
                 Rule::ObjectClassFieldType => {
                     let class = self.parse_defined_object_class();
 
@@ -743,6 +746,26 @@ impl<'a> Ast<'a> {
         self.take(Rule::BuiltinValue);
 
         match self.rule_peek().unwrap() {
+            Rule::BitStringValue => {
+                self.take(Rule::BitStringValue);
+
+                let mut string = String::new();
+
+                match self.next_rule().unwrap() {
+                    Rule::bstring => {
+                        if self.peek(Rule::bits) {
+                            string.push_str(self.take(Rule::bits).as_str())
+                        }
+                    },
+                    Rule::hstring => {
+                        if self.peek(Rule::hexes).is_some() {
+                            let hex_value = self.take(Rule::hexes).as_str();
+                        }
+                    }
+                    Rule::
+                }
+
+            }
             Rule::IntegerValue => {
                 self.take(Rule::IntegerValue);
 
@@ -1651,8 +1674,8 @@ pub enum Extensible {
 
 #[derive(Clone, Debug)]
 pub struct ElementSetSpec {
-    set: ElementSet,
-    extensible: Extensible,
+    pub set: ElementSet,
+    pub extensible: Extensible,
 }
 
 #[derive(Clone, Debug, Variation)]

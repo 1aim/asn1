@@ -48,6 +48,7 @@ pub enum BuiltinType {
         Option<Vec<EnumerationType>>,
     ),
     Integer(HashMap<String, NumberOrDefinedValue>),
+    Null,
     ObjectClassField(DefinedObjectClass, Vec<Field>),
     ObjectIdentifier,
     OctetString,

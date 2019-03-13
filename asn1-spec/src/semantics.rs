@@ -1,17 +1,14 @@
-use std::{collections::HashMap, fs, mem, path::PathBuf};
+use std::{collections::HashMap, mem};
 
+use failure::ensure;
 use unwrap_to::unwrap_to;
 
 use crate::{ast::*, registry::*, Result};
 
 #[derive(Debug)]
-pub struct Module;
-
-#[derive(Debug)]
 pub struct SemanticChecker {
-    definitions: HashMap<ModuleIdentifier, PathBuf>,
-    modules: HashMap<String, Module>,
-    module: crate::ast::Module,
+    imports: HashMap<ModuleReference, Vec<String>>,
+    module: Module,
     types: TypeRegistry,
     values: ValueRegistry,
     // value_sets: ValueRegistry,
@@ -21,43 +18,35 @@ pub struct SemanticChecker {
 }
 
 impl SemanticChecker {
-    pub fn new(module: crate::ast::Module, dependencies: Option<PathBuf>) -> Result<Self> {
-        let mut definitions = HashMap::new();
-        let modules = HashMap::new();
+    pub fn new(module: Module) -> Self {
+        let imports = HashMap::with_capacity(module.imports.len());
         let values = ValueRegistry::new();
         let types = TypeRegistry::new();
 
-        if let Some(ref dependencies) = dependencies {
-            for entry in fs::read_dir(&dependencies)? {
-                let entry = entry?;
-
-                if entry.file_type()?.is_dir() {
-                    continue;
-                }
-
-                let path = entry.path();
-
-                if path.extension().map(|x| x != "asn1").unwrap_or(true) {
-                    continue;
-                }
-
-                let header = Ast::parse_header(&fs::read_to_string(&path)?)?;
-
-                definitions.insert(header, path.to_owned());
-            }
-        }
-
-        Ok(Self {
-            definitions,
-            modules,
+        Self {
+            imports,
             module,
             types,
             values,
-        })
+        }
     }
 
     pub fn build(&mut self) -> Result<()>  {
+        debug!("Building Module {:?}", self.module.identifier);
+        self.resolve_imports()?;
+        self.resolve_assignments()?;
+        self.resolve_type_aliases();
+        self.values.resolve_object_identifiers();
+        self.resolve_defined_values();
+        Ok(())
+    }
+
+    pub fn resolve_assignments(&mut self) -> Result<()> {
         for assignment in mem::replace(&mut self.module.assignments, Vec::new()) {
+            ensure!(!self.contains_assignment(&assignment.name), "{:?} was already defined.", assignment.name);
+
+            debug!("ASSIGNMENT: {:#?}", assignment);
+
             match assignment.kind {
                 AssignmentType::Type(ty) => {
                     self.types.insert(assignment.name, ty);
@@ -65,7 +54,9 @@ impl SemanticChecker {
                 AssignmentType::Value(ty, value) => {
                     self.values.insert(assignment.name, (ty, value));
                 }
-                AssignmentType::ValueSet(ty, value) => {
+                AssignmentType::ValueSet(ty, elements) => {
+                    ensure!(elements.set.len() != 0, "{:?} is empty, empty element sets are not allowed.", assignment.name);
+
                     //self.value_sets.insert(assignment.name, (ty, value));
                 }
                 AssignmentType::Object(class, object) => {
@@ -80,57 +71,11 @@ impl SemanticChecker {
             }
         }
 
-        let iter = self
-            .module
-            .imports
-            .iter()
-            .filter(|(k, _)| !k.identification_uses_defined_value())
-            .filter_map(|(k, v)| k.into_identifier().map(|k| (k, v)));
-
-        for (module, imported_symbols) in iter {
-            let module: Self = match self.definitions.get(&module) {
-                Some(path) => {
-                    let source = fs::read_to_string(path)?;
-                    let mut module = Self::new(Ast::parse(&source)?, None)?;
-                    module.build()?;
-                    module
-                }
-                None => panic!("Unknown import {:?}", module),
-            };
-
-            let (available_types, available_values) = match module.module.exports {
-                Exports::All => (module.types, module.values),
-                Exports::Symbols(symbols) => (
-                    module
-                        .types
-                        .clone()
-                        .into_iter()
-                        .filter(|(k, _)| symbols.contains(k))
-                        .collect(),
-                    module
-                        .values
-                        .clone()
-                        .into_iter()
-                        .filter(|(k, _)| symbols.contains(k))
-                        .collect(),
-                ),
-            };
-
-            for symbol in imported_symbols {
-                let symbol = symbol.clone();
-                if let Some(value) = available_types.get(&symbol) {
-                    self.types.insert(symbol, value.clone());
-                } else if let Some(value) = available_values.get(&symbol) {
-                    self.values.insert(symbol, value.clone());
-                }
-            }
-        }
-
-        self.resolve_type_aliases();
-        self.values.resolve_object_identifiers();
-        self.resolve_defined_values();
-
         Ok(())
+    }
+
+    fn contains_assignment(&self, name: &String) -> bool {
+        self.types.contains_key(name) && self.values.contains_key(name)
     }
 
     pub fn resolve_type_aliases(&mut self) {
@@ -212,6 +157,16 @@ impl SemanticChecker {
 
             *value = AssignedIdentifier::ObjectIdentifier(get_value(&mut def).into_object_identifier());
         }
+    }
+
+    pub fn resolve_imports(&mut self) -> Result<()> {
+        for (reference, items) in mem::replace(&mut self.module.imports, Vec::new()) {
+            ensure!(!self.imports.contains_key(&reference), "{:?} was already imported.", reference);
+
+            self.imports.insert(reference, items);
+        }
+
+        Ok(())
     }
 }
 

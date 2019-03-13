@@ -1,9 +1,9 @@
-use std::{collections::HashMap, iter::FromIterator};
+use std::{collections::HashMap, fs, iter::FromIterator, path::PathBuf};
 
 use derefable::Derefable;
 use unwrap_to::unwrap_to;
 
-use crate::{ast::*, oid::ObjectIdentifier};
+use crate::{ast::*, oid::ObjectIdentifier, Result};
 
 #[derive(Debug, Default, Derefable)]
 pub struct TypeRegistry {
@@ -88,5 +88,39 @@ impl FromIterator<(String, (Type, Value))> for ValueRegistry {
         Self {
             map: HashMap::from_iter(iter),
         }
+    }
+}
+
+pub struct ModuleRegistry {
+    available_modules: HashMap<ModuleIdentifier, PathBuf>
+}
+
+impl ModuleRegistry {
+    pub fn new(dependencies: Option<PathBuf>) -> Result<Self> {
+        let mut available_modules = HashMap::new();
+
+        if let Some(ref dependencies) = dependencies {
+            for entry in fs::read_dir(&dependencies)? {
+                let entry = entry?;
+
+                if entry.file_type()?.is_dir() {
+                    continue;
+                }
+
+                let path = entry.path();
+
+                if path.extension().map(|x| x != "asn1").unwrap_or(true) {
+                    continue;
+                }
+
+                let header = Ast::parse_header(&fs::read_to_string(&path)?)?;
+
+                available_modules.insert(header, path.to_owned());
+            }
+        }
+
+        Ok(Self {
+            available_modules
+        })
     }
 }
