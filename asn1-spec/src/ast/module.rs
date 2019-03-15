@@ -1,3 +1,5 @@
+use std::fmt;
+
 use variation::Variation;
 
 use super::{Assignment, DefinedValue, ObjectIdentifier};
@@ -25,6 +27,12 @@ impl ModuleIdentifier {
             name,
             identification: ObjectIdentifier::new(),
         }
+    }
+}
+
+impl fmt::Display for ModuleIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "{} {}", self.name, self.identification)
     }
 }
 

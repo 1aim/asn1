@@ -11,7 +11,7 @@ pub struct SemanticChecker {
     module: Module,
     types: TypeRegistry,
     values: ValueRegistry,
-    // value_sets: ValueRegistry,
+    value_sets: ValueSetRegistry,
     // object_sets: ValueRegistry,
     // objects: ValueRegistry,
     // classes: ValueRegistry,
@@ -21,6 +21,7 @@ impl SemanticChecker {
     pub fn new(module: Module) -> Self {
         let imports = HashMap::with_capacity(module.imports.len());
         let values = ValueRegistry::new();
+        let value_sets = ValueSetRegistry::new();
         let types = TypeRegistry::new();
 
         Self {
@@ -28,24 +29,27 @@ impl SemanticChecker {
             module,
             types,
             values,
+            value_sets,
         }
     }
 
     pub fn build(&mut self) -> Result<()>  {
-        debug!("Building Module {:?}", self.module.identifier);
+        debug!("Building {}", self.module.identifier);
         self.resolve_imports()?;
         self.resolve_assignments()?;
         self.resolve_type_aliases();
-        self.values.resolve_object_identifiers();
+        debug!("Skipping resolving object identifiers");
+        //self.values.resolve_object_identifiers();
         self.resolve_defined_values();
         Ok(())
     }
 
     pub fn resolve_assignments(&mut self) -> Result<()> {
+        debug!("Resolving assignments");
         for assignment in mem::replace(&mut self.module.assignments, Vec::new()) {
             ensure!(!self.contains_assignment(&assignment.name), "{:?} was already defined.", assignment.name);
 
-            debug!("ASSIGNMENT: {:#?}", assignment);
+            //debug!("ASSIGNMENT KIND: {:#?}", assignment.kind);
 
             match assignment.kind {
                 AssignmentType::Type(ty) => {
@@ -57,7 +61,7 @@ impl SemanticChecker {
                 AssignmentType::ValueSet(ty, elements) => {
                     ensure!(elements.set.len() != 0, "{:?} is empty, empty element sets are not allowed.", assignment.name);
 
-                    //self.value_sets.insert(assignment.name, (ty, value));
+                    self.value_sets.insert(assignment.name, (ty, elements));
                 }
                 AssignmentType::Object(class, object) => {
                     //self.objects.insert(assignment.name, (class, object));
@@ -79,6 +83,7 @@ impl SemanticChecker {
     }
 
     pub fn resolve_type_aliases(&mut self) {
+        debug!("Resolving type aliases.");
         for t in self
             .values
             .iter_mut()
@@ -91,6 +96,7 @@ impl SemanticChecker {
                 let name = unwrap_to!(reference => ReferenceType::Internal);
                 if let Some(original_type) = self.types.get(name) {
                     // TODO: How do constraints work across type alias?
+                    // Might be defined in the spec
                     *t = original_type.clone();
                 }
             } else {
@@ -100,6 +106,7 @@ impl SemanticChecker {
     }
 
     pub fn resolve_defined_values(&mut self) {
+        debug!("Resolving defined values");
         let frozen_map = self.values.clone();
         let get_value = |defined_value: &mut DefinedValue| {
             let simple = match defined_value {

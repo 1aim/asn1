@@ -37,11 +37,14 @@ impl ValueRegistry {
     }
 
     pub fn resolve_object_identifiers(&mut self) {
+        debug!("Resolving OIDs to full path.");
         let total_length = self
             .map
             .iter()
             .filter(|(_, (_, v))| v.is_object_identifier())
             .count();
+
+        trace!("Total number of OIDs: {}", total_length);
 
         let mut absolute_oids: HashMap<String, ObjectIdentifier> = self
             .map
@@ -61,14 +64,19 @@ impl ValueRegistry {
             })
             .collect();
 
+        trace!("Number of initial Absolute OIDs: {}", absolute_oids.len());
+
         while total_length > absolute_oids.len() {
             for (name, object_identifier) in self
                 .get_object_identifiers_mut()
                 .filter(|(_, o)| o.is_relative())
             {
+                trace!("Attempting to canonicalise {}", object_identifier);
                 object_identifier.replace(&absolute_oids);
                 if object_identifier.is_absolute() {
+                    trace!("{} is now absolute.", object_identifier);
                     absolute_oids.insert(name.clone(), object_identifier.clone());
+                    trace!("New number of Absolute OIDs: {}, remaining {}", absolute_oids.len(), total_length - absolute_oids.len());
                 }
             }
         }
@@ -122,5 +130,17 @@ impl ModuleRegistry {
         Ok(Self {
             available_modules
         })
+    }
+}
+
+#[derive(Debug, Default, Derefable)]
+pub struct ValueSetRegistry {
+    #[deref(mutable)]
+    map: HashMap<String, (Type, ElementSetSpec)>,
+}
+
+impl ValueSetRegistry {
+    pub fn new() -> Self {
+        Self::default()
     }
 }

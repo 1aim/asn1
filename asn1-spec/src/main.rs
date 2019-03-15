@@ -20,6 +20,7 @@ fn main() {
 
     let filter_level = match matches.occurrences_of("verbose") {
         1 => LevelFilter::Debug,
+        2 => LevelFilter::Trace,
         _ => LevelFilter::Warn,
     };
 
@@ -29,7 +30,7 @@ fn main() {
     debug!("LOG Level: {:?}", filter_level);
     debug!("CLI Config: {:#?}", matches);
 
-    let directory = matches.value_of("dependencies").unwrap_or("./definitions");
+    let directory = matches.value_of("dependencies").unwrap_or("./asn1");
 
     let mut module = asn1_spec::Asn1::new(matches.value_of("input").unwrap())
         .dependencies(directory)

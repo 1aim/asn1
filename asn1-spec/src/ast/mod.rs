@@ -1,28 +1,28 @@
 pub mod module;
 pub mod oid;
+pub mod object;
 pub mod types;
+pub mod values;
 
 use std::collections::HashMap;
 use std::iter::Peekable;
-use std::str::FromStr;
 
 use derefable::Derefable;
 use pest::iterators::{FlatPairs, Pair};
 use pest::Parser;
 use variation::Variation;
 
-use super::Result;
+use crate::Result;
 
+pub use asn1_pest::{Asn1Parser, Rule};
 pub use self::module::*;
 pub use self::oid::*;
 pub use self::types::*;
+pub use self::values::*;
+pub use self::object::*;
 
 // First Vec is a Vec of Unions, containing a Vec of intersections.
 type ElementSet = Vec<Vec<Element>>;
-
-#[derive(Parser)]
-#[grammar = "asn1.pest"]
-struct Asn1Parser;
 
 pub(crate) struct Ast<'a>(Peekable<FlatPairs<'a, Rule>>);
 
@@ -496,6 +496,7 @@ impl<'a> Ast<'a> {
             let pair = self.next().unwrap();
             match pair.as_rule() {
                 Rule::BooleanType => RawType::Builtin(BuiltinType::Boolean),
+                Rule::BitStringType => RawType::Builtin(BuiltinType::BitString),
 
                 Rule::CharacterStringType => {
                     let pair = self.next().unwrap();
@@ -643,7 +644,15 @@ impl<'a> Ast<'a> {
                     }
                 }
 
-                Rule::SetType => unimplemented!(),
+                Rule::SetType => {
+                    if self.peek(Rule::ExtensionAndException) {
+                        RawType::Builtin(BuiltinType::Set(Set::Extensible(self.parse_extension_and_exception().unwrap(), self.parse_optional_extension_marker())))
+                    } else if self.peek(Rule::ComponentTypeLists) {
+                        RawType::Builtin(BuiltinType::Set(Set::Concrete(self.parse_component_type_lists())))
+                    } else {
+                        RawType::Builtin(BuiltinType::Set(Set::Concrete(Vec::new())))
+                    }
+                },
                 Rule::SetOfType => {
                     if self.peek(Rule::Type) {
                         RawType::Builtin(BuiltinType::SetOf(Box::new(self.parse_type())))
@@ -675,14 +684,22 @@ impl<'a> Ast<'a> {
                         let reference = self.parse_simple_defined_type();
                         let parameters = self.parse_actual_parameter_list();
 
-                        RawType::Parameterized(reference, parameters)
+                        RawType::ParameterizedReference(reference, parameters)
                     }
                     Rule::ParameterizedValueSet => unimplemented!(),
 
                     r => unreachable!("Unexpected rule: {:?}", r),
                 },
-                Rule::TypeFromObject => unimplemented!(),
-                Rule::ValueSetFromObjects => unimplemented!(),
+                Rule::FromObject => {
+                    unimplemented!()
+                    // self.take(Rule::ReferencedObjects);
+                    // let referenced_object = match self.rule_peek() {
+                    //     Rule::DefinedObject => {
+                    //     }
+                    // };
+
+                    //Object::Refer(self.parse_referenced_objects(), self.parse_field_name())
+                },
                 _ => unreachable!(),
             }
         }
@@ -749,21 +766,44 @@ impl<'a> Ast<'a> {
             Rule::BitStringValue => {
                 self.take(Rule::BitStringValue);
 
-                let mut string = String::new();
-
-                match self.next_rule().unwrap() {
+                let bitstring = match self.rule_peek().unwrap() {
                     Rule::bstring => {
-                        if self.peek(Rule::bits) {
-                            string.push_str(self.take(Rule::bits).as_str())
-                        }
+                        self.take(Rule::bstring);
+
+                        let bitstring = self.look(Rule::bits)
+                            .map(|b| b.as_str().to_owned())
+                            .unwrap_or_else(String::new);
+
+                        BitString::Literal(bitstring)
                     },
                     Rule::hstring => {
-                        if self.peek(Rule::hexes).is_some() {
-                            let hex_value = self.take(Rule::hexes).as_str();
-                        }
+                        self.take(Rule::hstring);
+
+                        let bitstring = self.look(Rule::hexes)
+                            .and_then(|hex| u64::from_str_radix(hex.as_str(), 16).ok())
+                            .map(|num| format!("{:b}", num))
+                            .unwrap_or_else(String::new);
+
+                        BitString::Literal(bitstring)
                     }
-                    Rule::
-                }
+
+                    Rule::IdentifierList => {
+                        self.take(Rule::IdentifierList);
+
+                        let mut identifiers = Vec::new();
+                        while self.peek(Rule::Identifier) {
+                            identifiers.push(self.parse_identifier());
+                        }
+
+                        BitString::List(identifiers)
+                    }
+
+                    Rule::Value => unimplemented!("BitStrings with 'CONTAINING' aren't currently supported."),
+
+                    _ => BitString::Literal(String::new()),
+                };
+
+                Value::BitString(bitstring)
 
             }
             Rule::IntegerValue => {
@@ -795,9 +835,9 @@ impl<'a> Ast<'a> {
 
         match self.rule_peek().unwrap() {
             Rule::DefinedValue => Value::Defined(self.parse_defined_value()),
-            Rule::ValueFromObject => {
+            Rule::FromObject => {
                 let s = self
-                    .take(Rule::ValueFromObject)
+                    .take(Rule::FromObject)
                     .as_str()
                     .split(".")
                     .map(String::from)
@@ -1013,7 +1053,6 @@ impl<'a> Ast<'a> {
                     Rule::DefinedObjectSet => Element::ObjectSet(ObjectSetElements::Defined(
                         self.parse_defined_object_set(),
                     )),
-                    Rule::ObjectSetFromObjects => unimplemented!("ObjectSetFromObjects"),
                     Rule::ParameterizedObjectSet => unimplemented!("ParamterizedObjectSet"),
                     _ => unreachable!(),
                 }
@@ -1145,14 +1184,34 @@ impl<'a> Ast<'a> {
         self.take(Rule::Object);
 
         match self.rule_peek().unwrap() {
-            Rule::DefinedObject => unimplemented!("DefinedObject"),
+            Rule::DefinedObject => {
+                let reference = match self.rule_peek().unwrap() {
+                    Rule::ExternalObjectReference => {
+                        self.take(Rule::ExternalObjectReference);
+                        let module = self.parse_module_reference();
+                        let object = self.parse_object_reference();
+
+                        ReferenceType::External(module, object)
+                    }
+
+                    Rule::objectreference => ReferenceType::Internal(self.parse_object_reference()),
+                    _ => unreachable!(),
+                };
+
+                let parameters = if self.peek(Rule::ActualParameterList) {
+                    Some(self.parse_actual_parameter_list())
+                } else {
+                    None
+                };
+
+                Object::Defined(reference, parameters)
+            },
             Rule::ObjectDefn => {
                 self.take(Rule::ObjectDefn);
 
                 let mut tokens = Vec::new();
 
                 if self.look(Rule::DefinedSyntax).is_some() {
-                    //panic!("{:#?}", &self.0.clone().collect::<Vec<_>>()[..5]);
                     while self.look(Rule::DefinedSyntaxToken).is_some() {
                         let token = if self.look(Rule::Setting).is_some() {
                             let setting = match self.rule_peek().unwrap() {
@@ -1177,8 +1236,6 @@ impl<'a> Ast<'a> {
 
                 Object::Def(tokens)
             }
-            Rule::ObjectFromObject => unimplemented!("ObjectFromObject"),
-            Rule::ParameterizedObject => unimplemented!("ParameterizedObject"),
             _ => unreachable!(),
         }
     }
@@ -1218,7 +1275,7 @@ impl<'a> Ast<'a> {
         }
     }
 
-    fn parse_object_class_defn(&mut self) -> ClassDef {
+    fn parse_object_class_defn(&mut self) -> ClassDefinition {
         self.take(Rule::ObjectClassDefn);
         let mut fields = Vec::new();
 
@@ -1246,7 +1303,7 @@ impl<'a> Ast<'a> {
             None
         };
 
-        ClassDef { fields, syntax }
+        ClassDefinition::new(fields, syntax)
     }
 
     fn parse_token_or_group_spec(&mut self) -> Vec<Token> {
@@ -1407,6 +1464,12 @@ impl<'a> Ast<'a> {
         }
     }
 
+    /// Returns just whether or not the extension marker was present, while consuming it's pair if
+    /// it was present.
+    fn parse_optional_extension_marker(&mut self) -> bool {
+        self.look(Rule::OptionalExtensionMarker).is_some()
+    }
+
     fn parse_boolean_value(&mut self) -> Value {
         Value::Boolean(self.take(Rule::BooleanValue).as_str().contains("TRUE"))
     }
@@ -1458,21 +1521,6 @@ impl<'a> Ast<'a> {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Variation)]
-pub enum SimpleDefinedValue {
-    /// An external type reference e.g. `foo.bar`
-    Reference(String, String),
-    /// Identifier pointing to a value
-    Value(String),
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Variation)]
-pub enum DefinedValue {
-    Simple(SimpleDefinedValue),
-    /// Paramaterized value
-    Parameterized(SimpleDefinedValue, Vec<()>),
-}
-
 #[derive(Debug, Clone)]
 pub struct Assignment {
     pub name: String,
@@ -1518,30 +1566,6 @@ pub enum GeneralConstraint {
 }
 
 #[derive(Clone, Debug, Variation)]
-pub enum Value {
-    Boolean(bool),
-    Integer(IntegerValue),
-    ObjectIdentifier(ObjectIdentifier),
-    Sequence(Vec<NamedValue>),
-    Enumerated(String),
-    Defined(DefinedValue),
-    Object(Vec<String>),
-    ObjectClassField,
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum IntegerValue {
-    Literal(i64),
-    Identifier(String),
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum NumberOrDefinedValue {
-    Number(i64),
-    DefinedValue(DefinedValue),
-}
-
-#[derive(Clone, Debug, Variation)]
 pub enum Element {
     SubType(SubTypeElement),
     ElementSet(ElementSet),
@@ -1559,111 +1583,6 @@ pub enum SubTypeElement {
     FullSpec(HashMap<String, ComponentConstraint>),
     PartialSpec(HashMap<String, ComponentConstraint>),
 }
-
-#[derive(Clone, Debug, Variation)]
-pub enum ObjectClass {
-    Def(ClassDef),
-    Defined(DefinedObjectClass),
-    Parameterized(String, Option<()>),
-}
-
-#[derive(Clone, Debug)]
-pub struct ClassDef {
-    fields: Vec<FieldSpec>,
-    syntax: Option<Vec<Token>>,
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum FieldSpec {
-    FixedTypeValue(String, Type, bool, Optionality<Value>),
-    VariableTypeValue(String, Vec<Field>, Optionality<Value>),
-    FixedValueSet(String, Type, Optionality<ElementSetSpec>),
-    ObjectField(String, DefinedObjectClass, Optionality<Object>),
-    Type(String, Optionality<Type>),
-    ObjectSet(String, DefinedObjectClass, Optionality<(ElementSet, bool)>),
-}
-
-#[derive(Clone, Debug)]
-pub enum Optionality<T> {
-    Optional,
-    Default(T),
-    None,
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum DefinedObjectSet {
-    External(String, String),
-    Internal(String),
-}
-
-#[derive(Clone, Debug)]
-pub struct Field {
-    name: String,
-    kind: FieldType,
-}
-
-impl Field {
-    fn new(name: String, kind: FieldType) -> Self {
-        Self { name, kind }
-    }
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum FieldType {
-    Type,
-    Value,
-    ValueSet,
-    Object,
-    ObjectSet,
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum ObjectSetElements {
-    Defined(DefinedObjectSet),
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum Class {
-    Universal,
-    Application,
-    Private,
-}
-
-impl FromStr for Class {
-    type Err = ();
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "UNIVERSAL" => Ok(Class::Universal),
-            "APPLICATION" => Ok(Class::Application),
-            "PRIVATE" => Ok(Class::Private),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum Object {
-    Def(Vec<ObjectDefn>),
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum ObjectDefn {
-    Setting(Setting),
-    Literal(String),
-}
-
-#[derive(Clone, Debug, Variation)]
-pub enum Setting {
-    Type(Type),
-    Value(Value),
-    ValueSet(ElementSetSpec),
-    Object(Object),
-    ObjectSet(ElementSet),
-}
-
-#[derive(Clone, Debug)]
-pub struct NamedValue(String, Value);
 
 #[derive(Clone, Debug, Variation)]
 pub enum Extensible {
@@ -1760,7 +1679,7 @@ mod tests {
 
     #[test]
     fn pkcs12() {
-        let input = include_str!("../tests/pkcs12.asn1");
+        let input = include_str!("../asn1/pkcs12.asn1");
 
         Asn1Parser::parse(Rule::ModuleDefinition, input).unwrap_or_else(|e| panic!("{}", e));
     }

@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt,
     hash::{Hash, Hasher},
 };
 
@@ -43,6 +44,17 @@ impl ObjectIdentifier {
     }
 }
 
+impl fmt::Display for ObjectIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{{ ")?;
+        for component in &self.0 {
+            write!(f, "{} ", component)?;
+        }
+
+        write!(f, "}}")
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialOrd, Ord, Variation)]
 pub enum ObjIdComponent {
     Name(String),
@@ -62,6 +74,17 @@ impl ObjIdComponent {
         }
     }
 }
+
+impl fmt::Display for ObjIdComponent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ObjIdComponent::Name(name) => name.fmt(f),
+            ObjIdComponent::Number(number) => number.fmt(f),
+            ObjIdComponent::NameAndNumber(name, number) => write!(f, "{}({})", name, number),
+        }
+    }
+}
+
 
 impl Hash for ObjIdComponent {
     fn hash<H: Hasher>(&self, state: &mut H) {

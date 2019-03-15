@@ -90,11 +90,9 @@ BuiltinType = {
 }
 
 ReferencedType = {
-    TypeFromObject |
+    FromObject |
     DefinedType |
-    typereference |
-    SelectionType |
-    ValueSetFromObjects
+    SelectionType
 }
 
 NamedType = { Identifier ~ Type }
@@ -122,7 +120,7 @@ BuiltinValue = {
     // TODO: TimeValue
 }
 
-ReferencedValue = { DefinedValue | ValueFromObject }
+ReferencedValue = { DefinedValue | FromObject }
 NamedValue = { Identifier ~ Value }
 
 BooleanType = { "BOOLEAN" }
@@ -370,7 +368,7 @@ OidNonIntegerCharacter = {
 }
 
 // X.861
-DefinedObjectClass = { ExternalObjectClassReference | EncodingIdentifier | UsefulObjectClassReference }
+DefinedObjectClass = { UsefulObjectClassReference | ExternalObjectClassReference | EncodingIdentifier }
 ExternalObjectClassReference = { ReferenceIdentifier ~ "." ~ EncodingIdentifier }
 UsefulObjectClassReference = { "TYPE-IDENTIFIER" | "ABSTRACT-SYNTAX"  }
 ObjectClassAssignment = { objectclassreference ~ ParameterList? ~ "::=" ~ ObjectClass }
@@ -413,10 +411,10 @@ TokenOrGroupSpec = { RequiredToken | OptionalGroup }
 OptionalGroup = { "[" ~ TokenOrGroupSpec+ ~ "]" }
 RequiredToken = { Literal | PrimitiveFieldName }
 Literal = @{ word | "," }
-DefinedObject = { ExternalObjectReference | objectreference }
+DefinedObject = { (ExternalObjectReference | objectreference) ~ ActualParameterList? }
 ExternalObjectReference = { modulereference ~ "." ~ objectreference }
 ObjectAssignment = { objectreference ~ ParameterList? ~ DefinedObjectClass ~ "::=" ~ Object }
-Object = { ParameterizedObject | DefinedObject | ObjectDefn | ObjectFromObject }
+Object = { DefinedObject | ObjectDefn | FromObject }
 ObjectDefn = { DefaultSyntax | DefinedSyntax }
 DefaultSyntax = { "{" ~ ((FieldSetting ~ ",")* ~ FieldSetting)? ~ "}" }
 FieldSetting = { PrimitiveFieldName ~ Setting }
@@ -431,17 +429,13 @@ ObjectSetSpec = {
     (ElementSetSpec ~ ("," ~ "..." ~ ("," ~ ElementSetSpec)?)?) |
     ("..." ~ ("," ~ ElementSetSpec)?)
 }
-ObjectSetElements = { Object | DefinedObjectSet | ObjectSetFromObjects | ParameterizedObjectSet }
+ObjectSetElements = { Object | ParameterizedObjectSet | DefinedObjectSet | FromObject }
 ObjectClassFieldType = { DefinedObjectClass ~ "." ~ FieldName }
 ObjectClassFieldValue = { OpenTypeFieldVal | FixedTypeFieldVal }
 OpenTypeFieldVal = { Type ~ ":" ~ Value }
 FixedTypeFieldVal = { ReferencedValue | BuiltinValue }
-ReferencedObjects = { ParameterizedObject | DefinedObject | ParameterizedObjectSet | DefinedObjectSet }
-ValueFromObject = { ReferencedObjects ~ "." ~ FieldName }
-ValueSetFromObjects = { ReferencedObjects ~ "." ~ FieldName }
-TypeFromObject = { ReferencedObjects ~ "." ~ FieldName }
-ObjectFromObject = { ReferencedObjects ~ "." ~ FieldName }
-ObjectSetFromObjects = { ReferencedObjects ~ "." ~ FieldName }
+ReferencedObjects = { DefinedObject | ParameterizedObjectSet | DefinedObjectSet }
+FromObject = { ReferencedObjects ~ "." ~ FieldName }
 
 // X.682
 GeneralConstraint = { UserDefinedConstraint | TableConstraint | ContentsConstraint }
@@ -490,7 +484,6 @@ SimpleDefinedValue = { ExternalValueReference | valuereference }
 ParameterizedType = { SimpleDefinedType ~ ActualParameterList }
 ParameterizedValue = { SimpleDefinedValue ~ ActualParameterList }
 ParameterizedValueSet = { SimpleDefinedType ~ ActualParameterList }
-ParameterizedObject = { DefinedObject ~ ActualParameterList }
 ParameterizedObjectClass = { DefinedObjectClass ~ ActualParameterList }
 ParameterizedObjectSet = { DefinedObjectSet ~ ActualParameterList }
 ActualParameterList = { "{" ~ (ActualParameter ~ ","?)+ ~ "}" }

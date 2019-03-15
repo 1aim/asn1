@@ -22,7 +22,7 @@ impl From<RawType> for Type {
 pub enum RawType {
     Builtin(BuiltinType),
     Referenced(ReferenceType),
-    Parameterized(ReferenceType, Vec<Parameter>),
+    ParameterizedReference(ReferenceType, Vec<Parameter>),
 }
 
 impl From<BuiltinType> for RawType {
@@ -40,6 +40,7 @@ impl From<ReferenceType> for RawType {
 #[derive(Clone, Debug, Variation)]
 pub enum BuiltinType {
     Boolean,
+    BitString,
     CharacterString(CharacterStringType),
     Choice(ChoiceType),
     Enumeration(
@@ -55,6 +56,7 @@ pub enum BuiltinType {
     Prefixed(Prefix, Box<Type>),
     Sequence(Vec<ComponentType>),
     SequenceOf(Box<Type>),
+    Set(Set),
     SetOf(Box<Type>),
 }
 
@@ -131,4 +133,11 @@ pub enum ComponentType {
         default: Option<Value>,
     },
     ComponentsOf(Type),
+}
+
+#[derive(Clone, Debug)]
+pub enum Set {
+    Extensible(ExtensionAndException, bool),
+    Concrete(Vec<ComponentType>),
+
 }
