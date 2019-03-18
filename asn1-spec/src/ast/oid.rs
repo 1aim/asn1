@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt,
     hash::{Hash, Hasher},
 };
@@ -7,7 +7,9 @@ use std::{
 use derefable::Derefable;
 use variation::Variation;
 
-#[derive(Clone, Debug, Derefable, Default, Hash, PartialEq, PartialOrd, Eq)]
+use super::values::Number;
+
+#[derive(Clone, Debug, Derefable, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ObjectIdentifier(#[deref(mutable)] Vec<ObjIdComponent>);
 
 impl ObjectIdentifier {
@@ -35,7 +37,7 @@ impl ObjectIdentifier {
         false
     }
 
-    pub fn replace(&mut self, map: &HashMap<String, ObjectIdentifier>) {
+    pub fn replace(&mut self, map: &BTreeMap<String, ObjectIdentifier>) {
         for (name, id) in map {
             while let Ok(index) = self.0.binary_search(&ObjIdComponent::Name(name.clone())) {
                 self.0.splice(index..(index + 1), id.0.iter().cloned());
@@ -58,8 +60,8 @@ impl fmt::Display for ObjectIdentifier {
 #[derive(Clone, Debug, Eq, PartialOrd, Ord, Variation)]
 pub enum ObjIdComponent {
     Name(String),
-    Number(i64),
-    NameAndNumber(String, i64),
+    Number(Number),
+    NameAndNumber(String, Number),
 }
 
 impl ObjIdComponent {
@@ -140,18 +142,18 @@ mod tests {
     fn two_oids() -> (ObjectIdentifier, ObjectIdentifier) {
         (
             ObjectIdentifier::from_components(vec![
-                ObjIdComponent::NameAndNumber("joint-iso-itu-t".into(), 2),
-                ObjIdComponent::NameAndNumber("ds".into(), 5),
-                ObjIdComponent::NameAndNumber("module".into(), 1),
-                ObjIdComponent::NameAndNumber("usefulDefinitions".into(), 0),
-                ObjIdComponent::Number(3),
+                ObjIdComponent::NameAndNumber("joint-iso-itu-t".into(), 2.into()),
+                ObjIdComponent::NameAndNumber("ds".into(), 5.into()),
+                ObjIdComponent::NameAndNumber("module".into(), 1.into()),
+                ObjIdComponent::NameAndNumber("usefulDefinitions".into(), 0.into()),
+                ObjIdComponent::Number(3.into()),
             ]),
             ObjectIdentifier::from_components(vec![
                 ObjIdComponent::Name("joint-iso-itu-t".into()),
-                ObjIdComponent::NameAndNumber("ds".into(), 5),
-                ObjIdComponent::NameAndNumber("module".into(), 1),
-                ObjIdComponent::NameAndNumber("usefulDefinitions".into(), 0),
-                ObjIdComponent::Number(3),
+                ObjIdComponent::NameAndNumber("ds".into(), 5.into()),
+                ObjIdComponent::NameAndNumber("module".into(), 1.into()),
+                ObjIdComponent::NameAndNumber("usefulDefinitions".into(), 0.into()),
+                ObjIdComponent::Number(3.into()),
             ]),
         )
     }

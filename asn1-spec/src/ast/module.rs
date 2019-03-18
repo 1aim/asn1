@@ -14,7 +14,7 @@ pub struct Module {
     pub assignments: Vec<Assignment>,
 }
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ModuleIdentifier {
     pub name: String,
     pub identification: ObjectIdentifier,
@@ -36,20 +36,20 @@ impl fmt::Display for ModuleIdentifier {
     }
 }
 
-#[derive(Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Tag {
     Explicit,
     Implicit,
     Automatic,
 }
 
-#[derive(Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Exports {
     All,
     Symbols(Vec<String>),
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ModuleReference {
     name: String,
     identification: Option<AssignedIdentifier>,
@@ -92,7 +92,7 @@ impl ModuleReference {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum AssignedIdentifier {
     ObjectIdentifier(ObjectIdentifier),
     Defined(DefinedValue),

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, mem};
+use std::{collections::BTreeMap, mem};
 
 use failure::ensure;
 use unwrap_to::unwrap_to;
@@ -7,7 +7,7 @@ use crate::{ast::*, registry::*, Result};
 
 #[derive(Debug)]
 pub struct SemanticChecker {
-    imports: HashMap<ModuleReference, Vec<String>>,
+    imports: BTreeMap<ModuleReference, Vec<String>>,
     module: Module,
     types: TypeRegistry,
     values: ValueRegistry,
@@ -19,7 +19,7 @@ pub struct SemanticChecker {
 
 impl SemanticChecker {
     pub fn new(module: Module) -> Self {
-        let imports = HashMap::with_capacity(module.imports.len());
+        let imports = BTreeMap::new();
         let values = ValueRegistry::new();
         let value_sets = ValueSetRegistry::new();
         let types = TypeRegistry::new();
@@ -93,8 +93,7 @@ impl SemanticChecker {
             let reference = unwrap_to!(t.raw_type => RawType::Referenced);
 
             if reference.is_internal() {
-                let name = unwrap_to!(reference => ReferenceType::Internal);
-                if let Some(original_type) = self.types.get(name) {
+                if let Some(original_type) = self.types.get(&reference.item) {
                     // TODO: How do constraints work across type alias?
                     // Might be defined in the spec
                     *t = original_type.clone();
@@ -109,26 +108,21 @@ impl SemanticChecker {
         debug!("Resolving defined values");
         let frozen_map = self.values.clone();
         let get_value = |defined_value: &mut DefinedValue| {
-            let simple = match defined_value {
+            let value = match defined_value {
                 DefinedValue::Simple(v) => v,
                 DefinedValue::Parameterized(_, _) => {
                     unimplemented!("Parameterized defined values are not currently supported")
                 }
             };
 
-            let original_value = match simple {
-                // TODO: Replace with some form of type checking.
-                SimpleDefinedValue::Value(ref_value) => {
-                    let value = frozen_map.get(&*ref_value).map(|(_, v)| v);
+            let original_value = if value.is_internal() {
+                match frozen_map.get(&*value.item).map(|(_, v)| v) {
+                    Some(v) => v,
+                    None => panic!("Couldn't find {:?} value", value.item),
+                }
 
-                    match value {
-                        Some(v) => v,
-                        None => panic!("Couldn't find {:?} value", ref_value),
-                    }
-                }
-                SimpleDefinedValue::Reference(_, _) => {
-                    unimplemented!("External defines are not currently supported")
-                }
+            } else {
+                unimplemented!("External defines are not currently supported")
             };
 
             original_value.clone()

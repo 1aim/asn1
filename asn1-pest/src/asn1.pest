@@ -16,7 +16,7 @@ DefinitiveIdentification = { DefinitiveOID ~ IRIValue? }
 DefinitiveOID = { "{" ~ DefinitiveObjIdComponent+ ~ "}" }
 DefinitiveObjIdComponent = { DefinitiveNameAndNumberForm | DefinitiveNumberForm | NameForm }
 NameForm = { Identifier }
-DefinitiveNumberForm = @{ ASCII_DIGIT+ }
+DefinitiveNumberForm = @{ number }
 DefinitiveNameAndNumberForm = { Identifier ~ "(" ~ DefinitiveNumberForm ~ ")" }
 EncodingReferenceDefault = { EncodingIdentifier ~ "INSTRUCTIONS" }
 TagDefault = { ("EXPLICIT" | "IMPLICIT" | "AUTOMATIC") ~ "TAGS" }
@@ -42,15 +42,15 @@ Assignment = {
 DefinedType = {
     ParameterizedType |
     ParameterizedValueSet |
-    ExternalTypeReference |
-    typereference
+    DefinedTypeReference
 }
 
 DefinedValue = { ParameterizedValue | ExternalValueReference | valuereference }
-ExternalTypeReference = { modulereference ~ "." ~ typereference }
+NumberOrDefinedValue = { number | DefinedValue }
+DefinedTypeReference = { (modulereference ~ ".")? ~ typereference }
 ExternalValueReference = { modulereference ~ "." ~ valuereference }
 ItemSpec = { ((typereference ~ ".")+ ~ ComponentId) | typereference }
-ComponentId = { Identifier | ASCII_DIGIT+ | "*" }
+ComponentId = { Identifier | number | "*" }
 
 TypeAssignment = { typereference ~ ParameterList? ~ "::=" ~ Type }
 ValueAssignment = { valuereference ~ ParameterList? ~ Type ~ "::=" ~ Value }
@@ -129,7 +129,7 @@ BooleanValue = { "TRUE" | "FALSE" }
 IntegerType = { "INTEGER" ~ ("{" ~ NamedNumberList ~ "}")? }
 NamedNumberList = { (NamedNumber ~ ",")* ~ NamedNumber }
 NamedNumber = { Identifier ~ "(" ~ (SignedNumber | DefinedValue) ~ ")" }
-SignedNumber = @{ "-"? ~ ASCII_DIGIT+ }
+SignedNumber = @{ "-"? ~ number }
 IntegerValue = { SignedNumber | Identifier }
 
 EnumeratedType = { "ENUMERATED" ~ "{" ~ Enumerations ~ "}" }
@@ -140,7 +140,7 @@ EnumeratedValue = { Identifier }
 
 BitStringType = { "BIT" ~ "STRING" ~ ("{" ~ NamedBitList ~ "}")? }
 NamedBitList = { (NamedBit ~ ",")* ~ NamedBit }
-NamedBit = { Identifier ~ "(" ~ (ASCII_DIGIT+ | DefinedValue) ~ ")"}
+NamedBit = { Identifier ~ "(" ~ NumberOrDefinedValue ~ ")"}
 BitStringValue = { bstring | hstring | ("{" ~ IdentifierList? ~ "}") | ("CONTAINING" ~ Value) }
 IdentifierList = { (Identifier ~ ",")* ~ Identifier }
 
@@ -230,7 +230,7 @@ ExtensionAdditionList = { (ExtensionAddition ~ ",")* ~ ExtensionAddition }
 ExtensionAddition = { ComponentType | ExtensionAdditionGroup }
 ExtensionAdditionGroup = { "[[" ~ VersionNumber? ~ ComponentTypeList  ~ "]]" }
 ComponentTypeList = { (ComponentType ~ ",")* ~ ComponentType }
-VersionNumber = @{ ASCII_DIGIT+ ~ ":" }
+VersionNumber = @{ number ~ ":" }
 ComponentType = {
     (NamedType ~ ("OPTIONAL" | ("DEFAULT" ~ Value))?) |
     "COMPONENTS" ~ "OF" ~ Type
@@ -284,7 +284,7 @@ EncodingInstruction = { ANY+ }
 TaggedType = { Tag ~ ("IMPLICIT" | "EXPLICIT")? ~ Type }
 Tag = { "[" ~ EncodingReference? ~ Class? ~ ClassNumber ~ "]" }
 EncodingReference = { encodingreference ~ ":" }
-ClassNumber = ${ ASCII_DIGIT+ | DefinedValue }
+ClassNumber = ${ NumberOrDefinedValue }
 Class = { "UNIVERSAL" | "APPLICATION" | "PRIVATE" }
 EmbeddedPDVType = { "EMBEDDED" ~ "PDV" }
 ExternalType = { "EXTERNAL" }
@@ -316,20 +316,20 @@ CharacterStringList = { "{" ~ CharSyms ~ "}" }
 CharSyms = { (CharsDefn ~ ",")* ~ CharsDefn }
 CharsDefn = { cstring | Quadruple | Tuple | DefinedValue }
 Quadruple = { "{" ~ Group ~ "," ~ Plane ~ "," ~ Row ~ "," ~ Cell ~ "}" }
-Group = @{ ASCII_DIGIT+ }
-Plane = @{ ASCII_DIGIT+ }
-Row = @{ ASCII_DIGIT+ }
-Cell = @{ ASCII_DIGIT+ }
+Group = @{ number }
+Plane = @{ number }
+Row = @{ number }
+Cell = @{ number }
 Tuple = { "{" ~ TableColumn ~ "," ~ TableRow ~ "}" }
-TableColumn = @{ ASCII_DIGIT+ }
-TableRow = @{ ASCII_DIGIT+ }
+TableColumn = @{ number }
+TableRow = @{ number }
 UnrestrictedCharacterStringType = { "CHARACTER" ~ "STRING" }
 UnrestrictedCharacterStringValue = { SequenceOfValue }
 ObjectIdentifierType = { "OBJECT" ~ "IDENTIFIER" }
 // TODO: Figure out how DefinedValue can be parsed in ObjectIdentifierValue.
 ObjectIdentifierValue = { "{" ~ ObjIdComponents+ ~ "}" }
-ObjIdComponents = { NameAndNumberForm | Identifier | NumberForm | DefinedValue }
-NumberForm = ${ ASCII_DIGIT+ | DefinedValue }
+ObjIdComponents = { NameAndNumberForm | Identifier | NumberForm }
+NumberForm = ${ NumberOrDefinedValue }
 NameAndNumberForm = { Identifier ~ "(" ~ NumberForm ~ ")" }
 
 ExceptionSpec = { "!" ~ ExceptionIdentification }
@@ -339,7 +339,7 @@ IRIValue = { "\"" ~ FirstArcIdentifier ~ SubsequentArcIdentifier?  ~ "\"" }
 FirstArcIdentifier = { "/" ~ ArcIdentifier }
 SubsequentArcIdentifier = { "/" ~ ArcIdentifier ~ SubsequentArcIdentifier? }
 ArcIdentifier = { integerUnicodeLabel | nonIntegerUnicodeLabel }
-integerUnicodeLabel = @{ ASCII_DIGIT+ }
+integerUnicodeLabel = @{ number }
 nonIntegerUnicodeLabel = { OidNonIntegerCharacter+ }
 OidNonIntegerCharacter = {
     "." |
@@ -411,8 +411,7 @@ TokenOrGroupSpec = { RequiredToken | OptionalGroup }
 OptionalGroup = { "[" ~ TokenOrGroupSpec+ ~ "]" }
 RequiredToken = { Literal | PrimitiveFieldName }
 Literal = @{ word | "," }
-DefinedObject = { (ExternalObjectReference | objectreference) ~ ActualParameterList? }
-ExternalObjectReference = { modulereference ~ "." ~ objectreference }
+DefinedObject = { ((modulereference ~ ".")? ~ objectreference) ~ ActualParameterList? }
 ObjectAssignment = { objectreference ~ ParameterList? ~ DefinedObjectClass ~ "::=" ~ Object }
 Object = { DefinedObject | ObjectDefn | FromObject }
 ObjectDefn = { DefaultSyntax | DefinedSyntax }
@@ -421,8 +420,7 @@ FieldSetting = { PrimitiveFieldName ~ Setting }
 DefinedSyntax = { "{" ~ DefinedSyntaxToken* ~ "}" }
 DefinedSyntaxToken = { Setting | Literal  }
 Setting = { Type | Value | ValueSet | Object | ObjectSet }
-DefinedObjectSet = { ExternalObjectSetReference | objectsetreference }
-ExternalObjectSetReference = { modulereference ~ "." ~ objectsetreference }
+DefinedObjectSet = { (modulereference ~ ".")? ~ objectsetreference }
 ObjectSetAssignment = { objectsetreference ~ ParameterList? ~ DefinedObjectClass ~ "::=" ~ ObjectSet }
 ObjectSet = { "{" ~ ObjectSetSpec ~ "}" }
 ObjectSetSpec = {
@@ -479,11 +477,10 @@ Parameter = { (ParamGovernor ~ ":")? ~ Reference }
 ParamGovernor = { Governor | Reference }
 Governor = { Type | DefinedObjectClass }
 ParameterizedReference  = { Reference ~ ("{" ~ "}")? }
-SimpleDefinedType = { ExternalTypeReference | typereference }
 SimpleDefinedValue = { ExternalValueReference | valuereference }
-ParameterizedType = { SimpleDefinedType ~ ActualParameterList }
+ParameterizedType = { DefinedTypeReference ~ ActualParameterList }
 ParameterizedValue = { SimpleDefinedValue ~ ActualParameterList }
-ParameterizedValueSet = { SimpleDefinedType ~ ActualParameterList }
+ParameterizedValueSet = { DefinedTypeReference ~ ActualParameterList }
 ParameterizedObjectClass = { DefinedObjectClass ~ ActualParameterList }
 ParameterizedObjectSet = { DefinedObjectSet ~ ActualParameterList }
 ActualParameterList = { "{" ~ (ActualParameter ~ ","?)+ ~ "}" }
@@ -525,6 +522,7 @@ hexes = {
 
 cstring = { "\"" ~ characters?  ~ "\"" }
 characters = { ("\"\"" | (!"\"" ~ ANY))+ }
+number = @{ ASCII_DIGIT+ }
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{
     ("--" ~ (!("--" | NEWLINE) ~ ANY)* ~ ("--" | NEWLINE)) |

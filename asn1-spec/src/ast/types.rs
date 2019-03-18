@@ -1,6 +1,6 @@
 use crate::ast::*;
 
-#[derive(Clone, Debug, Derefable)]
+#[derive(Clone, Debug, Derefable, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Type {
     #[deref]
     pub raw_type: RawType,
@@ -18,11 +18,12 @@ impl From<RawType> for Type {
     }
 }
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum RawType {
     Builtin(BuiltinType),
-    Referenced(ReferenceType),
     ParameterizedReference(ReferenceType, Vec<Parameter>),
+    Referenced(ReferenceType),
+    ReferencedFromObject(FieldReference),
 }
 
 impl From<BuiltinType> for RawType {
@@ -37,10 +38,10 @@ impl From<ReferenceType> for RawType {
     }
 }
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum BuiltinType {
     Boolean,
-    BitString,
+    BitString(BTreeMap<String, Number>),
     CharacterString(CharacterStringType),
     Choice(ChoiceType),
     Enumeration(
@@ -48,7 +49,7 @@ pub enum BuiltinType {
         Option<ExceptionIdentification>,
         Option<Vec<EnumerationType>>,
     ),
-    Integer(HashMap<String, NumberOrDefinedValue>),
+    Integer(BTreeMap<String, Number>),
     Null,
     ObjectClassField(DefinedObjectClass, Vec<Field>),
     ObjectIdentifier,
@@ -60,13 +61,33 @@ pub enum BuiltinType {
     SetOf(Box<Type>),
 }
 
-#[derive(Clone, Debug, Variation)]
-pub enum ReferenceType {
-    External(String, String),
-    Internal(String),
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct ReferenceType {
+    pub module: Option<String>,
+    pub item: String,
 }
 
-#[derive(Clone, Debug, Variation)]
+impl ReferenceType {
+    pub fn new(module: Option<String>, item: String) -> Self {
+        Self { module, item }
+    }
+
+    pub fn is_internal(&self) -> bool {
+        self.module.is_none()
+    }
+}
+
+impl fmt::Display for ReferenceType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.module.is_some() {
+            write!(f, "{}.", self.module.as_ref().unwrap())?;
+        }
+
+        write!(f, "{}", self.item)
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum CharacterStringType {
     Bmp,
     General,
@@ -84,19 +105,19 @@ pub enum CharacterStringType {
     Visible,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ChoiceType {
     pub alternatives: Vec<Type>,
     pub extension: Option<ExtensionAndException>,
 }
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum EnumerationType {
-    NamedNumber((String, NumberOrDefinedValue)),
+    NamedNumber((String, Number)),
     Name(String),
 }
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum DefinedObjectClass {
     External(String, String),
     Internal(String),
@@ -104,19 +125,15 @@ pub enum DefinedObjectClass {
     TypeIdentifier,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Prefix {
     encoding: Option<String>,
     class: Option<Class>,
-    number: NumberOrDefinedValue,
+    number: Number,
 }
 
 impl Prefix {
-    pub fn new(
-        encoding: Option<String>,
-        class: Option<Class>,
-        number: NumberOrDefinedValue,
-    ) -> Self {
+    pub fn new(encoding: Option<String>, class: Option<Class>, number: Number) -> Self {
         Self {
             encoding,
             class,
@@ -125,7 +142,7 @@ impl Prefix {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub enum ComponentType {
     Type {
         ty: Type,
@@ -135,7 +152,7 @@ pub enum ComponentType {
     ComponentsOf(Type),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Set {
     Extensible(ExtensionAndException, bool),
     Concrete(Vec<ComponentType>),

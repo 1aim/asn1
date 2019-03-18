@@ -4,14 +4,14 @@ use variation::Variation;
 
 use crate::ast::*;
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum ObjectClass {
     Def(ClassDefinition),
     Defined(DefinedObjectClass),
-    Parameterized(String, Option<()>),
+    Parameterized(DefinedObjectClass, Option<Vec<Parameter>>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ClassDefinition {
     fields: Vec<FieldSpec>,
     syntax: Option<Vec<Token>>,
@@ -23,7 +23,7 @@ impl ClassDefinition {
     }
 }
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum FieldSpec {
     FixedTypeValue(String, Type, bool, Optionality<Value>),
     VariableTypeValue(String, Vec<Field>, Optionality<Value>),
@@ -33,20 +33,14 @@ pub enum FieldSpec {
     ObjectSet(String, DefinedObjectClass, Optionality<(ElementSet, bool)>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub enum Optionality<T> {
     Optional,
     Default(T),
     None,
 }
 
-#[derive(Clone, Debug, Variation)]
-pub enum DefinedObjectSet {
-    External(String, String),
-    Internal(String),
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Field {
     name: String,
     kind: FieldType,
@@ -58,7 +52,7 @@ impl Field {
     }
 }
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum FieldType {
     Type,
     Value,
@@ -67,12 +61,7 @@ pub enum FieldType {
     ObjectSet,
 }
 
-#[derive(Clone, Debug, Variation)]
-pub enum ObjectSetElements {
-    Defined(DefinedObjectSet),
-}
-
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Class {
     Universal,
     Application,
@@ -91,19 +80,38 @@ impl FromStr for Class {
         }
     }
 }
-#[derive(Clone, Debug, Variation)]
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Object {
     Def(Vec<ObjectDefn>),
-    Defined(ReferenceType, Option<Vec<Parameter>>)
+    Reference(ObjectReference),
 }
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
+pub enum ObjectReference {
+    Object(ReferenceType, Option<Vec<Parameter>>),
+    Set(ReferenceType, Option<Vec<Parameter>>),
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct FieldReference {
+    object: ObjectReference,
+    fields: Vec<Field>,
+}
+
+impl FieldReference {
+    pub fn new(object: ObjectReference, fields: Vec<Field>) -> Self {
+        Self { object, fields }
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum ObjectDefn {
     Setting(Setting),
     Literal(String),
 }
 
-#[derive(Clone, Debug, Variation)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Setting {
     Type(Type),
     Value(Value),
@@ -111,5 +119,4 @@ pub enum Setting {
     Object(Object),
     ObjectSet(ElementSet),
 }
-
 
