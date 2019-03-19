@@ -1102,13 +1102,15 @@ impl<'a> Ast<'a> {
             Rule::ExternalObjectClassReference => {
                 self.take(Rule::ExternalObjectClassReference);
 
-                DefinedObjectClass::External(
-                    self.parse_reference_identifier(),
-                    self.parse_encoding_identifier(),
+                DefinedObjectClass::Reference(
+                    ReferenceType::new(
+                        Some(self.parse_reference_identifier()),
+                        self.parse_encoding_identifier()
+                    )
                 )
             }
             Rule::EncodingIdentifier => {
-                DefinedObjectClass::Internal(self.parse_encoding_identifier())
+                DefinedObjectClass::Reference(ReferenceType::new(None, self.parse_encoding_identifier()))
             }
             Rule::UsefulObjectClassReference => {
                 if self
@@ -1471,19 +1473,20 @@ impl<'a> Ast<'a> {
         Value::Boolean(self.take(Rule::BooleanValue).as_str().contains("TRUE"))
     }
 
-    fn parse_enumeration(&mut self) -> Vec<EnumerationType> {
+    fn parse_enumeration(&mut self) -> Vec<Enumeration> {
         self.take(Rule::Enumeration);
 
         let mut enumerations = Vec::new();
 
         while self.look(Rule::EnumerationItem).is_some() {
-            let variant = if self.peek(Rule::NamedNumber) {
-                EnumerationType::NamedNumber(self.parse_named_number())
+            let (name, number) = if self.peek(Rule::NamedNumber) {
+                let (name, number) = self.parse_named_number();
+                (name, Some(number))
             } else {
-                EnumerationType::Name(self.parse_identifier())
+                (self.parse_identifier(), None)
             };
 
-            enumerations.push(variant);
+            enumerations.push(Enumeration::new(name, number));
         }
 
         enumerations

@@ -45,9 +45,9 @@ pub enum BuiltinType {
     CharacterString(CharacterStringType),
     Choice(ChoiceType),
     Enumeration(
-        Vec<EnumerationType>,
+        Vec<Enumeration>,
         Option<ExceptionIdentification>,
-        Option<Vec<EnumerationType>>,
+        Option<Vec<Enumeration>>,
     ),
     Integer(BTreeMap<String, Number>),
     Null,
@@ -111,17 +111,22 @@ pub struct ChoiceType {
     pub extension: Option<ExtensionAndException>,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
-pub enum EnumerationType {
-    NamedNumber((String, Number)),
-    Name(String),
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct Enumeration {
+    name: String,
+    number: Option<Number>
+}
+
+impl Enumeration {
+    pub fn new(name: String, number: Option<Number>) -> Self {
+        Self { name, number }
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum DefinedObjectClass {
-    External(String, String),
-    Internal(String),
     AbstractSyntax,
+    Reference(ReferenceType),
     TypeIdentifier,
 }
 
@@ -156,5 +161,4 @@ pub enum ComponentType {
 pub enum Set {
     Extensible(ExtensionAndException, bool),
     Concrete(Vec<ComponentType>),
-
 }

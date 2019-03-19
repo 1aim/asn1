@@ -41,6 +41,7 @@ impl SemanticChecker {
         debug!("Skipping resolving object identifiers");
         //self.values.resolve_object_identifiers();
         self.resolve_defined_values();
+        debug!("{:#?}", self.types);
         Ok(())
     }
 
@@ -170,5 +171,4 @@ impl SemanticChecker {
         Ok(())
     }
 }
-
 

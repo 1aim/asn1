@@ -63,7 +63,7 @@ impl ModuleReference {
         }
     }
 
-    pub fn into_identifier(&self) -> Option<ModuleIdentifier> {
+    pub fn as_identifier(&self) -> Option<ModuleIdentifier> {
         Some(ModuleIdentifier {
             name: self.name.clone(),
             identification: match self.identification.as_ref()? {
