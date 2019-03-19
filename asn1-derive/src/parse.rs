@@ -1,5 +1,5 @@
 use syn::{
-	Error, Lit, LitStr, Attribute, NestedMeta,
+	Error, Lit, LitStr, LitInt, Attribute, NestedMeta,
 	spanned::Spanned,
 	Meta::{
 		List
@@ -25,6 +25,17 @@ pub fn string(lit: &Lit) -> Result<&LitStr, Error> {
 		_ =>
 			Err(Error::new(lit.span(), "asn1: expected string literal"))
 	}
+}
+
+pub fn integer(lit: &Lit) -> Result<&LitInt, Error> {
+	match lit {
+		Lit::Int(i) =>
+			Ok(i),
+
+		_ =>
+			Err(Error::new(lit.span(), "asn1: expected integer literal"))
+	}
+
 }
 
 pub fn attributes(attr: &Attribute) -> Result<Vec<NestedMeta>, Error> {

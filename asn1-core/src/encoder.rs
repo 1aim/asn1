@@ -1,4 +1,5 @@
 use std::io;
+use crate::Value;
 
 /// Trait defining an encoder for ASN.1.
 pub trait Encoder: Clone {
@@ -10,6 +11,6 @@ pub trait Encoder: Clone {
 pub trait Encode<T> {
 	/// Encode self for the given encoder, writes the encoded output to the
 	/// passed writer.
-	fn encode<W>(&mut self, writer: &mut W, value: T) -> io::Result<()>
+	fn encode<W>(&mut self, writer: &mut W, value: Value<T>) -> io::Result<()>
 		where W: io::Write + ?Sized;
 }

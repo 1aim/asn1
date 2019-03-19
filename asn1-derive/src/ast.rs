@@ -88,70 +88,61 @@ impl<'a> Container<'a> {
 	pub fn to_der(&self) -> syn::Result<TokenStream> {
 		let name = self.ident;
 		let body = match &self.data {
-			Data::Struct(Style::Struct, fields) => {
-				let construct = quote! {
-					asn1::der::Construct::<bytes::BytesMut>::new(asn1::tag::SEQUENCE)
-				};
-
-				let fields = fields.iter().map(|field|
-					if let syn::Member::Named(name) = &field.member {
-						quote! {
-							encoder.encode(&mut writer, value.#name)?;
-						}
-					}
-					else {
-						unreachable!();
-					}
-				).collect::<TokenStream>();
-
-				quote! {
-					self.encode_construct(&mut writer, #construct, |mut writer, encoder| { #fields; Ok(()) })
-				}
-			}
-
-			Data::Struct(Style::Tuple, fields) => {
-				let construct = quote! {
-					asn1::der::Construct::<bytes::BytesMut>::new(asn1::tag::SEQUENCE)
-				};
-
-				let fields = fields.iter().map(|field|
-					if let syn::Member::Named(name) = &field.member {
-						quote! {
-							encoder.encode(&mut writer, value.#name)?;
-						}
-					}
-					else {
-						unreachable!();
-					}
-				).collect::<TokenStream>();
-
-				quote! {
-					self.encode_construct(&mut writer, #construct, |mut writer, encoder| { #fields; Ok(()) })
-				}
-			}
-
+			Data::Struct(Style::Struct, fields) |
+			Data::Struct(Style::Tuple, fields) |
 			Data::Struct(Style::Newtype, fields) => {
-				quote! {
+				let implicit = self.attributes.implicit
+					.map(|id| quote! { asn1::Tag::from(#id) })
+					.unwrap_or_else(|| quote! { asn1::tag::SEQUENCE });
 
+				let explicit = self.attributes.explicit
+					.map(|id| quote! { let c = e.explicit(#id); });
+
+				let fields = fields.iter()
+					.map(|f| f.to_der())
+					.collect::<syn::Result<TokenStream>>()?;
+
+				quote! {
+					let c = asn1::der::Construct::<bytes::BytesMut>::new(#implicit)
+					#explicit;
+
+					self.encode_construct(&mut writer, c, |mut writer, encoder| { #fields; Ok(()) })
 				}
 			}
 
-			Data::Struct(Style::Unit, fields) => {
-				quote! {
+			Data::Struct(Style::Unit, _) => {
+				let implicit = self.attributes.implicit
+					.map(|id| quote! { asn1::Tag::from(#id) })
+					.unwrap_or_else(|| quote! { asn1::tag::SEQUENCE });
 
+				let explicit = self.attributes.explicit
+					.map(|id| quote! { let c = e.explicit(#id); });
+
+				quote! {
+					let c = asn1::der::Construct::<bytes::BytesMut>::new(#implicit)
+					#explicit;
+
+					self.encode_construct(&mut writer, c, |mut writer, encoder| { Ok(()) })
 				}
 			}
 
 			Data::Enum(variants) => {
-				quote! {
+				let variants = variants.iter()
+					.enumerate()
+					.map(|(i, v)| v.to_der(i))
+					.collect::<syn::Result<TokenStream>>()?;
 
+				quote! {
+					match {
+						#variants
+					}
 				}
 			}
 		};
 
 		Ok(quote! {
 			impl<'a> asn1::Encode<&'a #name> for asn1::der::Encoder {
-				fn encode<W>(&mut self, mut writer: &mut W, value: &'a #name) -> std::io::Result<()>
+				fn encode<W>(&mut self, mut writer: &mut W, value: asn1::Value<&'a #name>) -> std::io::Result<()>
 					where W: std::io::Write + ?Sized
 				{
 					#body
@@ -159,10 +150,10 @@ impl<'a> Container<'a> {
 			}
 
 			impl asn1::Encode<#name> for asn1::der::Encoder {
-				fn encode<W>(&mut self, writer: &mut W, value: #name) -> std::io::Result<()>
+				fn encode<W>(&mut self, writer: &mut W, value: asn1::Value<#name>) -> std::io::Result<()>
 					where W: std::io::Write + ?Sized
 				{
-					asn1::der::Encoder::encode(self, writer, &value)
+					asn1::der::Encoder::encode(self, writer, value.as_ref())
 				}
 			}
 		})
@@ -234,6 +225,40 @@ impl<'a> Field<'a> {
 			ty: &input.ty,
 			attributes: attribute::Field::parse(input)?,
 		})
+	}
+
+	pub fn to_der(&self) -> syn::Result<TokenStream> {
+		if let syn::Member::Named(name) = &self.member {
+			let implicit = if let Some(id) = self.attributes.implicit {
+				quote! {
+					let v = v.implicit(#id);
+				}
+			}
+			else {
+				quote! { }
+			};
+
+			let explicit = if let Some(id) = self.attributes.explicit {
+				quote! {
+					let v = v.explicit(#id);
+				}
+			}
+			else {
+				quote! { }
+			};
+
+			Ok(quote! {
+				let v = asn1::Value::new(value.#name);
+
+				#implicit;
+				#explicit;
+
+				encoder.encode(&mut writer, v)?;
+			})
+		}
+		else {
+			unreachable!();
+		}
 	}
 }
 

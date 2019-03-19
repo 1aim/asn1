@@ -3,7 +3,7 @@ use bigint::{BigInt, BigUint};
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
 use bytes::{buf, Buf, BufMut, IntoBuf};
 
-use core::{Encoder as Super, Encode};
+use core::{Encoder as Super, Encode, Value};
 use core::tag::{self, Tag};
 use core::ObjectId;
 use crate::{Construct, Primitive};
@@ -123,25 +123,25 @@ fn encode_base128<W: Write + ?Sized>(writer: &mut W, value: &BigUint) -> io::Res
 }
 
 impl Encode<()> for Encoder {
-	fn encode<W>(&mut self, writer: &mut W, _value: ()) -> io::Result<()>
+	fn encode<W>(&mut self, writer: &mut W, value: Value<()>) -> io::Result<()>
 		where W: Write + ?Sized
 	{
 		self.encode_primitive(writer, Primitive {
-			implicit: tag::NULL,
-			explicit: None,
+			implicit: value.implicit.unwrap_or(tag::NULL),
+			explicit: value.explicit,
 			value:    b"",
 		})
 	}
 }
 
 impl Encode<bool> for Encoder {
-	fn encode<W>(&mut self, writer: &mut W, value: bool) -> io::Result<()>
+	fn encode<W>(&mut self, writer: &mut W, value: Value<bool>) -> io::Result<()>
 		where W: Write + ?Sized
 	{
 		self.encode_primitive(writer, Primitive {
-			implicit: tag::BOOLEAN,
-			explicit: None,
-			value: if value { &[0xff] } else { &[0x00] }
+			implicit: value.implicit.unwrap_or(tag::BOOLEAN),
+			explicit: value.explicit,
+			value: if *value { &[0xff] } else { &[0x00] }
 		})
 	}
 }
@@ -151,10 +151,11 @@ macro_rules! integer {
 
 	($ty:ty) => (
 		impl Encode<$ty> for Encoder {
-			fn encode<W>(&mut self, writer: &mut W, value: $ty) -> io::Result<()>
+			fn encode<W>(&mut self, writer: &mut W, value: Value<$ty>) -> io::Result<()>
 				where W: Write + ?Sized
 			{
-				self.encode(writer, &BigInt::from(value))
+				let int = BigInt::from(*value);
+				self.encode(writer, value.map(|_| &int))
 			}
 		}
 	);
@@ -169,14 +170,14 @@ integer!(i8, i16, i32, i64, i128);
 integer!(u8, u16, u32, u64, u128);
 
 impl<'a> Encode<&'a BigInt> for Encoder {
-	fn encode<W>(&mut self, writer: &mut W, value: &'a BigInt) -> io::Result<()>
+	fn encode<W>(&mut self, writer: &mut W, value: Value<&'a BigInt>) -> io::Result<()>
 		where W: Write + ?Sized
 	{
-		println!("{}", value);
+		println!("{}", *value);
 
 		self.encode_primitive(writer, Primitive {
-			implicit: tag::INTEGER,
-			explicit: None,
+			implicit: value.implicit.unwrap_or(tag::INTEGER),
+			explicit: value.explicit,
 			value:    &value.to_signed_bytes_be()
 		})
 	}
@@ -187,7 +188,7 @@ macro_rules! float {
 
 	($ty:ty) => (
 		impl Encode<$ty> for Encoder {
-			fn encode<W>(&mut self, _writer: &mut W, _value: $ty) -> io::Result<()>
+			fn encode<W>(&mut self, _writer: &mut W, _value: Value<$ty>) -> io::Result<()>
 				where W: Write + ?Sized
 			{
 				unimplemented!("floats not supported yet");
@@ -204,39 +205,39 @@ macro_rules! float {
 float!(f32, f64);
 
 impl<'a> Encode<&'a str> for Encoder {
-	fn encode<W>(&mut self, writer: &mut W, value: &'a str) -> io::Result<()>
+	fn encode<W>(&mut self, writer: &mut W, value: Value<&'a str>) -> io::Result<()>
 		where W: Write + ?Sized
 	{
 		// TODO(meh): need UTF8 whatever string here
 		self.encode_primitive(writer, Primitive {
-			implicit: tag::OCTET_STRING,
-			explicit: None,
-			value:    value,
+			implicit: value.implicit.unwrap_or(tag::OCTET_STRING),
+			explicit: value.explicit,
+			value:    value.into_inner(),
 		})
 	}
 }
 
 impl<'a> Encode<&'a [u8]> for Encoder {
-	fn encode<W>(&mut self, writer: &mut W, value: &'a [u8]) -> io::Result<()>
+	fn encode<W>(&mut self, writer: &mut W, value: Value<&'a [u8]>) -> io::Result<()>
 		where W: Write + ?Sized
 	{
 		self.encode_primitive(writer, Primitive {
-			implicit: tag::OCTET_STRING,
-			explicit: None,
-			value:    value,
+			implicit: value.implicit.unwrap_or(tag::OCTET_STRING),
+			explicit: value.explicit,
+			value:    value.into_inner(),
 		})
 	}
 }
 
 impl<'a> Encode<&'a ObjectId> for Encoder {
-	fn encode<W>(&mut self, writer: &mut W, value: &'a ObjectId) -> io::Result<()>
+	fn encode<W>(&mut self, writer: &mut W, value: Value<&'a ObjectId>) -> io::Result<()>
 		where W: Write + ?Sized
 	{
-		let first  = value.as_ref()[0].to_u8().expect("ObjectId invariants not respected");
-		let second = value.as_ref()[1].to_u8().expect("ObjectId invariants not respected");
+		let first  = (*value).as_ref()[0].to_u8().expect("ObjectId invariants not respected");
+		let second = (*value).as_ref()[1].to_u8().expect("ObjectId invariants not respected");
 
 		let mut body = vec![(first * 40) + second];
-		for part in value.as_ref().iter().skip(2) {
+		for part in (*value).as_ref().iter().skip(2) {
 			encode_base128(&mut body, part)?;
 		}
 

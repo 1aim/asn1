@@ -11,9 +11,8 @@ core   = { version = "0.1", package = "asn1-core", path = "../asn1-core" }
 
 impl-der = { version = "0.1", package = "asn1-der", path = "../asn1-der", optional = true }
 
-bitvec  = "0.6"
-decorum = "0.1"
-bytes   = "0.4"
+[dev-dependencies]
+bytes = "0.4"
 
 [features]
 der = ["derive/der", "impl-der"]

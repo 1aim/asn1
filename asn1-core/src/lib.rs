@@ -12,3 +12,6 @@ pub use crate::encoder::{Encoder, Encode};
 
 pub mod decoder;
 pub use crate::decoder::{Decoder, Decode};
+
+mod value;
+pub use crate::value::Value;
