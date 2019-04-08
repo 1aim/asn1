@@ -157,6 +157,15 @@ pub enum ComponentType {
     ComponentsOf(Type),
 }
 
+impl ComponentType {
+    pub fn as_type(&self) -> Option<(&Type, &bool, &Option<Value>)> {
+        match self {
+            ComponentType::Type { ty, optional, default } => Some((&ty, &optional, &default)),
+            ComponentType::ComponentsOf(_) => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Set {
     Extensible(ExtensionAndException, bool),

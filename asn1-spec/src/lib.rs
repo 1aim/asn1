@@ -1,12 +1,13 @@
 #[macro_use] extern crate log;
 
 mod ast;
+mod codegen;
 mod registry;
 mod semantics;
 
 use std::{fs, path::PathBuf};
 
-use crate::{ast::*, semantics::*};
+use self::{ast::*, semantics::*, codegen::*};
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
@@ -35,6 +36,11 @@ impl Asn1 {
         let mut fixed_tree = SemanticChecker::new(ast);
         fixed_tree.build()?;
 
-        Ok(format!("{:?} parsed successfully", self.path))
+        let mut output = Vec::new();
+
+        let mut codegen = CodeGenerator::<Vec<u8>, Rust>::new(fixed_tree, output);
+        let output = codegen.generate()?;
+
+        Ok(String::from_utf8(output).unwrap())
     }
 }

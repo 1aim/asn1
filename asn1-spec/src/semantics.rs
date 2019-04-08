@@ -7,11 +7,11 @@ use crate::{ast::*, registry::*, Result};
 
 #[derive(Debug)]
 pub struct SemanticChecker {
-    imports: BTreeMap<ModuleReference, Vec<String>>,
-    module: Module,
-    types: TypeRegistry,
-    values: ValueRegistry,
-    value_sets: ValueSetRegistry,
+    pub imports: BTreeMap<ModuleReference, Vec<String>>,
+    pub module: Module,
+    pub types: TypeRegistry,
+    pub values: ValueRegistry,
+    pub value_sets: ValueSetRegistry,
     // object_sets: ValueRegistry,
     // objects: ValueRegistry,
     // classes: ValueRegistry,
