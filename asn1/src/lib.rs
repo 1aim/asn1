@@ -18,7 +18,7 @@ use std::io;
 pub fn to_writer<W, E, T>(writer: &mut W, mut encoder: E, value: T) -> Result<()>
 	where W: io::Write, E: core::Encoder + core::Encode<T>
 {
-	encoder.encode(writer, value)?;
+	encoder.encode(writer, Value::new(value))?;
 	Ok(())
 }
 

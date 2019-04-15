@@ -127,6 +127,8 @@ impl<'a> Container<'a> {
 			}
 
 			Data::Enum(variants) => {
+                            unimplemented!()
+                                /*
 				let variants = variants.iter()
 					.enumerate()
 					.map(|(i, v)| v.to_der(i))
@@ -137,6 +139,7 @@ impl<'a> Container<'a> {
 						#variants
 					}
 				}
+                                */
 			}
 		};
 
