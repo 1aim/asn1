@@ -1,10 +1,8 @@
-use bigint::BigUint;
-
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct ObjectId(pub(crate) Vec<BigUint>);
+pub struct ObjectIdentifier<T: AsRef<[u8]>>(pub T);
 
-impl AsRef<[BigUint]> for ObjectId {
-	fn as_ref(&self) -> &[BigUint] {
-		&self.0
-	}
+impl<T: AsRef<[u8]>> AsRef<[u8]> for ObjectIdentifier<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
 }

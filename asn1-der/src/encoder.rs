@@ -5,7 +5,7 @@ use bytes::{buf, Buf, BufMut, IntoBuf};
 
 use core::{Encoder as Super, Encode, Value};
 use core::tag::{self, Tag};
-use core::ObjectId;
+use core::ObjectIdentifier;
 use crate::{Construct, Primitive};
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -229,16 +229,16 @@ impl<'a> Encode<&'a [u8]> for Encoder {
 	}
 }
 
-impl<'a> Encode<&'a ObjectId> for Encoder {
-	fn encode<W>(&mut self, writer: &mut W, value: Value<&'a ObjectId>) -> io::Result<()>
+impl<'a, T: AsRef<[u8]>> Encode<&'a ObjectIdentifier<T>> for Encoder {
+	fn encode<W>(&mut self, writer: &mut W, value: Value<&'a ObjectIdentifier<T>>) -> io::Result<()>
 		where W: Write + ?Sized
 	{
-		let first  = (*value).as_ref()[0].to_u8().expect("ObjectId invariants not respected");
-		let second = (*value).as_ref()[1].to_u8().expect("ObjectId invariants not respected");
+		let first  = (*value).as_ref()[0].to_u8().expect("ObjectIdentifier invariants not respected");
+		let second = (*value).as_ref()[1].to_u8().expect("ObjectIdentifier invariants not respected");
 
 		let mut body = vec![(first * 40) + second];
 		for part in (*value).as_ref().iter().skip(2) {
-			encode_base128(&mut body, part)?;
+			encode_base128(&mut body, &BigUint::from(*part))?;
 		}
 
 		self.encode_primitive(writer, Primitive::new(tag::OBJECT_ID, &body))
