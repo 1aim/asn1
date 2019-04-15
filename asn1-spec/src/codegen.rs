@@ -1,10 +1,12 @@
 mod structs;
+mod imports;
 
 use std::io::Write;
 use std::collections::HashSet;
 use std::fmt::Write as _;
 
 use crate::{ast::*, Result, semantics::SemanticChecker};
+use self::imports::*;
 use self::structs::*;
 
 pub trait Backend: Default {
@@ -21,7 +23,7 @@ pub trait Backend: Default {
 pub struct Rust {
     consts: Vec<String>,
     structs: Vec<Struct>,
-    prelude: HashSet<String>,
+    prelude: HashSet<Import>,
     indentation: usize,
 }
 
@@ -72,7 +74,7 @@ impl Backend for Rust {
         let output = match builtin {
             BuiltinType::Boolean => String::from("bool"),
             BuiltinType::ObjectIdentifier => {
-                self.prelude.insert(String::from("use asn1::core::ObjId;\n"));
+                self.prelude.insert(Import::new(Visibility::Private, ["asn1", "core", "ObjectIdentifier"].into_iter().map(ToString::to_string).collect()));
                 String::from("ObjId")
             },
             BuiltinType::OctetString => String::from("Vec<u8>"),
@@ -87,7 +89,7 @@ impl Backend for Rust {
     }
 
     fn write_prelude<W: Write>(&self, writer: &mut W) -> Result<()> {
-        writer.write(self.prelude.iter().cloned().collect::<Vec<_>>().join("\n").as_bytes())?;
+        writer.write(itertools::join(self.prelude.iter().map(ToString::to_string), "\n").as_bytes())?;
         writer.write(self.consts.iter().cloned().collect::<Vec<_>>().join("\n").as_bytes())?;
         Ok(())
     }
