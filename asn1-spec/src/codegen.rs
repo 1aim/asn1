@@ -1,18 +1,19 @@
-mod structs;
 mod imports;
+mod structs;
 
-use std::io::Write;
 use std::collections::HashSet;
 use std::fmt::Write as _;
+use std::io::Write;
 
-use crate::{ast::*, Result, semantics::SemanticChecker};
 use self::imports::*;
 use self::structs::*;
+use crate::{ast::*, semantics::SemanticChecker, Result};
 
 pub trait Backend: Default {
     fn generate_type(&mut self, ty: &Type) -> Result<String>;
     fn generate_value(&mut self, value: &Value) -> Result<String>;
-    fn generate_value_assignment(&mut self, name: &str, ty: &Type, value: &Value) -> Result<String>;
+    fn generate_value_assignment(&mut self, name: &str, ty: &Type, value: &Value)
+        -> Result<String>;
     fn generate_sequence(&mut self, name: &str, fields: &[ComponentType]) -> Result<String>;
     fn generate_builtin(&mut self, builtin: &BuiltinType) -> Result<String>;
     fn write_prelude<W: Write>(&self, writer: &mut W) -> Result<()>;
@@ -31,7 +32,13 @@ impl Rust {
     fn generate_const(&mut self, public: bool, name: &str, ty: &str, value: &str) {
         use heck::ShoutySnakeCase;
         let visibility = if public { "pub" } else { "" };
-        self.consts.push(format!("{} const {}: {} = {};", visibility, name.to_shouty_snake_case(), ty, value));
+        self.consts.push(format!(
+            "{} const {}: {} = {};",
+            visibility,
+            name.to_shouty_snake_case(),
+            ty,
+            value
+        ));
     }
 }
 
@@ -46,10 +53,9 @@ impl Backend for Rust {
             // `ComponentsOf` yet.
             let (ty, optional, default) = field.as_type().unwrap();
             let field = FieldBuilder::new(&**ty.name.as_ref().unwrap(), &*self.generate_type(&ty)?)
-                            .optional(*optional)
-                            .default_value(default.clone()
-                                                  .and_then(|v| self.generate_value(&v).ok()))
-                            .build();
+                .optional(*optional)
+                .default_value(default.clone().and_then(|v| self.generate_value(&v).ok()))
+                .build();
 
             generated_struct.add_field(field);
         }
@@ -62,7 +68,9 @@ impl Backend for Rust {
     fn generate_type(&mut self, ty: &Type) -> Result<String> {
         match ty.raw_type {
             RawType::Builtin(ref builtin) => self.generate_builtin(builtin),
-            RawType::Referenced(ref reference) if reference.is_internal() => Ok(reference.item.clone()),
+            RawType::Referenced(ref reference) if reference.is_internal() => {
+                Ok(reference.item.clone())
+            }
             ref raw => {
                 warn!("UNKNOWN TYPE: {:?}", raw);
                 Ok(String::from("UNIMPLEMENTED"))
@@ -74,9 +82,15 @@ impl Backend for Rust {
         let output = match builtin {
             BuiltinType::Boolean => String::from("bool"),
             BuiltinType::ObjectIdentifier => {
-                self.prelude.insert(Import::new(Visibility::Private, ["asn1", "core", "ObjectIdentifier"].into_iter().map(ToString::to_string).collect()));
+                self.prelude.insert(Import::new(
+                    Visibility::Private,
+                    ["asn1", "core", "ObjectIdentifier"]
+                        .into_iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                ));
                 String::from("ObjId")
-            },
+            }
             BuiltinType::OctetString => String::from("Vec<u8>"),
             BuiltinType::Integer(_) => String::from("isize"),
             ref builtin => {
@@ -89,17 +103,27 @@ impl Backend for Rust {
     }
 
     fn write_prelude<W: Write>(&self, writer: &mut W) -> Result<()> {
-        writer.write(itertools::join(self.prelude.iter().map(ToString::to_string), "\n").as_bytes())?;
-        writer.write(self.consts.iter().cloned().collect::<Vec<_>>().join("\n").as_bytes())?;
+        writer.write(
+            itertools::join(self.prelude.iter().map(ToString::to_string), "\n").as_bytes(),
+        )?;
+        writer.write(
+            self.consts
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n")
+                .as_bytes(),
+        )?;
         Ok(())
     }
 
     fn write_footer<W: Write>(&self, writer: &mut W) -> Result<()> {
-        writer.write(itertools::join(self.structs.iter().map(ToString::to_string), "\n").as_bytes())?;
+        writer.write(
+            itertools::join(self.structs.iter().map(ToString::to_string), "\n").as_bytes(),
+        )?;
 
         Ok(())
     }
-
 
     fn generate_value(&mut self, value: &Value) -> Result<String> {
         match value {
@@ -107,8 +131,12 @@ impl Backend for Rust {
         }
     }
 
-    fn generate_value_assignment(&mut self, name: &str, ty: &Type, value: &Value) -> Result<String> {
-
+    fn generate_value_assignment(
+        &mut self,
+        name: &str,
+        ty: &Type,
+        value: &Value,
+    ) -> Result<String> {
         let generated_value = match value {
             _ => String::from("UNIMPLEMENTED"),
         };
@@ -145,7 +173,7 @@ impl<W: Write, B: Backend> CodeGenerator<W, B> {
                 RawType::Builtin(BuiltinType::Sequence(components)) => {
                     self.backend.generate_sequence(&name, &components)?;
                 }
-                _ => {},
+                _ => {}
             }
         }
 

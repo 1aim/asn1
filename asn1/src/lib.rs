@@ -2,9 +2,9 @@
 #[macro_use]
 extern crate derive;
 
+pub use core::*;
 #[doc(hidden)]
 pub use derive::*;
-pub use core::*;
 
 pub mod error;
 pub use crate::error::*;
@@ -16,16 +16,22 @@ use std::io;
 
 #[inline]
 pub fn to_writer<W, E, T, V>(writer: &mut W, mut encoder: E, value: V) -> core::Result<()>
-	where W: io::Write, E: Encoder + Encode<T>, V: Into<Value<T>>
+where
+    W: io::Write,
+    E: Encoder + Encode<T>,
+    V: Into<Value<T>>,
 {
-	encoder.encode(writer, value.into())?;
-	Ok(())
+    encoder.encode(writer, value.into())?;
+    Ok(())
 }
 
 #[cfg(feature = "der")]
 #[inline]
 pub fn to_der<W, T, V>(writer: &mut W, value: V) -> core::Result<()>
-	where W: io::Write, der::Encoder: Encode<T>, V: Into<Value<T>>
+where
+    W: io::Write,
+    der::Encoder: Encode<T>,
+    V: Into<Value<T>>,
 {
-	to_writer(writer, der::Encoder, value)
+    to_writer(writer, der::Encoder, value)
 }

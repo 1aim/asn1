@@ -2,10 +2,10 @@ use std::fmt;
 
 use variation::Variation;
 
-use super::ParameterList;
+use super::object::FieldReference;
 use super::oid::ObjectIdentifier;
 use super::types::ReferenceType;
-use super::object::FieldReference;
+use super::ParameterList;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Value {
@@ -62,7 +62,9 @@ impl fmt::Display for DefinedValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             DefinedValue::Simple(reference) => reference.fmt(f),
-            DefinedValue::Parameterized(reference, parameters) => write!(f, "{}{}", reference, parameters),
+            DefinedValue::Parameterized(reference, parameters) => {
+                write!(f, "{}{}", reference, parameters)
+            }
         }
     }
 }

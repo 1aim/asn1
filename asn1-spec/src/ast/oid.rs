@@ -87,7 +87,6 @@ impl fmt::Display for ObjIdComponent {
     }
 }
 
-
 impl Hash for ObjIdComponent {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {

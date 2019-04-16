@@ -1,7 +1,7 @@
+use crate::{attribute, parse::Emit};
 use proc_macro2::TokenStream;
-use syn::{self, Error, spanned::Spanned};
-use quote::{TokenStreamExt, ToTokens};
-use crate::{parse::Emit, attribute};
+use quote::{ToTokens, TokenStreamExt};
+use syn::{self, spanned::Spanned, Error};
 
 /// A source data structure annotated with `#[derive(ASN1)]`, parsed into an
 /// internal representation.
@@ -71,14 +71,18 @@ impl<'a> Container<'a> {
                     Data::Struct(style, fields)
                 }
 
-                syn::Data::Enum(value) => {
-                    Data::Enum(value.variants.iter().filter_map(|v| Variant::parse(v).emit()).collect())
-                }
+                syn::Data::Enum(value) => Data::Enum(
+                    value
+                        .variants
+                        .iter()
+                        .filter_map(|v| Variant::parse(v).emit())
+                        .collect(),
+                ),
 
                 syn::Data::Union(_) => {
                     return Err(Error::new(input.span(), "asn1: unions are not supported"));
                 }
-            }
+            },
         };
 
         Ok(this)
@@ -88,17 +92,22 @@ impl<'a> Container<'a> {
     pub fn to_der(&self) -> syn::Result<TokenStream> {
         let name = self.ident;
         let body = match &self.data {
-            Data::Struct(Style::Struct, fields) |
-            Data::Struct(Style::Tuple, fields) |
-            Data::Struct(Style::Newtype, fields) => {
-                let implicit = self.attributes.implicit
+            Data::Struct(Style::Struct, fields)
+            | Data::Struct(Style::Tuple, fields)
+            | Data::Struct(Style::Newtype, fields) => {
+                let implicit = self
+                    .attributes
+                    .implicit
                     .map(|id| quote! { asn1::Tag::from(#id) })
                     .unwrap_or_else(|| quote! { asn1::tag::SEQUENCE });
 
-                let explicit = self.attributes.explicit
+                let explicit = self
+                    .attributes
+                    .explicit
                     .map(|id| quote! { let c = e.explicit(#id); });
 
-                let fields = fields.iter()
+                let fields = fields
+                    .iter()
                     .map(|f| f.to_der())
                     .collect::<syn::Result<TokenStream>>()?;
 
@@ -111,11 +120,15 @@ impl<'a> Container<'a> {
             }
 
             Data::Struct(Style::Unit, _) => {
-                let implicit = self.attributes.implicit
+                let implicit = self
+                    .attributes
+                    .implicit
                     .map(|id| quote! { asn1::Tag::from(#id) })
                     .unwrap_or_else(|| quote! { asn1::tag::SEQUENCE });
 
-                let explicit = self.attributes.explicit
+                let explicit = self
+                    .attributes
+                    .explicit
                     .map(|id| quote! { let c = e.explicit(#id); });
 
                 quote! {
@@ -127,8 +140,8 @@ impl<'a> Container<'a> {
             }
 
             Data::Enum(variants) => {
-                            unimplemented!()
-                                /*
+                unimplemented!()
+                /*
                 let variants = variants.iter()
                     .enumerate()
                     .map(|(i, v)| v.to_der(i))
@@ -172,11 +185,9 @@ trait Fields {
 impl Fields for syn::DeriveInput {
     fn fields(&self) -> &syn::Fields {
         match &self.data {
-            syn::Data::Struct(value) =>
-                &value.fields,
+            syn::Data::Struct(value) => &value.fields,
 
-            _ =>
-                unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -191,18 +202,31 @@ impl Style {
     /// Parse style and fields out of a struct-like item.
     fn parse<I: Fields + Spanned>(input: &I) -> Result<(Style, Vec<Field>), Error> {
         let (style, fields) = match input.fields() {
-            syn::Fields::Named(value) =>
-                (Style::Struct,
-                    value.named.iter().enumerate().filter_map(|(i, f)|
-                        Field::parse(i as u32, f).emit()).collect()),
+            syn::Fields::Named(value) => (
+                Style::Struct,
+                value
+                    .named
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, f)| Field::parse(i as u32, f).emit())
+                    .collect(),
+            ),
 
-            syn::Fields::Unnamed(value) =>
-                (if value.unnamed.len() == 1 { Style::Newtype } else { Style::Tuple },
-                    value.unnamed.iter().enumerate().filter_map(|(i, f)|
-                        Field::parse(i as u32, f).emit()).collect()),
+            syn::Fields::Unnamed(value) => (
+                if value.unnamed.len() == 1 {
+                    Style::Newtype
+                } else {
+                    Style::Tuple
+                },
+                value
+                    .unnamed
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, f)| Field::parse(i as u32, f).emit())
+                    .collect(),
+            ),
 
-            syn::Fields::Unit =>
-                (Style::Unit, vec![]),
+            syn::Fields::Unit => (Style::Unit, vec![]),
         };
 
         if style != Style::Unit && fields.is_empty() {
@@ -217,9 +241,11 @@ impl<'a> Field<'a> {
     pub fn parse<'b>(index: u32, input: &'b syn::Field) -> Result<Field<'b>, Error> {
         let member = if let Some(ident) = input.ident.as_ref() {
             syn::Member::Named(ident.clone())
-        }
-        else {
-            syn::Member::Unnamed(syn::Index { index, span: input.span() })
+        } else {
+            syn::Member::Unnamed(syn::Index {
+                index,
+                span: input.span(),
+            })
         };
 
         Ok(Field {
@@ -236,18 +262,16 @@ impl<'a> Field<'a> {
                 quote! {
                     let v = v.implicit(#id);
                 }
-            }
-            else {
-                quote! { }
+            } else {
+                quote! {}
             };
 
             let explicit = if let Some(id) = self.attributes.explicit {
                 quote! {
                     let v = v.explicit(#id);
                 }
-            }
-            else {
-                quote! { }
+            } else {
+                quote! {}
             };
 
             Ok(quote! {
@@ -258,8 +282,7 @@ impl<'a> Field<'a> {
 
                 encoder.encode(&mut writer, v)?;
             })
-        }
-        else {
+        } else {
             unreachable!();
         }
     }

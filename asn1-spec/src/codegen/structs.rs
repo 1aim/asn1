@@ -11,9 +11,10 @@ impl Struct {
         Self {
             name: name.into(),
             fields: Vec::new(),
-            attributes: vec![
-                Attribute::Derive(vec![Derive::Serialize, Derive::Deserialize])
-            ],
+            attributes: vec![Attribute::Derive(vec![
+                Derive::Serialize,
+                Derive::Deserialize,
+            ])],
         }
     }
 
@@ -78,7 +79,11 @@ impl FieldBuilder {
         let name = name.into();
         let ty = ty.into();
 
-        Self { name, ty, ..Self::default() }
+        Self {
+            name,
+            ty,
+            ..Self::default()
+        }
     }
 
     pub fn optional(mut self, optional: bool) -> Self {
@@ -115,14 +120,14 @@ pub enum Attribute {
 impl fmt::Display for Attribute {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let attribute = match self {
-            Attribute::Serde(serde) => {
-                match serde {
-                    Serde::Default(default) => format!("#[serde(default = {})]", default),
-                }
-            }
-            Attribute::Derive(defaults) => format!("#[derive({})]", itertools::join(defaults.iter().map(ToString::to_string), ", ")),
+            Attribute::Serde(serde) => match serde {
+                Serde::Default(default) => format!("#[serde(default = {})]", default),
+            },
+            Attribute::Derive(defaults) => format!(
+                "#[derive({})]",
+                itertools::join(defaults.iter().map(ToString::to_string), ", ")
+            ),
         };
-
 
         attribute.fmt(f)
     }

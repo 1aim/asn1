@@ -119,4 +119,3 @@ pub enum Setting {
     Object(Object),
     ObjectSet(ElementSet),
 }
-

@@ -1,4 +1,5 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
 mod ast;
 mod codegen;
@@ -7,7 +8,7 @@ mod semantics;
 
 use std::{fs, path::PathBuf};
 
-use self::{ast::*, semantics::*, codegen::*};
+use self::{ast::*, codegen::*, semantics::*};
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 

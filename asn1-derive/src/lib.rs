@@ -20,15 +20,15 @@ use syn::DeriveInput;
 
 #[proc_macro_derive(ASN1, attributes(asn1))]
 pub fn derive_asn1(input: TokenStream) -> TokenStream {
-	let input = parse_macro_input!(input as DeriveInput);
-	let container = try_parse!(ast::Container::parse(&input));
+    let input = parse_macro_input!(input as DeriveInput);
+    let container = try_parse!(ast::Container::parse(&input));
 
-	#[cfg(feature = "der")]
-	let der = try_parse!(container.to_der());
-	#[cfg(not(feature = "der"))]
-	let der = proc_macro2::TokenStream::new();
+    #[cfg(feature = "der")]
+    let der = try_parse!(container.to_der());
+    #[cfg(not(feature = "der"))]
+    let der = proc_macro2::TokenStream::new();
 
-	TokenStream::from(quote! {
-		#der
-	})
+    TokenStream::from(quote! {
+        #der
+    })
 }

@@ -1,23 +1,26 @@
 pub mod module;
-pub mod oid;
 pub mod object;
+pub mod oid;
 pub mod types;
 pub mod values;
 
 use std::{collections::BTreeMap, fmt, iter::Peekable};
 
 use derefable::Derefable;
-use pest::{iterators::{FlatPairs, Pair}, Parser};
+use pest::{
+    iterators::{FlatPairs, Pair},
+    Parser,
+};
 use variation::Variation;
 
 use crate::Result;
 
-pub use asn1_pest::{Asn1Parser, Rule};
 pub use self::module::*;
+pub use self::object::*;
 pub use self::oid::*;
 pub use self::types::*;
 pub use self::values::*;
-pub use self::object::*;
+pub use asn1_pest::{Asn1Parser, Rule};
 
 // First Vec is a Vec of Unions, containing a Vec of intersections.
 type ElementSet = Vec<Vec<Element>>;
@@ -94,9 +97,7 @@ impl<'a> Ast<'a> {
 
     /// Calls `Ast::peek` using the provided `Rule` and calls `parse_fn` and returns `Some(T)`
     /// if `true`, otherwise returns `None`.
-    fn optionally_parse<T>(&mut self, rule: Rule, parse_fn: &dyn Fn(&mut Self) -> T)
-        -> Option<T>
-    {
+    fn optionally_parse<T>(&mut self, rule: Rule, parse_fn: &dyn Fn(&mut Self) -> T) -> Option<T> {
         if self.peek(rule) {
             Some((parse_fn)(self))
         } else {
@@ -146,7 +147,9 @@ impl<'a> Ast<'a> {
 
                 let component = match pair.as_rule() {
                     Rule::NameForm => ObjIdComponent::Name(self.parse_identifier()),
-                    Rule::DefinitiveNumberForm => ObjIdComponent::Number(Number::Literal(pair.as_str().parse()?)),
+                    Rule::DefinitiveNumberForm => {
+                        ObjIdComponent::Number(Number::Literal(pair.as_str().parse()?))
+                    }
                     Rule::DefinitiveNameAndNumberForm => {
                         let name = self.parse_identifier();
                         let number = self.take(Rule::DefinitiveNumberForm).as_str().parse()?;
@@ -518,12 +521,15 @@ impl<'a> Ast<'a> {
 
                     if self.look(Rule::NamedBitList).is_some() {
                         while self.look(Rule::NamedBit).is_some() {
-                            named_bits.insert(self.parse_identifier(), self.parse_number_or_defined_value());
+                            named_bits.insert(
+                                self.parse_identifier(),
+                                self.parse_number_or_defined_value(),
+                            );
                         }
                     }
 
                     RawType::Builtin(BuiltinType::BitString(named_bits))
-                },
+                }
 
                 Rule::CharacterStringType => {
                     let pair = self.next();
@@ -600,9 +606,7 @@ impl<'a> Ast<'a> {
                             let ident = self.parse_identifier();
 
                             let value = match self.rule_peek() {
-                                Rule::SignedNumber => {
-                                    Number::Literal(self.parse_signed_number())
-                                }
+                                Rule::SignedNumber => Number::Literal(self.parse_signed_number()),
                                 Rule::DefinedValue => {
                                     Number::DefinedValue(self.parse_defined_value())
                                 }
@@ -668,13 +672,18 @@ impl<'a> Ast<'a> {
 
                 Rule::SetType => {
                     if self.peek(Rule::ExtensionAndException) {
-                        RawType::Builtin(BuiltinType::Set(Set::Extensible(self.parse_extension_and_exception().unwrap(), self.parse_optional_extension_marker())))
+                        RawType::Builtin(BuiltinType::Set(Set::Extensible(
+                            self.parse_extension_and_exception().unwrap(),
+                            self.parse_optional_extension_marker(),
+                        )))
                     } else if self.peek(Rule::ComponentTypeLists) {
-                        RawType::Builtin(BuiltinType::Set(Set::Concrete(self.parse_component_type_lists())))
+                        RawType::Builtin(BuiltinType::Set(Set::Concrete(
+                            self.parse_component_type_lists(),
+                        )))
                     } else {
                         RawType::Builtin(BuiltinType::Set(Set::Concrete(Vec::new())))
                     }
-                },
+                }
                 Rule::SetOfType => {
                     if self.peek(Rule::Type) {
                         RawType::Builtin(BuiltinType::SetOf(Box::new(self.parse_type())))
@@ -706,7 +715,7 @@ impl<'a> Ast<'a> {
 
                         r => unreachable!("Unexpected rule: {:?}", r),
                     }
-                },
+                }
                 Rule::FromObject => RawType::ReferencedFromObject(self.parse_from_object()),
                 _ => unreachable!(),
             }
@@ -764,16 +773,18 @@ impl<'a> Ast<'a> {
                     Rule::bstring => {
                         self.take(Rule::bstring);
 
-                        let bitstring = self.look(Rule::bits)
+                        let bitstring = self
+                            .look(Rule::bits)
                             .map(|b| b.as_str().to_owned())
                             .unwrap_or_else(String::new);
 
                         BitString::Literal(bitstring)
-                    },
+                    }
                     Rule::hstring => {
                         self.take(Rule::hstring);
 
-                        let bitstring = self.look(Rule::hexes)
+                        let bitstring = self
+                            .look(Rule::hexes)
                             .and_then(|hex| u64::from_str_radix(hex.as_str(), 16).ok())
                             .map(|num| format!("{:b}", num))
                             .unwrap_or_else(String::new);
@@ -792,13 +803,14 @@ impl<'a> Ast<'a> {
                         BitString::List(identifiers)
                     }
 
-                    Rule::Value => unimplemented!("BitStrings with 'CONTAINING' aren't currently supported."),
+                    Rule::Value => {
+                        unimplemented!("BitStrings with 'CONTAINING' aren't currently supported.")
+                    }
 
                     _ => BitString::Literal(String::new()),
                 };
 
                 Value::BitString(bitstring)
-
             }
             Rule::IntegerValue => {
                 self.take(Rule::IntegerValue);
@@ -1054,7 +1066,9 @@ impl<'a> Ast<'a> {
                 match self.rule_peek() {
                     Rule::Object => Element::Object(self.parse_object()),
                     Rule::DefinedObjectSet => Element::ObjectSet(self.parse_defined_object_set()),
-                    Rule::ParameterizedObjectSet => Element::ObjectSet(self.parse_parameterized_object_set()),
+                    Rule::ParameterizedObjectSet => {
+                        Element::ObjectSet(self.parse_parameterized_object_set())
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -1102,16 +1116,15 @@ impl<'a> Ast<'a> {
             Rule::ExternalObjectClassReference => {
                 self.take(Rule::ExternalObjectClassReference);
 
-                DefinedObjectClass::Reference(
-                    ReferenceType::new(
-                        Some(self.parse_reference_identifier()),
-                        self.parse_encoding_identifier()
-                    )
-                )
+                DefinedObjectClass::Reference(ReferenceType::new(
+                    Some(self.parse_reference_identifier()),
+                    self.parse_encoding_identifier(),
+                ))
             }
-            Rule::EncodingIdentifier => {
-                DefinedObjectClass::Reference(ReferenceType::new(None, self.parse_encoding_identifier()))
-            }
+            Rule::EncodingIdentifier => DefinedObjectClass::Reference(ReferenceType::new(
+                None,
+                self.parse_encoding_identifier(),
+            )),
             Rule::UsefulObjectClassReference => {
                 if self
                     .take(Rule::UsefulObjectClassReference)
@@ -1206,7 +1219,10 @@ impl<'a> Ast<'a> {
 
         let module = self.optionally_parse(Rule::modulereference, &Self::parse_module_reference);
         let object = self.parse_object_reference();
-        let parameters = self.optionally_parse(Rule::ActualParameterList, &Self::parse_actual_parameter_list);
+        let parameters = self.optionally_parse(
+            Rule::ActualParameterList,
+            &Self::parse_actual_parameter_list,
+        );
 
         ObjectReference::Object(ReferenceType::new(module, object), parameters)
     }

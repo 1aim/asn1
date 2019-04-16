@@ -33,7 +33,7 @@ impl SemanticChecker {
         }
     }
 
-    pub fn build(&mut self) -> Result<()>  {
+    pub fn build(&mut self) -> Result<()> {
         debug!("Building {}", self.module.identifier);
         self.resolve_imports()?;
         self.resolve_assignments()?;
@@ -48,7 +48,11 @@ impl SemanticChecker {
     pub fn resolve_assignments(&mut self) -> Result<()> {
         debug!("Resolving assignments");
         for assignment in mem::replace(&mut self.module.assignments, Vec::new()) {
-            ensure!(!self.contains_assignment(&assignment.name), "{:?} was already defined.", assignment.name);
+            ensure!(
+                !self.contains_assignment(&assignment.name),
+                "{:?} was already defined.",
+                assignment.name
+            );
 
             //debug!("ASSIGNMENT KIND: {:#?}", assignment.kind);
 
@@ -60,7 +64,11 @@ impl SemanticChecker {
                     self.values.insert(assignment.name, (ty, value));
                 }
                 AssignmentType::ValueSet(ty, elements) => {
-                    ensure!(elements.set.len() != 0, "{:?} is empty, empty element sets are not allowed.", assignment.name);
+                    ensure!(
+                        elements.set.len() != 0,
+                        "{:?} is empty, empty element sets are not allowed.",
+                        assignment.name
+                    );
 
                     self.value_sets.insert(assignment.name, (ty, elements));
                 }
@@ -121,7 +129,6 @@ impl SemanticChecker {
                     Some(v) => v,
                     None => panic!("Couldn't find {:?} value", value.item),
                 }
-
             } else {
                 unimplemented!("External defines are not currently supported")
             };
@@ -157,13 +164,18 @@ impl SemanticChecker {
                 _ => unreachable!(),
             };
 
-            *value = AssignedIdentifier::ObjectIdentifier(get_value(&mut def).into_object_identifier());
+            *value =
+                AssignedIdentifier::ObjectIdentifier(get_value(&mut def).into_object_identifier());
         }
     }
 
     pub fn resolve_imports(&mut self) -> Result<()> {
         for (reference, items) in mem::replace(&mut self.module.imports, Vec::new()) {
-            ensure!(!self.imports.contains_key(&reference), "{:?} was already imported.", reference);
+            ensure!(
+                !self.imports.contains_key(&reference),
+                "{:?} was already imported.",
+                reference
+            );
 
             self.imports.insert(reference, items);
         }
@@ -171,4 +183,3 @@ impl SemanticChecker {
         Ok(())
     }
 }
-

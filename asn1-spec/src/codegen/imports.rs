@@ -16,7 +16,12 @@ impl Import {
 
 impl fmt::Display for Import {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{vis}use {path};", vis=self.visibility, path=self.path.join("::"))
+        write!(
+            f,
+            "{vis}use {path};",
+            vis = self.visibility,
+            path = self.path.join("::")
+        )
     }
 }
 

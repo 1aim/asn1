@@ -114,7 +114,7 @@ pub struct ChoiceType {
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Enumeration {
     name: String,
-    number: Option<Number>
+    number: Option<Number>,
 }
 
 impl Enumeration {
@@ -160,7 +160,11 @@ pub enum ComponentType {
 impl ComponentType {
     pub fn as_type(&self) -> Option<(&Type, &bool, &Option<Value>)> {
         match self {
-            ComponentType::Type { ty, optional, default } => Some((&ty, &optional, &default)),
+            ComponentType::Type {
+                ty,
+                optional,
+                default,
+            } => Some((&ty, &optional, &default)),
             ComponentType::ComponentsOf(_) => None,
         }
     }

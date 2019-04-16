@@ -76,7 +76,11 @@ impl ValueRegistry {
                 if object_identifier.is_absolute() {
                     trace!("{} is now absolute.", object_identifier);
                     absolute_oids.insert(name.clone(), object_identifier.clone());
-                    trace!("New number of Absolute OIDs: {}, remaining {}", absolute_oids.len(), total_length - absolute_oids.len());
+                    trace!(
+                        "New number of Absolute OIDs: {}, remaining {}",
+                        absolute_oids.len(),
+                        total_length - absolute_oids.len()
+                    );
                 }
             }
         }
@@ -100,7 +104,7 @@ impl FromIterator<(String, (Type, Value))> for ValueRegistry {
 }
 
 pub struct ModuleRegistry {
-    available_modules: BTreeMap<ModuleIdentifier, PathBuf>
+    available_modules: BTreeMap<ModuleIdentifier, PathBuf>,
 }
 
 impl ModuleRegistry {
@@ -127,9 +131,7 @@ impl ModuleRegistry {
             }
         }
 
-        Ok(Self {
-            available_modules
-        })
+        Ok(Self { available_modules })
     }
 }
 
