@@ -10,6 +10,6 @@ pub trait Decoder: Clone {
 pub trait Decode<T> {
 	/// Encode self for the given encoder, writes the encoded output to the
 	/// passed writer.
-	fn decode<R>(&mut self, reader: &mut R) -> io::Result<T>
+	fn decode<R>(&mut self, reader: &mut R) -> crate::Result<T>
 		where R: io::Read + ?Sized;
 }
