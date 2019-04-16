@@ -7,8 +7,8 @@ impl Super for Decoder {
 }
 
 impl Decoder {
-	pub fn from_bytes<T: Decode>(bytes: &[u8]) -> Result<T> {
+    pub fn from_bytes<T: Decode>(bytes: &[u8]) -> Result<T> {
 
-	}
+    }
 }
 
