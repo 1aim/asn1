@@ -1,3 +1,9 @@
+mod decoder;
+mod encoder;
+
+pub use crate::encoder::Encoder;
+pub use crate::decoder::Decoder;
+
 use bytes::{BufMut, BytesMut};
 use core::Tag;
 
@@ -52,6 +58,3 @@ impl<B: BufMut> Construct<B> {
         self
     }
 }
-
-mod encoder;
-pub use crate::encoder::Encoder;

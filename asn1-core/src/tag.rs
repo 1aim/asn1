@@ -1,9 +1,25 @@
+use std::convert::TryFrom;
+
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub enum Class {
     Universal,
     Application,
     Context,
     Private,
+}
+
+impl TryFrom<u8> for Class {
+    type Error = failure::Error;
+
+    fn try_from(byte: u8) -> crate::Result<Self> {
+        match byte {
+            0 => Ok(Class::Universal),
+            1 => Ok(Class::Application),
+            2 => Ok(Class::Context),
+            3 => Ok(Class::Private),
+            _ => Err(failure::err_msg("asn1: Invalid kind of Class.")),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]

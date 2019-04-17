@@ -11,3 +11,4 @@ bytes = "0.4"
 bigint  = { version = "0.2", package = "num-bigint" }
 num-traits  = "0.2"
 num-integer = "0.1"
+nom = "4.2.3"
