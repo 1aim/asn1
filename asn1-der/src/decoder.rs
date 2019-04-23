@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 
 use nom::*;
+use nom::types::CompleteByteSlice;
 
 use core::{Decode, Decoder as Super, Result, Class};
 
@@ -11,7 +12,7 @@ impl Super for Decoder {
     const CANONICAL: bool = true;
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tag {
     class: Class,
     is_constructed: bool,
@@ -22,14 +23,19 @@ impl Tag {
     pub fn new(class: Class, is_constructed: bool, tag: usize) -> Self {
         Self { class, is_constructed, tag }
     }
+
+    fn set_tag(mut self, tag: usize) -> Self {
+        self.tag = tag;
+        self
+    }
 }
 
 fn is_constructed(byte: u8) -> bool {
     byte != 0
 }
 
-fn is_part_of_octet(byte: u8) -> bool {
-    byte & 0x80 != 0
+fn is_part_of_octet(input: u8) -> bool {
+    input & 0x80 != 0
 }
 
 fn parse_tag(body: &[u8], end: u8) -> usize {
@@ -41,53 +47,136 @@ fn parse_tag(body: &[u8], end: u8) -> usize {
     }
 
     tag <<= 7;
-    // end doesn't need to be bitmasked as we know the MSB is `0` (8.1.2.4.2.a).
+    // end doesn't need to be bitmasked as we know the MSB is `0` (X.690 8.1.2.4.2.a).
     tag |= end as usize;
 
     tag
 }
 
-named!(parse_identifier_octet<Tag>,
-    do_parse!(
-        class: map!(bits!(take_bits!(u8, 2)), Class::try_from) >>
-        is_constructed: map!(bits!(take_bits!(u8, 1)), is_constructed) >>
-        tag: alt!(
-            do_parse!(
-                bits!(tag_bits!(u8, 5, 0b11111)) >>
-                body: take_while!(is_part_of_octet) >>
-                end: take!(1) >>
-                result: value!(parse_tag(body, end[0])) >>
-                (result)
-            ) |
-            bits!(take_bits!(usize, 5))
-        ) >>
-        tag: bits!(take_bits!(usize, 5)) >>
+fn concat_bits(body: &[u8], width: u8) -> usize {
+    let mut result = 0;
 
-        (Tag {
-            class: class.unwrap(),
-            is_constructed,
-            tag,
-        })
-    )
-);
-
-impl Decoder {
-    pub fn from_bytes<T>(bytes: &'static [u8]) -> Result<T> {
-        let (rest, tag) = parse_identifier_octet(bytes)?;
-        unimplemented!()
+    for byte in body {
+        result <<= width;
+        result |= *byte as usize;
     }
 
+    result
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Value<'a> {
+    tag: Tag,
+    contents: &'a [u8],
+}
+
+impl<'a> Value<'a> {
+    pub fn new(tag: Tag, contents: &'a [u8]) -> Self {
+        Self { tag, contents }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        if self.tag.is_constructed || self.tag.tag != 1 {
+            return None
+        }
+
+        Some(match self.contents[0] {
+            0 => false,
+            _ => true,
+        })
+    }
+}
+
+named!(parse_initial_octet<CompleteByteSlice, Tag>, bits!(do_parse!(
+    class: map!(take_bits!(u8, 2), Class::try_from) >>
+    is_constructed: map!(take_bits!(u8, 1), is_constructed) >>
+    tag: take_bits!(usize, 5) >>
+    (Tag::new(class.expect("Invalid class"), is_constructed, tag))
+)));
+
+named!(parse_identifier_octet<CompleteByteSlice, Tag>, do_parse!(
+    identifier: parse_initial_octet >>
+    // 31 is 5 bits set to 1.
+    long_tag: cond!(identifier.tag >= 31, do_parse!(
+        body: take_while!(is_part_of_octet) >>
+        end: take!(1) >>
+        result: value!(parse_tag(&body, end[0])) >>
+        (result)
+    )) >>
+
+    (identifier.set_tag(long_tag.unwrap_or(identifier.tag)))
+));
+
+named!(parse_contents<CompleteByteSlice, &[u8]>, do_parse!(
+    length: take!(1) >>
+    contents: apply!(take_contents, length[0]) >>
+    (&contents)
+));
+
+fn take_contents(input: CompleteByteSlice, length: u8) -> IResult<CompleteByteSlice, CompleteByteSlice> {
+    if length == 128 {
+        take_until_and_consume!(input, &[0, 0][..])
+    } else if length >= 127 {
+        do_parse!(input,
+            length: take!(length) >>
+            result: value!(concat_bits(&length, 8)) >>
+            contents: take!(result) >>
+            (contents)
+        )
+    } else {
+        take!(input, length)
+    }
+}
+
+named!(parse_value<CompleteByteSlice, Value>, do_parse!(
+    tag: parse_identifier_octet >>
+    contents: parse_contents >>
+    (Value::new(tag, contents))
+));
+
+pub fn from_der<'a>(bytes: &'a [u8]) -> Result<Value<'a>> {
+    Ok(parse_value(bytes.into())?.1)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn short_tag() {
-        let expected = Tag::new(Class::Universal, false, 1);
-        let (_, result) = parse_identifier_octet(&[0b00_0_00001]).unwrap();
+    macro_rules! variant_tests {
+        ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {
+            $(
+                $(
+                    #[test]
+                    fn $fn_name() {
+                        let (rest, result) = $test_fn($input.into()).unwrap();
+                        println!("REST {:?}", rest);
+                        assert_eq!($expected, result);
+                    }
+                )+
+            )+
+        }
+    }
 
-        assert_eq!(expected, result)
+    variant_tests! {
+        parse_identifier_octet: {
+            universal_bool([0x1][..]) == Tag::new(Class::Universal, false, 1);
+            private_primitive([0xC0][..]) == Tag::new(Class::Private, false, 0);
+            context_constructed([0xA0][..]) == Tag::new(Class::Context, true, 0);
+            private_long_constructed([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F][..])
+                == Tag::new(Class::Private, true, 0x1FFFFFFFFFFFF);
+        }
+
+        parse_value: {
+            primitive_bool([0x1, 0x1, 0xFF][..]) == Value::new(Tag::new(Class::Universal, false, 1), &[0xff]);
+        }
+    }
+
+    #[test]
+    fn value_to_bool() {
+        let (_, yes) = parse_value([0x1, 0x1, 0xFF][..].into()).unwrap();
+        let (_, no) = parse_value([0x1, 0x1, 0x00][..].into()).unwrap();
+
+        assert!(yes.as_bool().unwrap());
+        assert!(!no.as_bool().unwrap());
     }
 }
