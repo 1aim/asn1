@@ -1,5 +1,6 @@
 mod decoder;
 mod encoder;
+mod value;
 
 pub use crate::encoder::Encoder;
 pub use crate::decoder::Decoder;

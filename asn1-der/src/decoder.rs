@@ -3,31 +3,14 @@ use std::convert::TryFrom;
 use nom::*;
 use nom::types::CompleteByteSlice;
 
-use core::{Decode, Decoder as Super, Result, Class};
+use core::{Decoder as Super, Result, Class};
+use crate::value::*;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Decoder;
 
 impl Super for Decoder {
     const CANONICAL: bool = true;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Tag {
-    class: Class,
-    is_constructed: bool,
-    tag: usize,
-}
-
-impl Tag {
-    pub fn new(class: Class, is_constructed: bool, tag: usize) -> Self {
-        Self { class, is_constructed, tag }
-    }
-
-    fn set_tag(mut self, tag: usize) -> Self {
-        self.tag = tag;
-        self
-    }
 }
 
 fn is_constructed(byte: u8) -> bool {
@@ -62,29 +45,6 @@ fn concat_bits(body: &[u8], width: u8) -> usize {
     }
 
     result
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Value<'a> {
-    tag: Tag,
-    contents: &'a [u8],
-}
-
-impl<'a> Value<'a> {
-    pub fn new(tag: Tag, contents: &'a [u8]) -> Self {
-        Self { tag, contents }
-    }
-
-    pub fn as_bool(&self) -> Option<bool> {
-        if self.tag.is_constructed || self.tag.tag != 1 {
-            return None
-        }
-
-        Some(match self.contents[0] {
-            0 => false,
-            _ => true,
-        })
-    }
 }
 
 named!(parse_initial_octet<CompleteByteSlice, Tag>, bits!(do_parse!(
@@ -135,7 +95,10 @@ named!(parse_value<CompleteByteSlice, Value>, do_parse!(
 ));
 
 pub fn from_der<'a>(bytes: &'a [u8]) -> Result<Value<'a>> {
-    Ok(parse_value(bytes.into())?.1)
+    let bytes = CompleteByteSlice::from(bytes);
+    let (_, value) = parse_value(bytes).unwrap();
+
+    Ok(value)
 }
 
 #[cfg(test)]
