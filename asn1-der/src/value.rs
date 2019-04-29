@@ -21,7 +21,7 @@ impl Tag {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Value<'a> {
     tag: Tag,
-    contents: &'a [u8],
+    pub(crate) contents: &'a [u8],
 }
 
 impl<'a> Value<'a> {
@@ -40,5 +40,4 @@ impl<'a> Value<'a> {
         })
     }
 }
-
 

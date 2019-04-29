@@ -37,7 +37,7 @@ fn parse_tag(body: &[u8], end: u8) -> usize {
 }
 
 fn concat_bits(body: &[u8], width: u8) -> usize {
-    let mut result = 0;
+    let mut result: usize = 0;
 
     for byte in body {
         result <<= width;
@@ -77,9 +77,10 @@ fn take_contents(input: CompleteByteSlice, length: u8) -> IResult<CompleteByteSl
     if length == 128 {
         take_until_and_consume!(input, &[0, 0][..])
     } else if length >= 127 {
+        let length = length ^ 0x80;
         do_parse!(input,
             length: take!(length) >>
-            result: value!(concat_bits(&length, 8)) >>
+            result: value!(concat_bits(&length, 4)) >>
             contents: take!(result) >>
             (contents)
         )
@@ -141,5 +142,35 @@ mod tests {
 
         assert!(yes.as_bool().unwrap());
         assert!(!no.as_bool().unwrap());
+    }
+
+
+    #[test]
+    fn value_long_length() {
+        let (_, value) = parse_value([0x1, 0x81, 0x2, 0xF0, 0xF0][..].into()).unwrap();
+
+        assert_eq!(value.contents, &[0xF0, 0xF0]);
+    }
+
+    #[test]
+    fn value_really_long_length() {
+        let (_, value) = parse_value([
+            0x1, 0x82, 0x1, 0x0,
+            0xF0,0,0,0, 0,0,0,0xFF, 0,0,0,0x10, 0,0x30,0,0][..].into()).unwrap();
+
+        assert_eq!(value.contents, &[0xF0,0,0,0, 0,0,0,0xFF, 0,0,0,0x10, 0,0x30,0,0]);
+    }
+
+    #[test]
+    fn value_indefinite_length() {
+        let (_, value) =
+            parse_value([0x1, 0x80, 0xf0, 0xf0, 0xf0, 0xf0, 0, 0][..].into()).unwrap();
+
+        assert_eq!(value.contents, &[0xf0, 0xf0, 0xf0, 0xf0]);
+    }
+
+    #[test]
+    fn pkcs12_to_value() {
+        let _ = parse_value((&*std::fs::read("tests/data/test.p12").unwrap()).into()).unwrap();
     }
 }
