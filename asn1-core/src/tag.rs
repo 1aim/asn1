@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub enum Class {
-    Universal,
+    Universal = 0,
     Application,
     Context,
     Private,
@@ -81,53 +81,3 @@ impl From<u8> for Tag {
     }
 }
 
-pub const EOC: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x00,
-};
-pub const BOOLEAN: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x01,
-};
-pub const INTEGER: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x02,
-};
-pub const BIT_STRING: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x03,
-};
-pub const OCTET_STRING: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x04,
-};
-pub const NULL: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x05,
-};
-pub const OBJECT_ID: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x06,
-};
-pub const SEQUENCE: Tag = Tag {
-    class: Class::Universal,
-    constructed: true,
-    number: 0x10,
-};
-pub const UTC_TIME: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x17,
-};
-pub const GENERALIZED_TIME: Tag = Tag {
-    class: Class::Universal,
-    constructed: false,
-    number: 0x18,
-};

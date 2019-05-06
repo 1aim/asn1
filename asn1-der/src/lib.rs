@@ -2,8 +2,11 @@ mod decoder;
 mod encoder;
 mod value;
 
-pub use crate::encoder::Encoder;
 pub use crate::decoder::Decoder;
+pub use value::Value;
+
+pub use encoder::to_der;
+pub use decoder::from_der;
 
 use bytes::{BufMut, BytesMut};
 use core::Tag;
@@ -57,5 +60,17 @@ impl<B: BufMut> Construct<B> {
     pub fn explicit(mut self, tag: Tag) -> Self {
         self.explicit = Some(tag);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::convert::TryInto;
+
+    #[test]
+    fn bool() {
+        assert_eq!(true, from_der(&to_der(true)).unwrap().try_into().unwrap());
+        assert_eq!(false, from_der(&to_der(false)).unwrap().try_into().unwrap());
     }
 }

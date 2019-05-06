@@ -1,5 +1,4 @@
 use std::convert::TryFrom;
-
 use nom::*;
 use nom::types::CompleteByteSlice;
 
@@ -80,7 +79,7 @@ fn take_contents(input: CompleteByteSlice, length: u8) -> IResult<CompleteByteSl
         let length = length ^ 0x80;
         do_parse!(input,
             length: take!(length) >>
-            result: value!(concat_bits(&length, 4)) >>
+            result: value!(concat_bits(&length, 8)) >>
             contents: take!(result) >>
             (contents)
         )
@@ -89,13 +88,13 @@ fn take_contents(input: CompleteByteSlice, length: u8) -> IResult<CompleteByteSl
     }
 }
 
-named!(parse_value<CompleteByteSlice, Value>, do_parse!(
+named!(parse_value<CompleteByteSlice, Value<&[u8]>>, do_parse!(
     tag: parse_identifier_octet >>
     contents: parse_contents >>
     (Value::new(tag, contents))
 ));
 
-pub fn from_der<'a>(bytes: &'a [u8]) -> Result<Value<'a>> {
+pub fn from_der(bytes: &[u8]) -> Result<Value<&[u8]>> {
     let bytes = CompleteByteSlice::from(bytes);
     let (_, value) = parse_value(bytes).unwrap();
 
@@ -123,15 +122,15 @@ mod tests {
 
     variant_tests! {
         parse_identifier_octet: {
-            universal_bool([0x1][..]) == Tag::new(Class::Universal, false, 1);
-            private_primitive([0xC0][..]) == Tag::new(Class::Private, false, 0);
-            context_constructed([0xA0][..]) == Tag::new(Class::Context, true, 0);
-            private_long_constructed([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F][..])
+            universal_bool(&[0x1][..]) == Tag::new(Class::Universal, false, 1);
+            private_primitive(&[0xC0][..]) == Tag::new(Class::Private, false, 0);
+            context_constructed(&[0xA0][..]) == Tag::new(Class::Context, true, 0);
+            private_long_constructed(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F][..])
                 == Tag::new(Class::Private, true, 0x1FFFFFFFFFFFF);
         }
 
         parse_value: {
-            primitive_bool([0x1, 0x1, 0xFF][..]) == Value::new(Tag::new(Class::Universal, false, 1), &[0xff]);
+            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::<&[u8]>::new(Tag::new(Class::Universal, false, 1), &[0xff]);
         }
     }
 
@@ -154,11 +153,14 @@ mod tests {
 
     #[test]
     fn value_really_long_length() {
-        let (_, value) = parse_value([
-            0x1, 0x82, 0x1, 0x0,
-            0xF0,0,0,0, 0,0,0,0xFF, 0,0,0,0x10, 0,0x30,0,0][..].into()).unwrap();
+        let full_buffer = [0xff; 0x100];
 
-        assert_eq!(value.contents, &[0xF0,0,0,0, 0,0,0,0xFF, 0,0,0,0x10, 0,0x30,0,0]);
+        let mut value = vec![0x1, 0x82, 0x1, 0x0];
+        value.extend_from_slice(&full_buffer);
+
+        let (_, value) = parse_value((&*value).into()).unwrap();
+
+        assert_eq!(value.contents, &full_buffer[..]);
     }
 
     #[test]

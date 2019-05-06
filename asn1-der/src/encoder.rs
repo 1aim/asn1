@@ -1,293 +1,80 @@
-use bigint::{BigInt, BigUint};
-use bytes::{buf, Buf, BufMut, IntoBuf};
-use num_traits::{FromPrimitive, ToPrimitive, Zero};
-use std::io::{self, prelude::*};
+use std::io::Write;
 
-use crate::{Construct, Primitive};
-use core::tag::{self, Tag};
-use core::ObjectIdentifier;
-use core::{Encode, Encoder as Super, Value};
+use crate::Value;
+use crate::value::Tag;
 
-#[derive(Copy, Clone, Debug, Default)]
-pub struct Encoder;
+pub fn to_der<A: AsRef<[u8]>, I: Into<Value<A>>>(value: I) -> Vec<u8> {
+    let value = value.into();
+    let mut buffer = Vec::with_capacity(value.len());
 
-impl Super for Encoder {
-    const CANONICAL: bool = true;
+    encode_tag(value.tag, &mut buffer);
+    encode_contents(value.contents.as_ref(), &mut buffer);
+
+    buffer
 }
 
-impl Encoder {
-    pub fn encode_primitive<W, V>(
-        &mut self,
-        writer: &mut W,
-        primitive: Primitive<V>,
-    ) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-        V: AsRef<[u8]>,
-    {
-        encode_header(
-            writer,
-            primitive.implicit,
-            primitive.explicit,
-            primitive.value.as_ref().len(),
-        )?;
-        writer.write_all(primitive.value.as_ref())?;
+fn encode_tag(tag: Tag, buffer: &mut Vec<u8>) {
+    let mut tag_byte = tag.class as u8;
+    let mut tag_number = tag.tag;
 
-        Ok(())
+    // Constructed is a single bit.
+    tag_byte <<= 1;
+    if tag.is_constructed {
+        tag_byte |= 1;
     }
 
-    pub fn encode_construct<W, B, F>(
-        &mut self,
-        writer: &mut W,
-        mut construct: Construct<B>,
-        func: F,
-    ) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-        B: IntoBuf + BufMut,
-        F: for<'a> FnOnce(buf::Writer<&'a mut B>, &mut Self) -> io::Result<()>,
-    {
-        func((&mut construct.buffer).writer(), self)?;
+    // Tag number is five bits, plus the the constructed or primitive bit.
+    tag_byte <<= 6;
+    if tag_number >= 0x1f {
+        tag_byte |= 0x1f;
+        buffer.push(tag_byte);
 
-        self.encode_primitive(
-            writer,
-            Primitive {
-                implicit: construct.implicit,
-                explicit: construct.explicit,
-                value: construct.buffer.into_buf().bytes(),
-            },
-        )
-    }
-}
+        while tag_number != 0 {
+            let mut encoded_number: u8 = (tag_number & 0x7f) as u8;
+            tag_number >>= 7;
 
-fn encode_length<W: Write + ?Sized>(writer: &mut W, length: usize) -> io::Result<()> {
-    if length >= 128 {
-        let n = {
-            let mut i = length;
-            let mut bytes = 1;
-
-            while i > 255 {
-                bytes += 1;
-                i >>= 8;
+            // Fill the last bit unless we're at the last bit.
+            if tag_number != 0 {
+                encoded_number |= 0x80;
             }
 
-            bytes
-        };
-
-        writer.write_all(&[0x80 | n])?;
-
-        for i in (1..n + 1).rev() {
-            writer.write_all(&[(length >> ((i - 1) * 8)) as u8])?;
+            buffer.push(encoded_number);
         }
+
+
     } else {
-        writer.write_all(&[length as u8])?;
-    }
-
-    Ok(())
-}
-
-fn encode_tag<W: Write + ?Sized>(writer: &mut W, tag: Tag) -> io::Result<()> {
-    use core::tag::Class::*;
-
-    let class = match tag.class {
-        Universal => 0 << 6,
-        Application => 1 << 6,
-        Context => 2 << 6,
-        Private => 3 << 6,
-    };
-
-    let constructed = if tag.constructed { 0x20 } else { 0 };
-
-    writer.write_all(&[class | constructed | tag.number])
-}
-
-fn encode_header<W: Write + ?Sized>(
-    writer: &mut W,
-    implicit: Tag,
-    explicit: Option<Tag>,
-    length: usize,
-) -> io::Result<()> {
-    if let Some(tag) = explicit {
-        encode_tag(writer, tag)?;
-    }
-
-    encode_tag(writer, implicit)?;
-    encode_length(writer, length)?;
-
-    Ok(())
-}
-
-fn encode_base128<W: Write + ?Sized>(writer: &mut W, value: &BigUint) -> io::Result<()> {
-    let ZERO: BigUint = BigUint::zero();
-
-    if value == &ZERO {
-        return writer.write_all(&[0]);
-    }
-
-    let mut length = 0;
-    let mut acc = value.clone();
-
-    while acc > ZERO {
-        length += 1;
-        acc = acc >> 7;
-    }
-
-    writer.write_all(&[(value & BigUint::from_u8(0x7f).unwrap()).to_u8().unwrap()])?;
-
-    for i in (1..length).rev() {
-        writer.write_all(&[((value >> (i * 7)) & BigUint::from_u8(0x7f).unwrap()
-            | BigUint::from_u8(0x80).unwrap())
-        .to_u8()
-        .unwrap()])?;
-    }
-
-    Ok(())
-}
-
-impl Encode<()> for Encoder {
-    fn encode<W>(&mut self, writer: &mut W, value: Value<()>) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-    {
-        self.encode_primitive(
-            writer,
-            Primitive {
-                implicit: value.implicit.unwrap_or(tag::NULL),
-                explicit: value.explicit,
-                value: b"",
-            },
-        )
+        tag_byte |= tag_number as u8;
+        buffer.push(tag_byte)
     }
 }
 
-impl Encode<bool> for Encoder {
-    fn encode<W>(&mut self, writer: &mut W, value: Value<bool>) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-    {
-        self.encode_primitive(
-            writer,
-            Primitive {
-                implicit: value.implicit.unwrap_or(tag::BOOLEAN),
-                explicit: value.explicit,
-                value: if *value { &[0xff] } else { &[0x00] },
-            },
-        )
-    }
-}
+fn encode_contents(contents: &[u8], buffer: &mut Vec<u8>) {
+    if contents.len() <= 127 {
+        buffer.push(contents.len() as u8);
+    } else {
+        let mut length = contents.len();
+        let mut length_buffer = Vec::new();
 
-macro_rules! integer {
-	() => ();
-
-	($ty:ty) => (
-		impl Encode<$ty> for Encoder {
-			fn encode<W>(&mut self, writer: &mut W, value: Value<$ty>) -> io::Result<()>
-				where W: Write + ?Sized
-			{
-				let int = BigInt::from(*value);
-				self.encode(writer, value.map(|_| &int))
-			}
-		}
-	);
-
-	($ty:ty, $($rest:tt)+) => (
-		integer!($ty);
-		integer!($($rest)*);
-	);
-}
-
-integer!(i8, i16, i32, i64, i128);
-integer!(u8, u16, u32, u64, u128);
-
-impl<'a> Encode<&'a BigInt> for Encoder {
-    fn encode<W>(&mut self, writer: &mut W, value: Value<&'a BigInt>) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-    {
-        println!("{}", *value);
-
-        self.encode_primitive(
-            writer,
-            Primitive {
-                implicit: value.implicit.unwrap_or(tag::INTEGER),
-                explicit: value.explicit,
-                value: &value.to_signed_bytes_be(),
-            },
-        )
-    }
-}
-
-macro_rules! float {
-	() => ();
-
-	($ty:ty) => (
-		impl Encode<$ty> for Encoder {
-			fn encode<W>(&mut self, _writer: &mut W, _value: Value<$ty>) -> io::Result<()>
-				where W: Write + ?Sized
-			{
-				unimplemented!("floats not supported yet");
-			}
-		}
-	);
-
-	($ty:ty, $($rest:tt)+) => (
-		float!($ty);
-		float!($($rest)*);
-	);
-}
-
-float!(f32, f64);
-
-impl<'a> Encode<&'a str> for Encoder {
-    fn encode<W>(&mut self, writer: &mut W, value: Value<&'a str>) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-    {
-        // TODO(meh): need UTF8 whatever string here
-        self.encode_primitive(
-            writer,
-            Primitive {
-                implicit: value.implicit.unwrap_or(tag::OCTET_STRING),
-                explicit: value.explicit,
-                value: value.into_inner(),
-            },
-        )
-    }
-}
-
-impl<'a> Encode<&'a [u8]> for Encoder {
-    fn encode<W>(&mut self, writer: &mut W, value: Value<&'a [u8]>) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-    {
-        self.encode_primitive(
-            writer,
-            Primitive {
-                implicit: value.implicit.unwrap_or(tag::OCTET_STRING),
-                explicit: value.explicit,
-                value: value.into_inner(),
-            },
-        )
-    }
-}
-
-impl<'a, T: AsRef<[u8]>> Encode<&'a ObjectIdentifier<T>> for Encoder {
-    fn encode<W>(&mut self, writer: &mut W, value: Value<&'a ObjectIdentifier<T>>) -> io::Result<()>
-    where
-        W: Write + ?Sized,
-    {
-        let first = (*value).as_ref()[0]
-            .to_u8()
-            .expect("ObjectIdentifier invariants not respected");
-        let second = (*value).as_ref()[1]
-            .to_u8()
-            .expect("ObjectIdentifier invariants not respected");
-
-        let mut body = vec![(first * 40) + second];
-        for part in (*value).as_ref().iter().skip(2) {
-            encode_base128(&mut body, &BigUint::from(*part))?;
+        while length != 0 {
+            length_buffer.push((length & 0xff) as u8);
+            length >>= 8;
         }
 
-        self.encode_primitive(writer, Primitive::new(tag::OBJECT_ID, &body))
+        buffer.push(length_buffer.len() as u8 | 0x80);
+        buffer.append(&mut length_buffer);
+    }
+
+    buffer.extend_from_slice(contents);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bool() {
+        assert_eq!(to_der(true), &[1, 1, 255]);
+        assert_eq!(to_der(false), &[1, 1, 0]);
     }
 }
+
