@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use failure::ensure;
+use failure::{ensure, Fallible};
 
 use crate::tag::Tag;
 
@@ -46,7 +46,7 @@ impl From<bool> for OwnedValue {
 impl<A: AsRef<[u8]>> TryFrom<Value<A>> for bool {
     type Error = failure::Error;
 
-    fn try_from(value: Value<A>) -> core::Result<Self> {
+    fn try_from(value: Value<A>) -> Fallible<Self> {
         let contents = value.contents.as_ref();
 
         ensure!(
@@ -54,6 +54,7 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for bool {
             "{:?} is not tagged as a boolean",
             value.tag
         );
+
         ensure!(
             contents.len() == 1,
             "Incorrect length for boolean {:?}",

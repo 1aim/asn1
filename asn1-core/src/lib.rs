@@ -11,5 +11,3 @@ pub use crate::object_id::ObjectIdentifier;
 pub use crate::tag::{Class, Tag};
 pub use crate::time::Time;
 pub use crate::value::Value;
-
-pub type Result<T> = std::result::Result<T, failure::Error>;

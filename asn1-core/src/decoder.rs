@@ -1,5 +1,7 @@
 use std::io;
 
+use failure::Fallible;
+
 /// Trait defining an encoder for ASN.1.
 pub trait Decoder: Clone {
     /// Whether the encoding is canonical or not.
@@ -10,7 +12,7 @@ pub trait Decoder: Clone {
 pub trait Decode<T> {
     /// Encode self for the given encoder, writes the encoded output to the
     /// passed writer.
-    fn decode<R>(&mut self, reader: &mut R) -> crate::Result<T>
+    fn decode<R>(&mut self, reader: &mut R) -> Fallible<T>
     where
         R: io::Read + ?Sized;
 }

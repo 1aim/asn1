@@ -1,5 +1,7 @@
 use std::convert::TryFrom;
 
+use failure::Fallible;
+
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub enum Class {
     Universal = 0,
@@ -11,7 +13,7 @@ pub enum Class {
 impl TryFrom<u8> for Class {
     type Error = failure::Error;
 
-    fn try_from(byte: u8) -> crate::Result<Self> {
+    fn try_from(byte: u8) -> Fallible<Self> {
         match byte {
             0 => Ok(Class::Universal),
             1 => Ok(Class::Application),
@@ -80,4 +82,3 @@ impl From<u8> for Tag {
         Tag::new(Class::Universal, false, value)
     }
 }
-

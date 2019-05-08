@@ -1,12 +1,14 @@
+use std::convert::{TryFrom, TryInto};
+
+use failure::Fallible;
 use nom::types::CompleteByteSlice;
 use nom::*;
-use std::convert::{TryFrom, TryInto};
 
 use crate::tag::Tag;
 use crate::value::*;
-use core::{Class, Decoder as Super, Result};
+use core::Class;
 
-pub fn from_der<'a, T>(bytes: &'a [u8]) -> Result<T>
+pub fn from_der<'a, T>(bytes: &'a [u8]) -> Fallible<T>
 where
     T: TryFrom<Value<&'a [u8]>, Error = failure::Error>,
 {
@@ -14,13 +16,6 @@ where
     let (_, value) = parse_value(bytes).unwrap();
 
     Ok(value.try_into()?)
-}
-
-#[derive(Copy, Clone, Debug, Default)]
-pub struct Decoder;
-
-impl Super for Decoder {
-    const CANONICAL: bool = true;
 }
 
 fn is_constructed(byte: u8) -> bool {
