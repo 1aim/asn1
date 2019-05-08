@@ -1,9 +1,16 @@
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use nom::*;
 use nom::types::CompleteByteSlice;
 
 use core::{Decoder as Super, Result, Class};
 use crate::value::*;
+
+pub fn from_der<'a, T: TryFrom<Value<&'a [u8]>, Error=failure::Error>>(bytes: &'a [u8]) -> Result<T> {
+    let bytes = CompleteByteSlice::from(bytes);
+    let (_, value) = parse_value(bytes).unwrap();
+
+    Ok(value.try_into()?)
+}
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Decoder;
@@ -88,18 +95,11 @@ fn take_contents(input: CompleteByteSlice, length: u8) -> IResult<CompleteByteSl
     }
 }
 
-named!(parse_value<CompleteByteSlice, Value<&[u8]>>, do_parse!(
+named!(pub(crate) parse_value<CompleteByteSlice, Value<&[u8]>>, do_parse!(
     tag: parse_identifier_octet >>
     contents: parse_contents >>
     (Value::new(tag, contents))
 ));
-
-pub fn from_der(bytes: &[u8]) -> Result<Value<&[u8]>> {
-    let bytes = CompleteByteSlice::from(bytes);
-    let (_, value) = parse_value(bytes).unwrap();
-
-    Ok(value)
-}
 
 #[cfg(test)]
 mod tests {

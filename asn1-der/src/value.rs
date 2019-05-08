@@ -93,3 +93,67 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for bool {
     }
 }
 
+macro_rules! impl_integer {
+    ($($integer:ty $( : $unsigned:ty)?),*) => {
+        $(
+            #[allow(unused_mut)]
+            impl From<$integer> for Value<Vec<u8>> {
+                fn from(mut value: $integer) -> Self {
+                    use std::collections::VecDeque;
+                    let mut contents = VecDeque::new();
+
+                    $(
+                        let mut value = value as $unsigned;
+                    )?
+
+                    if value != 0 {
+                        if std::mem::size_of::<$integer>() == 1 {
+                            contents.push_front(value as u8);
+                        } else {
+                            while value != 0 {
+                                contents.push_front(value as u8);
+                                value = value.wrapping_shr(8);
+                            }
+                        }
+                    } else {
+                        contents.push_front(0);
+                    }
+
+                    Value::new(Tag::INTEGER,  contents.into())
+                }
+            }
+
+            impl<A: AsRef<[u8]>> TryFrom<Value<A>> for $integer {
+                type Error = failure::Error;
+                fn try_from(value: Value<A>) -> Result<Self, Self::Error> {
+                    ensure!(value.tag == Tag::INTEGER, "{:?} is not tagged as a INTEGER", value.tag);
+                    let contents = value.contents.as_ref();
+
+                    let mut bit_string = String::new();
+
+                    for byte in contents {
+                        bit_string.push_str(&format!("{:08b}", byte));
+                    }
+
+                    let integer = u128::from_str_radix(&bit_string, 2)?;
+
+                    Ok(integer as $integer)
+                }
+            }
+        )*
+    }
+}
+
+impl_integer! {
+    u8,
+    u16,
+    u32,
+    u64,
+    u128,
+    i8: u8,
+    i16: u16,
+    i32: u32,
+    i64: u64,
+    i128: u128
+}
+
