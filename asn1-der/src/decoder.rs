@@ -1,11 +1,15 @@
-use std::convert::{TryFrom, TryInto};
-use nom::*;
 use nom::types::CompleteByteSlice;
+use nom::*;
+use std::convert::{TryFrom, TryInto};
 
-use core::{Decoder as Super, Result, Class};
+use crate::tag::Tag;
 use crate::value::*;
+use core::{Class, Decoder as Super, Result};
 
-pub fn from_der<'a, T: TryFrom<Value<&'a [u8]>, Error=failure::Error>>(bytes: &'a [u8]) -> Result<T> {
+pub fn from_der<'a, T>(bytes: &'a [u8]) -> Result<T>
+where
+    T: TryFrom<Value<&'a [u8]>, Error = failure::Error>,
+{
     let bytes = CompleteByteSlice::from(bytes);
     let (_, value) = parse_value(bytes).unwrap();
 
@@ -79,16 +83,20 @@ named!(parse_contents<CompleteByteSlice, &[u8]>, do_parse!(
     (&contents)
 ));
 
-fn take_contents(input: CompleteByteSlice, length: u8) -> IResult<CompleteByteSlice, CompleteByteSlice> {
+fn take_contents(
+    input: CompleteByteSlice,
+    length: u8,
+) -> IResult<CompleteByteSlice, CompleteByteSlice> {
     if length == 128 {
         take_until_and_consume!(input, &[0, 0][..])
     } else if length >= 127 {
         let length = length ^ 0x80;
-        do_parse!(input,
-            length: take!(length) >>
-            result: value!(concat_bits(&length, 8)) >>
-            contents: take!(result) >>
-            (contents)
+        do_parse!(
+            input,
+            length: take!(length)
+                >> result: value!(concat_bits(&length, 8))
+                >> contents: take!(result)
+                >> (contents)
         )
     } else {
         take!(input, length)
@@ -143,7 +151,6 @@ mod tests {
         assert!(!no.as_bool().unwrap());
     }
 
-
     #[test]
     fn value_long_length() {
         let (_, value) = parse_value([0x1, 0x81, 0x2, 0xF0, 0xF0][..].into()).unwrap();
@@ -165,8 +172,7 @@ mod tests {
 
     #[test]
     fn value_indefinite_length() {
-        let (_, value) =
-            parse_value([0x1, 0x80, 0xf0, 0xf0, 0xf0, 0xf0, 0, 0][..].into()).unwrap();
+        let (_, value) = parse_value([0x1, 0x80, 0xf0, 0xf0, 0xf0, 0xf0, 0, 0][..].into()).unwrap();
 
         assert_eq!(value.contents, &[0xf0, 0xf0, 0xf0, 0xf0]);
     }

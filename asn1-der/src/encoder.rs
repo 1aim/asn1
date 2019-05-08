@@ -1,7 +1,7 @@
 use std::io::Write;
 
+use crate::tag::Tag;
 use crate::Value;
-use crate::value::Tag;
 
 pub fn to_der<A: AsRef<[u8]>, I: Into<Value<A>>>(value: I) -> Vec<u8> {
     let value = value.into();
@@ -40,8 +40,6 @@ fn encode_tag(tag: Tag, buffer: &mut Vec<u8>) {
 
             buffer.push(encoded_number);
         }
-
-
     } else {
         tag_byte |= tag_number as u8;
         buffer.push(tag_byte)
@@ -77,4 +75,3 @@ mod tests {
         assert_eq!(to_der(false), &[1, 1, 0]);
     }
 }
-
