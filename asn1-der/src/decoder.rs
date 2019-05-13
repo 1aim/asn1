@@ -107,6 +107,7 @@ named!(pub(crate) parse_value<CompleteByteSlice, Value<&[u8]>>, do_parse!(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::types::ObjectIdentifier;
 
     macro_rules! variant_tests {
         ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {
@@ -175,5 +176,13 @@ mod tests {
     #[test]
     fn pkcs12_to_value() {
         let _ = parse_value((&*std::fs::read("tests/data/test.p12").unwrap()).into()).unwrap();
+    }
+
+    #[test]
+    fn oid_from_bytes() {
+        let (_, value) = parse_value([0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..].into()).unwrap();
+        let oid = ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap();
+
+        assert_eq!(oid, value.try_into().unwrap());
     }
 }

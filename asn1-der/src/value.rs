@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use failure::{ensure, Fallible};
 
 use crate::tag::Tag;
+use core::types::ObjectIdentifier;
 
 type OwnedValue = Value<Vec<u8>>;
 
@@ -68,11 +69,68 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for bool {
     }
 }
 
+impl<A: AsRef<[u128]>> From<ObjectIdentifier<A>> for Value<Vec<u8>> {
+    fn from(oid: ObjectIdentifier<A>) -> Self {
+        let oid = oid.as_ref();
+        let mut buffer = Vec::with_capacity(oid.len());
+        let mut iter = oid.into_iter();
+
+        let first = iter.next().unwrap();
+        let second = iter.next().unwrap();
+
+        buffer.push((first * 40 + second) as u8);
+
+        for &byte in iter {
+            let mut byte = byte;
+            while byte > 0x7f {
+                let octet = (0x80 | (byte & 0x7f)) as u8;
+                buffer.push(octet);
+                byte >>= 7;
+            }
+
+            let final_octet = (byte & 0x7f) as u8;
+            buffer.push(final_octet);
+        }
+
+        println!("{:?}", buffer);
+        Value::new(Tag::OBJECT_IDENTIFIER, buffer)
+    }
+}
+
+impl<A: AsRef<[u8]>> TryFrom<Value<A>> for ObjectIdentifier<Vec<u128>> {
+    type Error = failure::Error;
+
+    fn try_from(value: Value<A>) -> Fallible<Self> {
+        let contents = value.contents.as_ref();
+        ensure!(contents.len() >= 1, "ObjectIdentifier length less than 1.");
+
+        let mut iter = contents.into_iter().map(|&x| x);
+        let first_octet = iter.next().unwrap();
+        let second_component = first_octet % 40;
+        let first_component = ((first_octet - second_component) / 40) as u128;
+        let mut oid = vec![first_component, second_component as u128];
+        let mut component: u128 = 0;
+
+        for byte in iter {
+            component <<= 7;
+            component |= (byte & 0x7F) as u128;
+            println!("{:08b}", byte);
+
+            if byte & 0x80 == 0 {
+                oid.push(component);
+                component = 0;
+            }
+        }
+
+        Ok(ObjectIdentifier::new(oid)?)
+    }
+}
+
 macro_rules! impl_integer {
     ($($integer:ty $( : $unsigned:ty)?),*) => {
         $(
             #[allow(unused_mut)]
-            impl From<$integer> for Value<Vec<u8>> {
+            impl From<$integer> for OwnedValue {
                 fn from(mut value: $integer) -> Self {
                     use std::collections::VecDeque;
                     let mut contents = VecDeque::new();
