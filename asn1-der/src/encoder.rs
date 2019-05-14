@@ -67,11 +67,25 @@ fn encode_contents(contents: &[u8], buffer: &mut Vec<u8>) {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryInto;
+
+    use core::types::ObjectIdentifier;
+
     use super::*;
 
     #[test]
     fn bool() {
         assert_eq!(to_der(true), &[1, 1, 255]);
         assert_eq!(to_der(false), &[1, 1, 0]);
+    }
+
+
+    #[test]
+    fn object_identifier_to_bytes() {
+        let itu: Vec<u8> = to_der(ObjectIdentifier::new(vec![2, 999, 3]).unwrap());
+        let rsa: Vec<u8> = to_der(ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap());
+
+        assert_eq!(&[0x6, 0x3, 0x88, 0x37, 0x03][..], &*itu);
+        assert_eq!(&[0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..], &*rsa);
     }
 }

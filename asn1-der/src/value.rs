@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::collections::VecDeque;
 
 use failure::{ensure, Fallible};
 
@@ -69,30 +70,44 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for bool {
     }
 }
 
-impl<A: AsRef<[u128]>> From<ObjectIdentifier<A>> for Value<Vec<u8>> {
+impl<A: AsRef<[u128]>> From<ObjectIdentifier<A>> for OwnedValue {
     fn from(oid: ObjectIdentifier<A>) -> Self {
         let oid = oid.as_ref();
         let mut buffer = Vec::with_capacity(oid.len());
         let mut iter = oid.into_iter();
 
-        let first = iter.next().unwrap();
-        let second = iter.next().unwrap();
+        macro_rules! encode_component {
+            ($number:expr) => {{
+                let mut number = $number;
+                println!("{} — 0b{0:08b}", number);
+                let mut bytes = Vec::new();
 
-        buffer.push((first * 40 + second) as u8);
+                while number != 0 {
+                    bytes.push(number & 0x7f);
+                    number >>= 7;
+                }
 
-        for &byte in iter {
-            let mut byte = byte;
-            while byte > 0x7f {
-                let octet = (0x80 | (byte & 0x7f)) as u8;
-                buffer.push(octet);
-                byte >>= 7;
-            }
+                for byte in bytes.iter().skip(1).rev() {
+                    let octet = (0x80 | byte) as u8;
+                    println!("{:08b} — 0x{:x}", octet, octet & 0x7f);
+                    buffer.push(octet);
+                    number >>= 7;
+                }
 
-            let final_octet = (byte & 0x7f) as u8;
-            buffer.push(final_octet);
+                let final_octet = bytes[0] as u8;
+                println!("{:08b} — 0x{0:x}", final_octet);
+                buffer.push(final_octet);
+            }}
         }
 
-        println!("{:?}", buffer);
+        let first = iter.next().unwrap();
+        let second = iter.next().unwrap();
+        encode_component!(first * 40 + second);
+
+        for &byte in iter {
+            encode_component!(byte);
+        }
+
         Value::new(Tag::OBJECT_IDENTIFIER, buffer)
     }
 }
@@ -114,7 +129,6 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for ObjectIdentifier<Vec<u128>> {
         for byte in iter {
             component <<= 7;
             component |= (byte & 0x7F) as u128;
-            println!("{:08b}", byte);
 
             if byte & 0x80 == 0 {
                 oid.push(component);
@@ -132,7 +146,6 @@ macro_rules! impl_integer {
             #[allow(unused_mut)]
             impl From<$integer> for OwnedValue {
                 fn from(mut value: $integer) -> Self {
-                    use std::collections::VecDeque;
                     let mut contents = VecDeque::new();
 
                     $(
