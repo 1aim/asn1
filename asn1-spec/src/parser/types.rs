@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::parser::*;
 
 #[derive(Clone, Debug, Derefable, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Type {

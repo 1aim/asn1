@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use variation::Variation;
 
-use crate::ast::*;
+use super::*;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum ObjectClass {

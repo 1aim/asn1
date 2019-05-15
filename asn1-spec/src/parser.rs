@@ -9,7 +9,7 @@ use std::{collections::BTreeMap, fmt, iter::Peekable};
 use derefable::Derefable;
 use pest::{
     iterators::{FlatPairs, Pair},
-    Parser,
+    Parser as _,
 };
 use variation::Variation;
 
@@ -20,14 +20,14 @@ pub use self::object::*;
 pub use self::oid::*;
 pub use self::types::*;
 pub use self::values::*;
-pub use asn1_pest::{Asn1Parser, Rule};
+pub use asn1_pest::{Asn1Parser as Pest, Rule};
 
 // First Vec is a Vec of Unions, containing a Vec of intersections.
 type ElementSet = Vec<Vec<Element>>;
 
-pub(crate) struct Ast<'a>(Peekable<FlatPairs<'a, Rule>>, &'a str);
+pub(crate) struct Parser<'a>(Peekable<FlatPairs<'a, Rule>>, &'a str);
 
-impl<'a> Ast<'a> {
+impl<'a> Parser<'a> {
     /// Parse asn1 module into an Abstract Syntax Tree (AST) represented by the `Module` struct.
     pub fn parse(source: &'a str) -> Result<Module> {
         Self::new(Rule::ModuleDefinition, source)?.parse_module()
@@ -43,7 +43,7 @@ impl<'a> Ast<'a> {
     }
 
     fn new(rule: Rule, source: &'a str) -> Result<Self> {
-        let iter = Asn1Parser::parse(rule, source)?;
+        let iter = Pest::parse(rule, source)?;
 
         Ok(Self(iter.flatten().peekable(), source))
     }
@@ -1688,24 +1688,3 @@ impl ComponentConstraint {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use pest::Parser;
-
-    use super::Asn1Parser;
-    use super::Rule;
-
-    #[test]
-    fn basic_definition() {
-        let input = include_str!("../../tests/basic.asn1");
-
-        Asn1Parser::parse(Rule::ModuleDefinition, input).unwrap_or_else(|e| panic!("{}", e));
-    }
-
-    #[test]
-    fn pkcs12() {
-        let input = include_str!("../../asn1/pkcs12.asn1");
-
-        Asn1Parser::parse(Rule::ModuleDefinition, input).unwrap_or_else(|e| panic!("{}", e));
-    }
-}

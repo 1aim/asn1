@@ -7,7 +7,7 @@ use std::io::Write;
 
 use self::imports::*;
 use self::structs::*;
-use crate::{ast::*, semantics::SemanticChecker, Result};
+use crate::{parser::*, semantics::SemanticChecker, Result};
 
 pub trait Backend: Default {
     fn generate_type(&mut self, ty: &Type) -> Result<String>;

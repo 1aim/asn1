@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fs, iter::FromIterator, path::PathBuf};
 use derefable::Derefable;
 use unwrap_to::unwrap_to;
 
-use crate::{ast::*, oid::ObjectIdentifier, Result};
+use crate::{parser::*, Result};
 
 #[derive(Debug, Default, Derefable)]
 pub struct TypeRegistry {
@@ -125,7 +125,7 @@ impl ModuleRegistry {
                     continue;
                 }
 
-                let header = Ast::parse_header(&fs::read_to_string(&path)?)?;
+                let header = Parser::parse_header(&fs::read_to_string(&path)?)?;
 
                 available_modules.insert(header, path.to_owned());
             }

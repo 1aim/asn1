@@ -1,14 +1,14 @@
 #[macro_use]
 extern crate log;
 
-mod ast;
+mod parser;
 mod codegen;
 mod registry;
 mod semantics;
 
 use std::{fs, path::PathBuf};
 
-use self::{ast::*, codegen::*, semantics::*};
+use self::{parser::Parser, codegen::*, semantics::*};
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
@@ -32,7 +32,7 @@ impl Asn1 {
 
     pub fn build(self) -> Result<String> {
         let source = fs::read_to_string(&self.path)?;
-        let ast = Ast::parse(&source)?;
+        let ast = Parser::parse(&source)?;
 
         let mut fixed_tree = SemanticChecker::new(ast);
         fixed_tree.build()?;
@@ -45,3 +45,4 @@ impl Asn1 {
         Ok(String::from_utf8(output).unwrap())
     }
 }
+

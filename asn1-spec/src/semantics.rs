@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, mem};
 use failure::ensure;
 use unwrap_to::unwrap_to;
 
-use crate::{ast::*, registry::*, Result};
+use crate::{parser::*, registry::*, Result};
 
 #[derive(Debug)]
 pub struct SemanticChecker {
