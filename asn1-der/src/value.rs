@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use failure::{ensure, Fallible};
 
 use crate::tag::Tag;
-use core::types::ObjectIdentifier;
+use core::types::{ObjectIdentifier, OctetString};
 
 type OwnedValue = Value<Vec<u8>>;
 
@@ -116,6 +116,7 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for ObjectIdentifier<Vec<u128>> {
     type Error = failure::Error;
 
     fn try_from(value: Value<A>) -> Fallible<Self> {
+        ensure!(value.tag == Tag::OBJECT_IDENTIFIER, "{:?} is not tagged as a object identifier.", value.tag);
         let contents = value.contents.as_ref();
         ensure!(contents.len() >= 1, "ObjectIdentifier length less than 1.");
 
@@ -137,6 +138,26 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for ObjectIdentifier<Vec<u128>> {
         }
 
         Ok(ObjectIdentifier::new(oid)?)
+    }
+}
+
+impl<A: AsRef<[u8]>> TryFrom<Value<A>> for OctetString<Vec<u8>> {
+    type Error = failure::Error;
+
+    fn try_from(value: Value<A>) -> Fallible<Self> {
+        ensure!(
+            value.tag == Tag::OCTET_STRING,
+            "{:?} is not tagged as a octet string.",
+            value.tag
+        );
+
+        Ok(OctetString::new(value.contents.as_ref().to_owned()))
+    }
+}
+
+impl From<OctetString<Vec<u8>>> for OwnedValue {
+    fn from(octet_string: OctetString<Vec<u8>>) -> Self {
+        Value::new(Tag::OCTET_STRING, octet_string.into_vec())
     }
 }
 

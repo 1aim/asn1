@@ -13,7 +13,7 @@ mod tests {
 
     use super::*;
     use decoder::parse_value;
-    use core::types::ObjectIdentifier;
+    use core::types::*;
 
     #[test]
     fn bool() {
@@ -32,6 +32,15 @@ mod tests {
         assert_eq!(us_ansi.clone(), from_der(&to_der(us_ansi)).unwrap());
         assert_eq!(rsa.clone(), from_der(&to_der(rsa)).unwrap());
         assert_eq!(pkcs.clone(), from_der(&to_der(pkcs)).unwrap());
+    }
+
+    #[test]
+    fn octet_string() {
+        let a = OctetString::new(vec![1, 2, 3, 4, 5]);
+        let b = OctetString::new(vec![5, 4, 3, 2, 1]);
+
+        assert_eq!(a.clone(), from_der(&to_der(a)).unwrap());
+        assert_eq!(b.clone(), from_der(&to_der(b)).unwrap());
     }
 
     macro_rules! integer_tests {
