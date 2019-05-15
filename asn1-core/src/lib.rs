@@ -2,8 +2,8 @@ pub mod decoder;
 pub mod encoder;
 pub mod tag;
 mod time;
-mod value;
 pub mod types;
+mod value;
 
 pub use crate::decoder::{Decode, Decoder};
 pub use crate::encoder::{Encode, Encoder};

@@ -1,5 +1,5 @@
-use std::convert::TryFrom;
 use std::collections::VecDeque;
+use std::convert::TryFrom;
 
 use failure::{ensure, Fallible};
 
@@ -97,7 +97,7 @@ impl<A: AsRef<[u128]>> From<ObjectIdentifier<A>> for OwnedValue {
                 let final_octet = bytes[0] as u8;
                 println!("{:08b} — 0x{0:x}", final_octet);
                 buffer.push(final_octet);
-            }}
+            }};
         }
 
         let first = iter.next().unwrap();
@@ -116,7 +116,11 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for ObjectIdentifier<Vec<u128>> {
     type Error = failure::Error;
 
     fn try_from(value: Value<A>) -> Fallible<Self> {
-        ensure!(value.tag == Tag::OBJECT_IDENTIFIER, "{:?} is not tagged as a object identifier.", value.tag);
+        ensure!(
+            value.tag == Tag::OBJECT_IDENTIFIER,
+            "{:?} is not tagged as a object identifier.",
+            value.tag
+        );
         let contents = value.contents.as_ref();
         ensure!(contents.len() >= 1, "ObjectIdentifier length less than 1.");
 

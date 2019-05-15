@@ -1,14 +1,14 @@
 #[macro_use]
 extern crate log;
 
-mod parser;
 mod codegen;
+mod parser;
 mod registry;
 mod semantics;
 
 use std::{fs, path::PathBuf};
 
-use self::{parser::Parser, codegen::*, semantics::*};
+use self::{codegen::*, parser::Parser, semantics::*};
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
@@ -45,4 +45,3 @@ impl Asn1 {
         Ok(String::from_utf8(output).unwrap())
     }
 }
-

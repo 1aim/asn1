@@ -79,7 +79,6 @@ mod tests {
         assert_eq!(to_der(false), &[1, 1, 0]);
     }
 
-
     #[test]
     fn object_identifier_to_bytes() {
         let itu: Vec<u8> = to_der(ObjectIdentifier::new(vec![2, 999, 3]).unwrap());

@@ -12,8 +12,8 @@ mod tests {
     use std::convert::TryInto;
 
     use super::*;
-    use decoder::parse_value;
     use core::types::*;
+    use decoder::parse_value;
 
     #[test]
     fn bool() {

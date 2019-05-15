@@ -106,14 +106,8 @@ impl Backend for Rust {
         writer.write(
             itertools::join(self.prelude.iter().map(ToString::to_string), "\n").as_bytes(),
         )?;
-        writer.write(
-            self.consts
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join("\n")
-                .as_bytes(),
-        )?;
+
+        writer.write(itertools::join(self.consts.iter(), "\n").as_bytes())?;
         Ok(())
     }
 

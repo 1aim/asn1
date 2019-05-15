@@ -180,7 +180,8 @@ mod tests {
 
     #[test]
     fn oid_from_bytes() {
-        let (_, value) = parse_value([0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..].into()).unwrap();
+        let (_, value) =
+            parse_value([0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..].into()).unwrap();
         let oid = ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap();
 
         assert_eq!(oid, value.try_into().unwrap());
