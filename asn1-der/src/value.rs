@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 use failure::{ensure, Fallible};
 
 use crate::tag::Tag;
-use core::types::{ObjectIdentifier, OctetString};
+use core::types::ObjectIdentifier;
 
 type OwnedValue = Value<Vec<u8>>;
 
@@ -145,7 +145,7 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for ObjectIdentifier<Vec<u128>> {
     }
 }
 
-impl<A: AsRef<[u8]>> TryFrom<Value<A>> for OctetString<Vec<u8>> {
+impl<A: AsRef<[u8]>> TryFrom<Value<A>> for Vec<u8> {
     type Error = failure::Error;
 
     fn try_from(value: Value<A>) -> Fallible<Self> {
@@ -155,13 +155,13 @@ impl<A: AsRef<[u8]>> TryFrom<Value<A>> for OctetString<Vec<u8>> {
             value.tag
         );
 
-        Ok(OctetString::new(value.contents.as_ref().to_owned()))
+        Ok(value.contents.as_ref().to_owned())
     }
 }
 
-impl From<OctetString<Vec<u8>>> for OwnedValue {
-    fn from(octet_string: OctetString<Vec<u8>>) -> Self {
-        Value::new(Tag::OCTET_STRING, octet_string.into_vec())
+impl From<Vec<u8>> for OwnedValue {
+    fn from(vec: Vec<u8>) -> Self {
+        Value::new(Tag::OCTET_STRING, vec)
     }
 }
 

@@ -9,6 +9,7 @@ pub use value::Value;
 
 #[cfg(test)]
 mod tests {
+    use asn1_derive::ASN1;
     use std::convert::TryInto;
 
     use super::*;
@@ -36,11 +37,23 @@ mod tests {
 
     #[test]
     fn octet_string() {
-        let a = OctetString::new(vec![1, 2, 3, 4, 5]);
-        let b = OctetString::new(vec![5, 4, 3, 2, 1]);
+        let a = vec![1u8, 2, 3, 4, 5];
+        let b = vec![5u8, 4, 3, 2, 1];
 
-        assert_eq!(a.clone(), from_der(&to_der(a)).unwrap());
-        assert_eq!(b.clone(), from_der(&to_der(b)).unwrap());
+        assert_eq!(a.clone(), from_der::<Vec<u8>>(&to_der(a)).unwrap());
+        assert_eq!(b.clone(), from_der::<Vec<u8>>(&to_der(b)).unwrap());
+    }
+
+    #[test]
+    fn struct_of_bools() {
+        #[derive(ASN1, Default, Debug, PartialEq)]
+        struct Bools {
+            a: bool,
+            b: bool,
+            c: bool,
+        }
+
+        assert_eq!(Bools::default(), from_der(&to_der(Bools::default())).unwrap());
     }
 
     macro_rules! integer_tests {

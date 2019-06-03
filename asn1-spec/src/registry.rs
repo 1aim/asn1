@@ -1,41 +1,68 @@
-use std::{collections::BTreeMap, fs, iter::FromIterator, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    fs,
+    iter::FromIterator,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
 
-use derefable::Derefable;
 use unwrap_to::unwrap_to;
 
 use crate::{parser::*, Result};
 
-#[derive(Debug, Default, Derefable)]
-pub struct TypeRegistry {
-    #[deref(mutable)]
-    map: BTreeMap<String, Type>,
+#[derive(Debug, Default)]
+pub struct GlobalSymbolTable {
+    pub types: SymbolTable<Type>,
+    pub values: SymbolTable<(Type, Value)>,
+    pub value_sets: SymbolTable<(Type, ElementSetSpec)>,
 }
 
-impl TypeRegistry {
-    pub fn new() -> Self {
-        Self::default()
+impl GlobalSymbolTable {
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.types.contains_key(key) ||
+        self.values.contains_key(key) ||
+        self.value_sets.contains_key(key)
+    }
+
+    pub fn insert_type(&mut self, key: String, value: Type) -> Option<Type> {
+        self.types.insert(key, value)
+    }
+
+    pub fn insert_value(&mut self, key: String, ty: Type, value: Value) -> Option<(Type, Value)> {
+        self.values.insert(key, (ty, value))
+    }
+
+    pub fn insert_value_set(&mut self, key: String, ty: Type, set: ElementSetSpec) -> Option<(Type, ElementSetSpec)> {
+        self.value_sets.insert(key, (ty, set))
     }
 }
 
-impl FromIterator<(String, Type)> for TypeRegistry {
-    fn from_iter<I: IntoIterator<Item = (String, Type)>>(iter: I) -> Self {
-        Self {
-            map: BTreeMap::from_iter(iter),
-        }
+#[derive(Debug)]
+pub struct SymbolTable<V, K: Ord = String> {
+    map: BTreeMap<K, V>,
+}
+
+impl<K: Ord, V> Default for SymbolTable<V, K> {
+    fn default() -> Self {
+        Self { map: BTreeMap::default() }
     }
 }
 
-#[derive(Debug, Default, Derefable)]
-pub struct ValueRegistry {
-    #[deref(mutable)]
-    map: BTreeMap<String, (Type, Value)>,
+impl<K: Ord, V> Deref for SymbolTable<V, K> {
+    type Target = BTreeMap<K, V>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.map
+    }
 }
 
-impl ValueRegistry {
-    pub fn new() -> Self {
-        Self::default()
+impl<K: Ord, V> DerefMut for SymbolTable<V, K> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.map
     }
+}
 
+impl SymbolTable<(Type, Value)> {
     pub fn resolve_object_identifiers(&mut self) {
         debug!("Resolving OIDs to full path.");
         let total_length = self
@@ -95,21 +122,9 @@ impl ValueRegistry {
     }
 }
 
-impl FromIterator<(String, (Type, Value))> for ValueRegistry {
-    fn from_iter<I: IntoIterator<Item = (String, (Type, Value))>>(iter: I) -> Self {
-        Self {
-            map: BTreeMap::from_iter(iter),
-        }
-    }
-}
-
-pub struct ModuleRegistry {
-    available_modules: BTreeMap<ModuleIdentifier, PathBuf>,
-}
-
-impl ModuleRegistry {
+impl SymbolTable<PathBuf, ModuleIdentifier> {
     pub fn new(dependencies: Option<PathBuf>) -> Result<Self> {
-        let mut available_modules = BTreeMap::new();
+        let mut map = BTreeMap::new();
 
         if let Some(ref dependencies) = dependencies {
             for entry in fs::read_dir(&dependencies)? {
@@ -127,22 +142,10 @@ impl ModuleRegistry {
 
                 let header = Parser::parse_header(&fs::read_to_string(&path)?)?;
 
-                available_modules.insert(header, path.to_owned());
+                map.insert(header, path.to_owned());
             }
         }
 
-        Ok(Self { available_modules })
-    }
-}
-
-#[derive(Debug, Default, Derefable)]
-pub struct ValueSetRegistry {
-    #[deref(mutable)]
-    map: BTreeMap<String, (Type, ElementSetSpec)>,
-}
-
-impl ValueSetRegistry {
-    pub fn new() -> Self {
-        Self::default()
+        Ok(Self { map })
     }
 }

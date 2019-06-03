@@ -9,9 +9,7 @@ use crate::{parser::*, registry::*, Result};
 pub struct SemanticChecker {
     pub imports: BTreeMap<ModuleReference, Vec<String>>,
     pub module: Module,
-    pub types: TypeRegistry,
-    pub values: ValueRegistry,
-    pub value_sets: ValueSetRegistry,
+    pub table: GlobalSymbolTable,
     // object_sets: ValueRegistry,
     // objects: ValueRegistry,
     // classes: ValueRegistry,
@@ -20,16 +18,12 @@ pub struct SemanticChecker {
 impl SemanticChecker {
     pub fn new(module: Module) -> Self {
         let imports = BTreeMap::new();
-        let values = ValueRegistry::new();
-        let value_sets = ValueSetRegistry::new();
-        let types = TypeRegistry::new();
+        let table = GlobalSymbolTable::default();
 
         Self {
             imports,
             module,
-            types,
-            values,
-            value_sets,
+            table,
         }
     }
 
@@ -41,7 +35,6 @@ impl SemanticChecker {
         debug!("Skipping resolving object identifiers");
         //self.values.resolve_object_identifiers();
         self.resolve_defined_values();
-        debug!("{:#?}", self.types);
         Ok(())
     }
 
@@ -58,10 +51,10 @@ impl SemanticChecker {
 
             match assignment.kind {
                 AssignmentType::Type(ty) => {
-                    self.types.insert(assignment.name, ty);
+                    self.table.insert_type(assignment.name, ty);
                 }
                 AssignmentType::Value(ty, value) => {
-                    self.values.insert(assignment.name, (ty, value));
+                    self.table.insert_value(assignment.name, ty, value);
                 }
                 AssignmentType::ValueSet(ty, elements) => {
                     ensure!(
@@ -70,7 +63,7 @@ impl SemanticChecker {
                         assignment.name
                     );
 
-                    self.value_sets.insert(assignment.name, (ty, elements));
+                    self.table.insert_value_set(assignment.name, ty, elements);
                 }
                 AssignmentType::Object(class, object) => {
                     //self.objects.insert(assignment.name, (class, object));
@@ -88,12 +81,12 @@ impl SemanticChecker {
     }
 
     fn contains_assignment(&self, name: &String) -> bool {
-        self.types.contains_key(name) && self.values.contains_key(name)
+        self.table.contains_key(name)
     }
 
     pub fn resolve_type_aliases(&mut self) {
         debug!("Resolving type aliases.");
-        for t in self
+        for t in self.table
             .values
             .iter_mut()
             .map(|(_, (t, _))| t)
@@ -102,7 +95,7 @@ impl SemanticChecker {
             let reference = unwrap_to!(t.raw_type => RawType::Referenced);
 
             if reference.is_internal() {
-                if let Some(original_type) = self.types.get(&reference.item) {
+                if let Some(original_type) = self.table.types.get(&reference.item) {
                     // TODO: How do constraints work across type alias?
                     // Might be defined in the spec
                     *t = original_type.clone();
@@ -115,7 +108,7 @@ impl SemanticChecker {
 
     pub fn resolve_defined_values(&mut self) {
         debug!("Resolving defined values");
-        let frozen_map = self.values.clone();
+        let frozen_map = self.table.values.clone();
         let get_value = |defined_value: &mut DefinedValue| {
             let value = match defined_value {
                 DefinedValue::Simple(v) => v,
@@ -136,8 +129,7 @@ impl SemanticChecker {
             original_value.clone()
         };
 
-        for value in self
-            .values
+        for value in self.table.values
             .iter_mut()
             .map(|(_, (_, v))| v)
             .filter(|v| v.is_defined())

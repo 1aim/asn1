@@ -10,7 +10,7 @@ name = "asn1_derive"
 proc-macro = true
 
 [dependencies]
-proc-macro2 = { version = "0.4", features = ["nightly"] }
+proc-macro2 = { version = "0.4" }
 quote       = "0.6"
 syn         = { version = "0.15", features = ["extra-traits"] }
 

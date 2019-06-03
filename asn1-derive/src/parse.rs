@@ -56,7 +56,7 @@ impl<T> Emit<T> for Result<T, Error> {
             Ok(value) => Some(value),
 
             Err(error) => {
-                error.span().unstable().error(error.to_string()).emit();
+                // error.span().unstable().error(error.to_string()).emit();
                 None
             }
         }

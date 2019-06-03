@@ -98,8 +98,8 @@ impl<'a> Container<'a> {
                 let implicit = self
                     .attributes
                     .implicit
-                    .map(|id| quote! { asn1::Tag::from(#id) })
-                    .unwrap_or_else(|| quote! { asn1::tag::SEQUENCE });
+                    .map(|id| quote! { asn1::types::Tag::(#id) })
+                    .unwrap_or_else(|| quote! { asn1_der::Tag::SEQUENCE });
 
                 let explicit = self
                     .attributes
@@ -157,19 +157,23 @@ impl<'a> Container<'a> {
         };
 
         Ok(quote! {
-            impl<'a> asn1::Encode<&'a #name> for asn1::der::Encoder {
-                fn encode<W>(&mut self, mut writer: &mut W, value: asn1::Value<&'a #name>) -> std::io::Result<()>
-                    where W: std::io::Write + ?Sized
-                {
-                    #body
+            use failure::{Fallible, Error};
+            use asn1_der::types::Tag;
+
+            impl<A: AsRef<[u8]>> TryFrom<Value<A>> for #name {
+                type Error = failure::Error;
+
+                fn try_from(value: Value<A>) -> Fallible<Self> {
+                    ensure!(value.tag == Tag::SEQUENCE, "{:?} is not tagged as a SEQUENCE", value.tag);
+
+
+                    unimplemented!()
                 }
             }
 
-            impl asn1::Encode<#name> for asn1::der::Encoder {
-                fn encode<W>(&mut self, writer: &mut W, value: asn1::Value<#name>) -> std::io::Result<()>
-                    where W: std::io::Write + ?Sized
-                {
-                    asn1::der::Encoder::encode(self, writer, value.as_ref())
+            impl From<#name> for Value<Vec<u8>> {
+                fn from(sequence: #name) -> Self {
+                    Value::new(Tag::SEQUENCE, Vec::new())
                 }
             }
         })

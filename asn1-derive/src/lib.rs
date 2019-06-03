@@ -1,6 +1,5 @@
 // The `quote!` macro requires deep recursion.
 #![recursion_limit = "512"]
-#![feature(proc_macro_diagnostic)]
 
 #[macro_use]
 extern crate quote;
@@ -18,15 +17,12 @@ mod attribute;
 use proc_macro::TokenStream;
 use syn::DeriveInput;
 
-#[proc_macro_derive(ASN1, attributes(asn1))]
+#[proc_macro_derive(Asn1, attributes(asn1))]
 pub fn derive_asn1(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let container = try_parse!(ast::Container::parse(&input));
 
-    #[cfg(feature = "der")]
     let der = try_parse!(container.to_der());
-    #[cfg(not(feature = "der"))]
-    let der = proc_macro2::TokenStream::new();
 
     TokenStream::from(quote! {
         #der

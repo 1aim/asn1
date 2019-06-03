@@ -92,12 +92,7 @@ impl Container {
                     }
                 }
 
-                item => {
-                    item.span()
-                        .unstable()
-                        .warning(format!("asn1: unhandled item {:?}", item))
-                        .emit();
-                }
+                item => panic!("asn1: unhandled item {:?}", item),
             }
         }
 
@@ -143,12 +138,7 @@ impl Field {
                     }
                 }
 
-                item => {
-                    item.span()
-                        .unstable()
-                        .warning(format!("asn1: unhandled item {:?}", item))
-                        .emit();
-                }
+                item => panic!("asn1: unhandled item {:?}", item),
             }
         }
 
@@ -196,12 +186,7 @@ impl Variant {
                     }
                 }
 
-                item => {
-                    item.span()
-                        .unstable()
-                        .warning(format!("asn1: unhandled item {:?}", item))
-                        .emit();
-                }
+                item => panic!("asn1: unhandled item {:?}", item),
             }
         }
 
