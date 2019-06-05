@@ -6,25 +6,18 @@ use std::{collections::HashSet, io::Write, mem};
 
 use failure::Fallible as Result;
 
+use self::{constant::Constant, imports::*, structs::*};
 use crate::{
     parser::*,
     registry::{GlobalSymbolTable, SymbolTable},
-    semantics::SemanticChecker
+    semantics::SemanticChecker,
 };
-use self::{constant::Constant, imports::*, structs::*};
 
 pub trait Backend: Default {
     fn generate_type(&mut self, ty: &Type) -> Result<String>;
     fn generate_value(&mut self, value: &Value) -> Result<String>;
-    fn generate_value_assignment(&mut self,
-                                 name: String,
-                                 ty: Type,
-                                 value: Value)
-        -> Result<()>;
-    fn generate_sequence(&mut self,
-                         name: &str,
-                         fields: &[ComponentType])
-        -> Result<String>;
+    fn generate_value_assignment(&mut self, name: String, ty: Type, value: Value) -> Result<()>;
+    fn generate_sequence(&mut self, name: &str, fields: &[ComponentType]) -> Result<String>;
     fn generate_builtin(&mut self, builtin: &BuiltinType) -> Result<String>;
     fn write_prelude<W: Write>(&mut self, writer: &mut W) -> Result<()>;
     fn write_footer<W: Write>(&self, writer: &mut W) -> Result<()>;
@@ -104,11 +97,15 @@ impl Backend for Rust {
     fn write_prelude<W: Write>(&mut self, writer: &mut W) -> Result<()> {
         let prelude = mem::replace(&mut self.prelude, HashSet::new());
         let consts = mem::replace(&mut self.consts, HashSet::new());
-        writer.write(
-            itertools::join(prelude.iter().map(ToString::to_string), "\n").as_bytes(),
-        )?;
+        writer.write(itertools::join(prelude.iter().map(ToString::to_string), "\n").as_bytes())?;
 
-        writer.write(itertools::join(consts.into_iter().filter_map(|c| c.generate(self).ok()), "\n").as_bytes())?;
+        writer.write(
+            itertools::join(
+                consts.into_iter().filter_map(|c| c.generate(self).ok()),
+                "\n",
+            )
+            .as_bytes(),
+        )?;
         Ok(())
     }
 
@@ -126,14 +123,9 @@ impl Backend for Rust {
         }
     }
 
-    fn generate_value_assignment(
-        &mut self,
-        name: String,
-        ty: Type,
-        value: Value,
-    ) -> Result<()> {
-
-        self.consts.insert(Constant::new(Visibility::Public, name, ty, value));
+    fn generate_value_assignment(&mut self, name: String, ty: Type, value: Value) -> Result<()> {
+        self.consts
+            .insert(Constant::new(Visibility::Public, name, ty, value));
         Ok(())
     }
 }

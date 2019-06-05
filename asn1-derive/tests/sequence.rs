@@ -1,5 +1,5 @@
-use asn1_derive::Asn1;
 use asn1_der::{from_der, to_der};
+use asn1_derive::Asn1;
 
 #[test]
 fn struct_of_bools() {
@@ -11,16 +11,11 @@ fn struct_of_bools() {
     }
 
     let raw = &[
-        // Sequence tag
-        0x30,
-        // Length
-        9,
-        // A
-        1, 1, 0,
-        // B
-        1, 1, 0,
-        // C
-        1, 1, 0,
+        0x30, // Sequence tag
+        9,    // Length
+        1, 1, 0, // A
+        1, 1, 0, // B
+        1, 1, 0, // C
     ][..];
 
     let default = Bools::default();

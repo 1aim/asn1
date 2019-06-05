@@ -5,8 +5,8 @@ mod value;
 
 pub use decoder::{from_der, from_der_partial};
 pub use encoder::to_der;
-pub use value::Value;
 pub use tag::Tag;
+pub use value::Value;
 
 #[cfg(test)]
 mod tests {

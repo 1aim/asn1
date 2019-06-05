@@ -59,12 +59,15 @@ fn concat_bits(body: &[u8], width: u8) -> usize {
     result
 }
 
-named!(parse_initial_octet<Tag>, bits!(do_parse!(
-    class: map!(take_bits!(u8, 2), Class::try_from) >>
-    is_constructed: map!(take_bits!(u8, 1), is_constructed) >>
-    tag: take_bits!(usize, 5) >>
-    (Tag::new(class.expect("Invalid class"), is_constructed, tag))
-)));
+named!(
+    parse_initial_octet<Tag>,
+    bits!(do_parse!(
+        class: map!(take_bits!(u8, 2), Class::try_from)
+            >> is_constructed: map!(take_bits!(u8, 1), is_constructed)
+            >> tag: take_bits!(usize, 5)
+            >> (Tag::new(class.expect("Invalid class"), is_constructed, tag))
+    ))
+);
 
 named!(pub(crate) parse_identifier_octet<Tag>, do_parse!(
     identifier: parse_initial_octet >>
@@ -79,16 +82,12 @@ named!(pub(crate) parse_identifier_octet<Tag>, do_parse!(
     (identifier.set_tag(long_tag.unwrap_or(identifier.tag)))
 ));
 
-named!(parse_contents, do_parse!(
-    length: take!(1) >>
-    contents: apply!(take_contents, length[0]) >>
-    (&contents)
-));
+named!(
+    parse_contents,
+    do_parse!(length: take!(1) >> contents: apply!(take_contents, length[0]) >> (&contents))
+);
 
-fn take_contents(
-    input: &[u8],
-    length: u8,
-) -> IResult<&[u8], &[u8]> {
+fn take_contents(input: &[u8], length: u8) -> IResult<&[u8], &[u8]> {
     if length == 128 {
         take_until_and_consume!(input, &[0, 0][..])
     } else if length >= 127 {

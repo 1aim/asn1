@@ -121,12 +121,10 @@ impl<'a> Container<'a> {
             panic!("Only named field structs are currently supported.")
         }
 
-        let names: TokenStream = fields
+        let encode_fields: TokenStream = fields
             .iter()
-            .map(Field::name)
+            .map(|f| f.to_der(buffer_name.clone()))
             .collect();
-
-        let encode_fields: TokenStream = fields.iter().map(|f| f.to_der(buffer_name.clone())).collect();
 
         Ok(quote! {
             impl From<#name> for asn1_der::Value<Vec<u8>> {
@@ -158,12 +156,11 @@ impl<'a> Container<'a> {
             panic!("Only named field structs are currently supported.")
         }
 
-        let decode_fields: TokenStream = fields.iter().map(|f| f.from_der(buffer_name.clone())).collect();
-        let field_names: TokenStream = fields
+        let decode_fields: TokenStream = fields
             .iter()
-            .map(Field::name)
+            .map(|f| f.from_der(buffer_name.clone()))
             .collect();
-
+        let field_names: TokenStream = fields.iter().map(Field::name).collect();
 
         Ok(quote! {
             impl<A: AsRef<[u8]>> std::convert::TryFrom<asn1_der::Value<A>> for #name {

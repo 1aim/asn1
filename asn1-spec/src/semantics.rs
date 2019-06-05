@@ -86,7 +86,8 @@ impl SemanticChecker {
 
     pub fn resolve_type_aliases(&mut self) {
         debug!("Resolving type aliases.");
-        for t in self.table
+        for t in self
+            .table
             .values
             .iter_mut()
             .map(|(_, (t, _))| t)
@@ -129,7 +130,9 @@ impl SemanticChecker {
             original_value.clone()
         };
 
-        for value in self.table.values
+        for value in self
+            .table
+            .values
             .iter_mut()
             .map(|(_, (_, v))| v)
             .filter(|v| v.is_defined())

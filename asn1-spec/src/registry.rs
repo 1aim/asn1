@@ -19,9 +19,9 @@ pub struct GlobalSymbolTable {
 
 impl GlobalSymbolTable {
     pub fn contains_key(&self, key: &str) -> bool {
-        self.types.contains_key(key) ||
-        self.values.contains_key(key) ||
-        self.value_sets.contains_key(key)
+        self.types.contains_key(key)
+            || self.values.contains_key(key)
+            || self.value_sets.contains_key(key)
     }
 
     pub fn insert_type(&mut self, key: String, value: Type) -> Option<Type> {
@@ -32,7 +32,12 @@ impl GlobalSymbolTable {
         self.values.insert(key, (ty, value))
     }
 
-    pub fn insert_value_set(&mut self, key: String, ty: Type, set: ElementSetSpec) -> Option<(Type, ElementSetSpec)> {
+    pub fn insert_value_set(
+        &mut self,
+        key: String,
+        ty: Type,
+        set: ElementSetSpec,
+    ) -> Option<(Type, ElementSetSpec)> {
         self.value_sets.insert(key, (ty, set))
     }
 }
@@ -44,7 +49,9 @@ pub struct SymbolTable<V, K: Ord = String> {
 
 impl<K: Ord, V> Default for SymbolTable<V, K> {
     fn default() -> Self {
-        Self { map: BTreeMap::default() }
+        Self {
+            map: BTreeMap::default(),
+        }
     }
 }
 
