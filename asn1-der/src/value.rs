@@ -10,8 +10,8 @@ type OwnedValue = Value<Vec<u8>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Value<A: AsRef<[u8]>> {
-    pub(crate) tag: Tag,
-    pub(crate) contents: A,
+    pub tag: Tag,
+    pub contents: A,
 }
 
 impl<A: AsRef<[u8]>> Value<A> {
@@ -32,10 +32,6 @@ impl<A: AsRef<[u8]>> Value<A> {
 
     pub fn len(&self) -> usize {
         self.tag.len() + self.contents.as_ref().len()
-    }
-
-    pub fn get_tag(&self) -> Tag {
-        self.tag
     }
 }
 

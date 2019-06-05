@@ -88,58 +88,95 @@ impl<'a> Container<'a> {
         Ok(this)
     }
 
+    /// Generate the decoder for DER.
+    pub fn from_der(&self) -> syn::Result<TokenStream> {
+        match self.data {
+            Data::Enum(_) => self.enum_from_der(),
+            Data::Struct(_, _) => self.struct_from_der(),
+        }
+    }
+
     /// Generate the encoder for DER.
     pub fn to_der(&self) -> syn::Result<TokenStream> {
+        match self.data {
+            Data::Enum(_) => self.enum_to_der(),
+            Data::Struct(_, _) => self.struct_to_der(),
+        }
+    }
+
+    fn enum_to_der(&self) -> syn::Result<TokenStream> {
+        unimplemented!()
+    }
+
+    fn struct_to_der(&self) -> syn::Result<TokenStream> {
         let name = self.ident;
         let buffer_name = quote!(buffer);
-        let (fields, decode_fields, encode_fields): (TokenStream, TokenStream, TokenStream) = match &self.data {
-            Data::Struct(style, fields) => {
-                if *style == Style::Unit || *style == Style::Tuple {
-                    panic!("Only named field structs are currently supported.")
-                }
 
-                let names = fields
-                    .iter()
-                    .map(Field::name)
-                    .collect();
-
-                let decode_fields = fields.iter().map(|f| f.from_der(buffer_name.clone())).collect();
-                let encode_fields = fields.iter().map(|f| f.to_der(buffer_name.clone())).collect();
-
-                (names, decode_fields, encode_fields)
-            }
-
-            Data::Enum(_) => unimplemented!(),
+        let (style, fields) = match &self.data {
+            Data::Struct(style, fields) => (*style, fields),
+            _ => unreachable!(),
         };
 
+        if style == Style::Unit || style == Style::Tuple {
+            panic!("Only named field structs are currently supported.")
+        }
+
+        let names: TokenStream = fields
+            .iter()
+            .map(Field::name)
+            .collect();
+
+        let encode_fields: TokenStream = fields.iter().map(|f| f.to_der(buffer_name.clone())).collect();
 
         Ok(quote! {
-            use std::convert::TryFrom;
-
-            use failure::{Error, ensure, Fallible};
-            use asn1_der::{Tag, Value};
-
-            impl<A: AsRef<[u8]>> TryFrom<Value<A>> for #name {
-                type Error = failure::Error;
-
-                fn try_from(value: Value<A>) -> Fallible<Self> {
-                    let tag = value.get_tag();
-                    ensure!(tag == Tag::SEQUENCE, "{:?} is not tagged as a SEQUENCE", tag);
-                    let mut #buffer_name = Vec::new();
-
-                    #decode_fields
-
-                    Ok(#name { #fields })
-                }
-            }
-
-            impl From<#name> for Value<Vec<u8>> {
+            impl From<#name> for asn1_der::Value<Vec<u8>> {
                 fn from(sequence: #name) -> Self {
                     let mut #buffer_name = Vec::new();
 
                     #encode_fields
 
-                    Value::new(Tag::SEQUENCE, #buffer_name)
+                    asn1_der::Value::new(asn1_der::Tag::SEQUENCE, #buffer_name)
+                }
+            }
+        })
+    }
+
+    fn enum_from_der(&self) -> syn::Result<TokenStream> {
+        unimplemented!()
+    }
+
+    fn struct_from_der(&self) -> syn::Result<TokenStream> {
+        let name = self.ident;
+        let buffer_name = quote!(buffer);
+
+        let (style, fields) = match &self.data {
+            Data::Struct(style, fields) => (*style, fields),
+            _ => unreachable!(),
+        };
+
+        if style == Style::Unit || style == Style::Tuple {
+            panic!("Only named field structs are currently supported.")
+        }
+
+        let decode_fields: TokenStream = fields.iter().map(|f| f.from_der(buffer_name.clone())).collect();
+        let field_names: TokenStream = fields
+            .iter()
+            .map(Field::name)
+            .collect();
+
+
+        Ok(quote! {
+            impl<A: AsRef<[u8]>> std::convert::TryFrom<asn1_der::Value<A>> for #name {
+                type Error = failure::Error;
+
+                fn try_from(value: asn1_der::Value<A>) -> failure::Fallible<Self> {
+                    let tag = value.tag;
+                    failure::ensure!(tag == asn1_der::Tag::SEQUENCE, "{:?} is not tagged as a SEQUENCE", tag);
+                    let mut #buffer_name = value.contents.as_ref();
+
+                    #decode_fields
+
+                    Ok(#name { #field_names })
                 }
             }
         })

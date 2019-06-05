@@ -22,9 +22,12 @@ pub fn derive_asn1(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let container = try_parse!(ast::Container::parse(&input));
 
-    let der = try_parse!(container.to_der());
+    let to_der = try_parse!(container.to_der());
+    let from_der = try_parse!(container.from_der());
 
     TokenStream::from(quote! {
-        #der
+        #from_der
+
+        #to_der
     })
 }
