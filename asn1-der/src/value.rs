@@ -33,6 +33,10 @@ impl<A: AsRef<[u8]>> Value<A> {
     pub fn len(&self) -> usize {
         self.tag.len() + self.contents.as_ref().len()
     }
+
+    pub fn get_tag(&self) -> Tag {
+        self.tag
+    }
 }
 
 impl From<bool> for OwnedValue {
@@ -79,7 +83,6 @@ impl<A: AsRef<[u128]>> From<ObjectIdentifier<A>> for OwnedValue {
         macro_rules! encode_component {
             ($number:expr) => {{
                 let mut number = $number;
-                println!("{} — 0b{0:08b}", number);
                 let mut bytes = Vec::new();
 
                 while number != 0 {
@@ -89,13 +92,11 @@ impl<A: AsRef<[u128]>> From<ObjectIdentifier<A>> for OwnedValue {
 
                 for byte in bytes.iter().skip(1).rev() {
                     let octet = (0x80 | byte) as u8;
-                    println!("{:08b} — 0x{:x}", octet, octet & 0x7f);
                     buffer.push(octet);
                     number >>= 7;
                 }
 
                 let final_octet = bytes[0] as u8;
-                println!("{:08b} — 0x{0:x}", final_octet);
                 buffer.push(final_octet);
             }};
         }

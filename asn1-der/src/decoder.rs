@@ -1,7 +1,6 @@
 use std::convert::{TryFrom, TryInto};
 
 use failure::Fallible;
-use nom::types::CompleteByteSlice;
 use nom::*;
 
 use crate::tag::Tag;
@@ -12,10 +11,18 @@ pub fn from_der<'a, T>(bytes: &'a [u8]) -> Fallible<T>
 where
     T: TryFrom<Value<&'a [u8]>, Error = failure::Error>,
 {
-    let bytes = CompleteByteSlice::from(bytes);
     let (_, value) = parse_value(bytes).unwrap();
 
     Ok(value.try_into()?)
+}
+
+pub fn from_der_partial<'a, T>(bytes: &'a [u8]) -> Fallible<(&'a [u8], T)>
+where
+    T: TryFrom<Value<&'a [u8]>, Error = failure::Error>,
+{
+    let (slice, value) = parse_value(bytes).unwrap();
+
+    Ok((slice, value.try_into()?))
 }
 
 fn is_constructed(byte: u8) -> bool {
@@ -52,14 +59,14 @@ fn concat_bits(body: &[u8], width: u8) -> usize {
     result
 }
 
-named!(parse_initial_octet<CompleteByteSlice, Tag>, bits!(do_parse!(
+named!(parse_initial_octet<Tag>, bits!(do_parse!(
     class: map!(take_bits!(u8, 2), Class::try_from) >>
     is_constructed: map!(take_bits!(u8, 1), is_constructed) >>
     tag: take_bits!(usize, 5) >>
     (Tag::new(class.expect("Invalid class"), is_constructed, tag))
 )));
 
-named!(parse_identifier_octet<CompleteByteSlice, Tag>, do_parse!(
+named!(pub(crate) parse_identifier_octet<Tag>, do_parse!(
     identifier: parse_initial_octet >>
     // 31 is 5 bits set to 1.
     long_tag: cond!(identifier.tag >= 31, do_parse!(
@@ -72,16 +79,16 @@ named!(parse_identifier_octet<CompleteByteSlice, Tag>, do_parse!(
     (identifier.set_tag(long_tag.unwrap_or(identifier.tag)))
 ));
 
-named!(parse_contents<CompleteByteSlice, &[u8]>, do_parse!(
+named!(parse_contents, do_parse!(
     length: take!(1) >>
     contents: apply!(take_contents, length[0]) >>
     (&contents)
 ));
 
 fn take_contents(
-    input: CompleteByteSlice,
+    input: &[u8],
     length: u8,
-) -> IResult<CompleteByteSlice, CompleteByteSlice> {
+) -> IResult<&[u8], &[u8]> {
     if length == 128 {
         take_until_and_consume!(input, &[0, 0][..])
     } else if length >= 127 {
@@ -98,7 +105,7 @@ fn take_contents(
     }
 }
 
-named!(pub(crate) parse_value<CompleteByteSlice, Value<&[u8]>>, do_parse!(
+named!(pub(crate) parse_value<&[u8], Value<&[u8]>>, do_parse!(
     tag: parse_identifier_octet >>
     contents: parse_contents >>
     (Value::new(tag, contents))
@@ -116,7 +123,7 @@ mod tests {
                     #[test]
                     fn $fn_name() {
                         let (rest, result) = $test_fn($input.into()).unwrap();
-                        println!("REST {:?}", rest);
+                        eprintln!("REST {:?}", rest);
                         assert_eq!($expected, result);
                     }
                 )+

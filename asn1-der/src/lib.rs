@@ -3,13 +3,14 @@ mod encoder;
 mod tag;
 mod value;
 
-pub use decoder::from_der;
+pub use decoder::{from_der, from_der_partial};
 pub use encoder::to_der;
 pub use value::Value;
+pub use tag::Tag;
 
 #[cfg(test)]
 mod tests {
-    use asn1_derive::ASN1;
+    use asn1_derive::Asn1;
     use std::convert::TryInto;
 
     use super::*;
@@ -42,18 +43,6 @@ mod tests {
 
         assert_eq!(a.clone(), from_der::<Vec<u8>>(&to_der(a)).unwrap());
         assert_eq!(b.clone(), from_der::<Vec<u8>>(&to_der(b)).unwrap());
-    }
-
-    #[test]
-    fn struct_of_bools() {
-        #[derive(ASN1, Default, Debug, PartialEq)]
-        struct Bools {
-            a: bool,
-            b: bool,
-            c: bool,
-        }
-
-        assert_eq!(Bools::default(), from_der(&to_der(Bools::default())).unwrap());
     }
 
     macro_rules! integer_tests {

@@ -16,3 +16,7 @@ syn         = { version = "0.15", features = ["extra-traits"] }
 
 [features]
 der = []
+
+[dev-dependencies]
+failure = "0.1.5"
+asn1-der = { path = "../asn1-der" }

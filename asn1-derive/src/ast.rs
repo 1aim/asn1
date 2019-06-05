@@ -91,89 +91,55 @@ impl<'a> Container<'a> {
     /// Generate the encoder for DER.
     pub fn to_der(&self) -> syn::Result<TokenStream> {
         let name = self.ident;
-        let body = match &self.data {
-            Data::Struct(Style::Struct, fields)
-            | Data::Struct(Style::Tuple, fields)
-            | Data::Struct(Style::Newtype, fields) => {
-                let implicit = self
-                    .attributes
-                    .implicit
-                    .map(|id| quote! { asn1::types::Tag::(#id) })
-                    .unwrap_or_else(|| quote! { asn1_der::Tag::SEQUENCE });
+        let buffer_name = quote!(buffer);
+        let (fields, decode_fields, encode_fields): (TokenStream, TokenStream, TokenStream) = match &self.data {
+            Data::Struct(style, fields) => {
+                if *style == Style::Unit || *style == Style::Tuple {
+                    panic!("Only named field structs are currently supported.")
+                }
 
-                let explicit = self
-                    .attributes
-                    .explicit
-                    .map(|id| quote! { let c = e.explicit(#id); });
-
-                let fields = fields
+                let names = fields
                     .iter()
-                    .map(|f| f.to_der())
-                    .collect::<syn::Result<TokenStream>>()?;
+                    .map(Field::name)
+                    .collect();
 
-                quote! {
-                    let c = asn1::der::Construct::<bytes::BytesMut>::new(#implicit)
-                    #explicit;
+                let decode_fields = fields.iter().map(|f| f.from_der(buffer_name.clone())).collect();
+                let encode_fields = fields.iter().map(|f| f.to_der(buffer_name.clone())).collect();
 
-                    self.encode_construct(&mut writer, c, |mut writer, encoder| { #fields; Ok(()) })
-                }
+                (names, decode_fields, encode_fields)
             }
 
-            Data::Struct(Style::Unit, _) => {
-                let implicit = self
-                    .attributes
-                    .implicit
-                    .map(|id| quote! { asn1::Tag::from(#id) })
-                    .unwrap_or_else(|| quote! { asn1::tag::SEQUENCE });
-
-                let explicit = self
-                    .attributes
-                    .explicit
-                    .map(|id| quote! { let c = e.explicit(#id); });
-
-                quote! {
-                    let c = asn1::der::Construct::<bytes::BytesMut>::new(#implicit)
-                    #explicit;
-
-                    self.encode_construct(&mut writer, c, |mut writer, encoder| { Ok(()) })
-                }
-            }
-
-            Data::Enum(variants) => {
-                unimplemented!()
-                /*
-                let variants = variants.iter()
-                    .enumerate()
-                    .map(|(i, v)| v.to_der(i))
-                    .collect::<syn::Result<TokenStream>>()?;
-
-                quote! {
-                    match {
-                        #variants
-                    }
-                }
-                                */
-            }
+            Data::Enum(_) => unimplemented!(),
         };
 
+
         Ok(quote! {
-            use failure::{Fallible, Error};
-            use asn1_der::types::Tag;
+            use std::convert::TryFrom;
+
+            use failure::{Error, ensure, Fallible};
+            use asn1_der::{Tag, Value};
 
             impl<A: AsRef<[u8]>> TryFrom<Value<A>> for #name {
                 type Error = failure::Error;
 
                 fn try_from(value: Value<A>) -> Fallible<Self> {
-                    ensure!(value.tag == Tag::SEQUENCE, "{:?} is not tagged as a SEQUENCE", value.tag);
+                    let tag = value.get_tag();
+                    ensure!(tag == Tag::SEQUENCE, "{:?} is not tagged as a SEQUENCE", tag);
+                    let mut #buffer_name = Vec::new();
 
+                    #decode_fields
 
-                    unimplemented!()
+                    Ok(#name { #fields })
                 }
             }
 
             impl From<#name> for Value<Vec<u8>> {
                 fn from(sequence: #name) -> Self {
-                    Value::new(Tag::SEQUENCE, Vec::new())
+                    let mut #buffer_name = Vec::new();
+
+                    #encode_fields
+
+                    Value::new(Tag::SEQUENCE, #buffer_name)
                 }
             }
         })
@@ -260,34 +226,32 @@ impl<'a> Field<'a> {
         })
     }
 
-    pub fn to_der(&self) -> syn::Result<TokenStream> {
+    pub fn name(&self) -> TokenStream {
         if let syn::Member::Named(name) = &self.member {
-            let implicit = if let Some(id) = self.attributes.implicit {
-                quote! {
-                    let v = v.implicit(#id);
-                }
-            } else {
-                quote! {}
-            };
-
-            let explicit = if let Some(id) = self.attributes.explicit {
-                quote! {
-                    let v = v.explicit(#id);
-                }
-            } else {
-                quote! {}
-            };
-
-            Ok(quote! {
-                let v = asn1::Value::new(value.#name);
-
-                #implicit;
-                #explicit;
-
-                encoder.encode(&mut writer, v)?;
-            })
+            quote! { #name , }
         } else {
             unreachable!();
+        }
+    }
+
+    pub fn to_der(&self, buffer: TokenStream) -> TokenStream {
+        if let syn::Member::Named(ref name) = self.member {
+            quote! {
+                let mut _tmp_buf = asn1_der::to_der(sequence.#name);
+                #buffer.append(&mut _tmp_buf);
+            }
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn from_der(&self, buffer: TokenStream) -> TokenStream {
+        if let syn::Member::Named(ref name) = self.member {
+            quote! {
+                let (#buffer, #name) = asn1_der::from_der_partial(&#buffer)?;
+            }
+        } else {
+            unreachable!()
         }
     }
 }
