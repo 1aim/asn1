@@ -23,6 +23,5 @@ fn struct_of_bools() {
     let raw_default = to_der(default);
 
     assert_eq!(raw, &*raw_default);
-
     assert_eq!(default, from_der(&raw).unwrap());
 }

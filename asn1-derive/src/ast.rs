@@ -105,7 +105,25 @@ impl<'a> Container<'a> {
     }
 
     fn enum_to_der(&self) -> syn::Result<TokenStream> {
-        unimplemented!()
+        let name = self.ident;
+        let field_name = quote!(field);
+
+        let variants = match &self.data {
+            Data::Enum(variants) => variants,
+            _ => unreachable!(),
+        };
+
+        let pattern_arms: TokenStream = variants.iter().map(|v| v.to_der(name.clone(), field_name.clone())).collect();
+
+        Ok(quote! {
+            impl From<#name> for asn1_der::Value<Vec<u8>> {
+                fn from(enumerable: #name) -> Self {
+                    match enumerable {
+                        #pattern_arms
+                    }
+                }
+            }
+        })
     }
 
     fn struct_to_der(&self) -> syn::Result<TokenStream> {
@@ -140,7 +158,30 @@ impl<'a> Container<'a> {
     }
 
     fn enum_from_der(&self) -> syn::Result<TokenStream> {
-        unimplemented!()
+        let name = self.ident;
+        let buffer_name = quote!(buffer);
+
+        let variants = match &self.data {
+            Data::Enum(variants) => variants,
+            _ => unreachable!(),
+        };
+
+        let pattern_arms: TokenStream = variants.iter().map(|v| v.from_der(name.clone())).collect();
+
+        Ok(quote! {
+            impl<A: AsRef<[u8]>> std::convert::TryFrom<asn1_der::Value<A>> for #name {
+                type Error = failure::Error;
+
+                fn try_from(value: asn1_der::Value<A>) -> failure::Fallible<Self> {
+                    let tag = value.tag;
+
+                    Ok(match tag.tag as u64 {
+                        #pattern_arms
+                        _ => failure::bail!("Unknown variant found when decoding Tag: {:?}", tag),
+                    })
+                }
+            }
+        })
     }
 
     fn struct_from_der(&self) -> syn::Result<TokenStream> {
@@ -160,7 +201,7 @@ impl<'a> Container<'a> {
             .iter()
             .map(|f| f.from_der(buffer_name.clone()))
             .collect();
-        let field_names: TokenStream = fields.iter().map(Field::name).collect();
+        let field_names: TokenStream = fields.iter().filter_map(Field::name).collect();
 
         Ok(quote! {
             impl<A: AsRef<[u8]>> std::convert::TryFrom<asn1_der::Value<A>> for #name {
@@ -260,11 +301,10 @@ impl<'a> Field<'a> {
         })
     }
 
-    pub fn name(&self) -> TokenStream {
-        if let syn::Member::Named(name) = &self.member {
-            quote! { #name , }
-        } else {
-            unreachable!();
+    pub fn name(&self) -> Option<TokenStream> {
+        match &self.member {
+            syn::Member::Named(name) => Some(quote! { #name , }),
+            _ => None,
         }
     }
 
@@ -301,5 +341,27 @@ impl<'a> Variant<'a> {
             fields: fields,
             attributes: attribute::Variant::parse(input)?,
         })
+    }
+
+    pub fn to_der(&self, parent: proc_macro2::Ident, field: TokenStream) -> TokenStream {
+        let tag_number = self.attributes.explicit.expect("#[asn1(explicit = <X>)] is required on every enum variant");
+        let ident = self.ident;
+
+        quote! {
+            #parent::#ident(#field) => {
+                let inner = asn1_der::Value::from(#field);
+                let tag = inner.tag.set_tag(#tag_number as usize);
+                asn1_der::Value::new(tag, asn1_der::to_der(inner))
+            }
+        }
+    }
+
+    pub fn from_der(&self, parent: proc_macro2::Ident) -> TokenStream {
+        let tag_number = self.attributes.explicit.expect("#[asn1(explicit = <X>)] is required on every enum variant");
+        let ident = self.ident;
+
+        quote! {
+            #tag_number => #parent::#ident(asn1_der::from_der(value.contents.as_ref())?),
+        }
     }
 }
