@@ -1,6 +1,3 @@
-use std::io::Write;
-
-use crate::tag::Tag;
 use crate::Value;
 
 pub fn to_der<A: AsRef<[u8]>, I: Into<Value<A>>>(value: I) -> Vec<u8> {
@@ -34,8 +31,6 @@ fn encode_contents(contents: &[u8], buffer: &mut Vec<u8>) {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
-
     use core::types::ObjectIdentifier;
 
     use super::*;

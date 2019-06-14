@@ -10,12 +10,8 @@ pub use value::Value;
 
 #[cfg(test)]
 mod tests {
-    use asn1_derive::Asn1;
-    use std::convert::TryInto;
-
     use super::*;
-    use core::types::*;
-    use decoder::parse_value;
+    use serde_derive::{Deserialize, Serialize};
 
     #[test]
     fn bool() {
@@ -23,6 +19,7 @@ mod tests {
         assert_eq!(false, from_der(&to_der(false)).unwrap());
     }
 
+    /*
     #[test]
     fn object_identifier() {
         let iso = ObjectIdentifier::new(vec![1, 2]).unwrap();
@@ -44,6 +41,7 @@ mod tests {
         assert_eq!(a.clone(), from_der::<Vec<u8>>(&to_der(a)).unwrap());
         assert_eq!(b.clone(), from_der::<Vec<u8>>(&to_der(b)).unwrap());
     }
+    */
 
     macro_rules! integer_tests {
         ($($name:ident : $integer:ty),*) => {
@@ -71,5 +69,28 @@ mod tests {
         u32: u32,
         u64: u64,
         u128: u128
+    }
+
+    #[test]
+    fn struct_of_bools() {
+        #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
+        struct Bools {
+            a: bool,
+            b: bool,
+            c: bool,
+        }
+
+        let raw = &[
+            0x30,    // Sequence tag
+            9,       // Length
+            1, 1, 0, // A
+            1, 1, 0, // B
+            1, 1, 0, // C
+        ][..];
+
+
+        let default = Bools::default();
+
+        assert_eq!(default, from_der(&raw).unwrap());
     }
 }

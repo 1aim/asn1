@@ -1,8 +1,6 @@
-use failure::Fallible;
-
 use core::Class;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Tag {
     pub class: Class,
     pub is_constructed: bool,
