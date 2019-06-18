@@ -111,10 +111,10 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     type SerializeSeq = Sequence<'a, W>;
     type SerializeTuple = Sequence<'a, W>;
     type SerializeTupleStruct = Sequence<'a, W>;
-    type SerializeTupleVariant = Impossible<Self::Ok, Self::Error>;
+    type SerializeTupleVariant = Sequence<'a, W>;
     type SerializeMap = Sequence<'a, W>;
     type SerializeStruct = Sequence<'a, W>;
-    type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
+    type SerializeStructVariant = Sequence<'a, W>;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
         self.encode_bool(v)
@@ -264,15 +264,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         _name: &'static str,
         _variant_index: u32,
         _variant: &'static str,
-        _len: usize,
+        len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        /*
-        self.output += "{";
-        variant.serialize(&mut *self)?;
-        self.output += ":[";
-        Ok(self)
-        */
-        unimplemented!()
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
@@ -284,21 +278,17 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         _name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct> {
-        self.serialize_map(Some(len))
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_struct_variant(
         self,
         _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
-        _len: usize,
+        variant: &'static str,
+        len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        unimplemented!()
-            /*
-        variant.serialize(&mut *self)?;
-        Ok(self)
-        */
+        self.serialize_seq(Some(len))
     }
 }
 
@@ -390,6 +380,38 @@ impl<'a, W: Write> ser::SerializeTupleStruct for Sequence<'a, W> {
     type Error = Error;
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        ser::SerializeSeq::serialize_element(self, value)
+    }
+
+    fn end(self) -> Result<()> {
+        ser::SerializeSeq::end(self)
+    }
+}
+
+impl<'a, W: Write> ser::SerializeTupleVariant for Sequence<'a, W> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        ser::SerializeSeq::serialize_element(self, value)
+    }
+
+    fn end(self) -> Result<()> {
+        ser::SerializeSeq::end(self)
+    }
+}
+
+impl<'a, W: Write> ser::SerializeStructVariant for Sequence<'a, W> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
