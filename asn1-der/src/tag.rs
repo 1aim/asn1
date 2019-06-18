@@ -1,4 +1,8 @@
+use std::io::Write;
+
 use core::Class;
+
+use crate::error::Result;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Tag {
@@ -59,11 +63,17 @@ impl Tag {
         }
     }
 
+    pub(crate) fn to_vec(self) -> Result<Vec<u8>> {
+        let mut vec = Vec::new();
+        self.encode(&mut vec)?;
+        Ok(vec)
+    }
+
     pub(crate) fn decode(bytes: &[u8]) -> nom::IResult<&[u8], Self> {
         crate::decoder::parse_identifier_octet(bytes)
     }
 
-    pub(crate) fn encode(self, buffer: &mut Vec<u8>) {
+    pub(crate) fn encode<W: Write>(self, buffer: &mut W) -> Result<()> {
         let mut tag_byte = self.class as u8;
         let mut tag_number = self.tag;
 
@@ -75,9 +85,10 @@ impl Tag {
 
         // Tag number is five bits
         tag_byte <<= 5;
+
         if tag_number >= 0x1f {
             tag_byte |= 0x1f;
-            buffer.push(tag_byte);
+            buffer.write(&[tag_byte])?;
 
             while tag_number != 0 {
                 let mut encoded_number: u8 = (tag_number & 0x7f) as u8;
@@ -88,12 +99,15 @@ impl Tag {
                     encoded_number |= 0x80;
                 }
 
-                buffer.push(encoded_number);
+                buffer.write(&[encoded_number])?;
             }
+
         } else {
             tag_byte |= tag_number as u8;
-            buffer.push(tag_byte)
+            buffer.write(&[tag_byte])?;
         }
+
+        Ok(())
     }
 }
 
@@ -105,7 +119,7 @@ mod tests {
     fn external() {
         let mut buffer = Vec::new();
         let raw_tag = &[0b00_1_01000u8][..];
-        Tag::encode(Tag::EXTERNAL, &mut buffer);
+        Tag::encode(Tag::EXTERNAL, &mut buffer).unwrap();
 
         assert_eq!(raw_tag, &*buffer);
         assert_eq!(Tag::EXTERNAL, Tag::decode(raw_tag).unwrap().1);
@@ -148,7 +162,7 @@ mod tests {
 
         for tag in tags.into_iter() {
             buffer.clear();
-            tag.encode(&mut buffer);
+            tag.encode(&mut buffer).unwrap();
 
             assert_eq!(*tag, Tag::decode(&buffer).unwrap().1);
         }

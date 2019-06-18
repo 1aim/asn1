@@ -2,7 +2,6 @@
 members = [
 	# "asn1",
 	"asn1-core",
-	"asn1-derive",
 	"asn1-der",
 	"asn1-spec",
 	"asn1-pest"

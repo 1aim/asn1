@@ -16,6 +16,5 @@ failure = "0.1.5"
 serde = "1.0.92"
 
 [dev-dependencies]
-asn1-derive = { path = "../asn1-derive" }
 serde = "1.0.92"
 serde_derive = "1.0.92"

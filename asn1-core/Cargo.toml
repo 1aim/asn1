@@ -12,3 +12,5 @@ num-integer = "0.1"
 bigint  = { version = "0.2", package = "num-bigint" }
 failure = "0.1.5"
 derefable = "0.1.0"
+serde = "1.0.92"
+serde_derive = "1.0.92"

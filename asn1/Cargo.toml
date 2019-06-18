@@ -6,7 +6,6 @@ license = "MIT/Apache-2.0"
 edition = "2018"
 
 [dependencies]
-derive = { version = "0.1", package = "asn1-derive", path = "../asn1-derive" }
 core   = { version = "0.1", package = "asn1-core", path = "../asn1-core" }
 
 impl-der = { version = "0.1", package = "asn1-der", path = "../asn1-der", optional = true }

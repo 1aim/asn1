@@ -1,37 +1,22 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    error, fmt,
-};
+use std::{convert::TryFrom, num, result};
 
-use failure::Fallible;
+use core::Class;
 use nom::*;
 use serde::{
-    de::{self, Deserialize, DeserializeSeed, SeqAccess, Visitor},
+    de::{self, Deserialize, DeserializeSeed, EnumAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
 };
 
-use crate::tag::Tag;
-use crate::value::*;
-use core::Class;
+use crate::{tag::Tag, value::*, error::{Result, Error}};
 
-pub fn from_der<'a, T>(bytes: &'a [u8]) -> Fallible<T>
+pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
 where
     T: Deserialize<'a>,
 {
-    let mut deserializer = Deserializer::from_der(bytes);
+    let mut deserializer = Deserializer::from_slice(bytes);
 
-    Ok(T::deserialize(&mut deserializer)?)
+    T::deserialize(&mut deserializer)
 }
-
-pub fn from_der_partial<'a, T>(bytes: &'a [u8]) -> Fallible<(&'a [u8], T)>
-where
-    T: TryFrom<Value<&'a [u8]>, Error = failure::Error>,
-{
-    let (slice, value) = parse_value(bytes).unwrap();
-
-    Ok((slice, value.try_into()?))
-}
-
 
 struct Deserializer<'de> {
     input: &'de [u8],
@@ -39,7 +24,7 @@ struct Deserializer<'de> {
 
 impl<'de> Deserializer<'de> {
 
-    fn from_der(input: &'de [u8]) -> Self {
+    fn from_slice(input: &'de [u8]) -> Self {
         Self { input }
     }
 
@@ -94,7 +79,7 @@ impl<'de> Deserializer<'de> {
 impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = Error;
 
-    fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         match self.look_at_tag() {
             Tag::EOC => return Err(Error::Custom("Unexpected end Of contents.".into())),
             Tag::BOOL => self.deserialize_bool(visitor),
@@ -106,73 +91,112 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             // Tag::REAL,
             // Tag::ENUMERATED => self.deserialize_,
             Tag::UTF8_STRING => self.deserialize_str(visitor),
-            _ => unimplemented!(), // visitor.visit_struct(self),
+            tag => panic!("Type unknown: {:?}", tag), // visitor.visit_struct(self),
         }
     }
 
-    fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_bool(self.parse_bool())
     }
 
-    fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_i8(self.parse_integer())
     }
 
-    fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_i16(self.parse_integer())
     }
 
-    fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_i32(self.parse_integer())
     }
 
-    fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_i64(self.parse_integer())
     }
 
-    fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_i128(self.parse_integer())
     }
 
-    fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_u8(self.parse_integer())
     }
 
-    fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_u16(self.parse_integer())
     }
 
-    fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_u32(self.parse_integer())
     }
 
-    fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_u64(self.parse_integer())
     }
 
-    fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         visitor.visit_u128(self.parse_integer())
     }
 
-    fn deserialize_struct<V: Visitor<'de>>(self, _name: &str, fields: &[&str], visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_struct<V: Visitor<'de>>(self, _name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
         visitor.visit_seq(Sequence::new(self.parse_value().contents, fields.len()))
+    }
+
+    fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        let value = self.parse_value();
+        visitor.visit_seq(Sequence::new(value.contents, None))
+    }
+
+    fn deserialize_enum<V>(
+        self,
+        _name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value>
+        where
+             V: Visitor<'de>,
+    {
+        let value = self.parse_value();
+
+        if let Some(variant) = variants.get(value.tag.tag) {
+            visitor.visit_enum(&mut Enum::new(variant, value.contents))
+        } else {
+            self.deserialize_ignored_any(visitor)
+        }
+    }
+
+    fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value>
+        where
+            V: Visitor<'de>,
+    {
+        self.parse_value();
+        visitor.visit_unit()
+    }
+
+    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
+        where
+            V: Visitor<'de>,
+    {
+        visitor.visit_bytes(&self.look_at_tag().to_vec()?)
     }
 
     forward_to_deserialize_any! {
         f32 f64 char str string
-        bytes byte_buf option unit unit_struct newtype_struct seq tuple
-        tuple_struct map enum identifier ignored_any
+        bytes byte_buf option unit_struct newtype_struct tuple
+        tuple_struct map ignored_any
     }
 }
 
 struct Sequence<'de> {
     de: Deserializer<'de>,
-    elements: usize,
+    elements: Option<usize>,
 }
 
 impl<'de> Sequence<'de> {
-    fn new(input: &'de [u8], elements: usize) -> Self {
-        let de = Deserializer::from_der(input);
+    fn new<I: Into<Option<usize>>>(input: &'de [u8], elements: I) -> Self {
+        let de = Deserializer::from_slice(input);
+        let elements = elements.into();
 
         Self { de, elements }
     }
@@ -181,50 +205,100 @@ impl<'de> Sequence<'de> {
 impl<'de> SeqAccess<'de> for Sequence<'de> {
     type Error = Error;
 
-    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
     where
         T: DeserializeSeed<'de>,
     {
-        if self.elements == 0 {
+        if let Some(ref mut elements) = self.elements {
+            if *elements == 0 {
+                return Ok(None)
+            }
+
+            *elements -= 1;
+        } else if self.de.input.is_empty() {
             return Ok(None)
         }
-
-        self.elements -= 1;
 
         seed.deserialize(&mut self.de).map(Some)
     }
 }
 
-#[derive(Debug)]
-enum Error {
-    Custom(String),
+struct Enum<'de> {
+    de: Deserializer<'de>,
+    variant: &'static str,
 }
 
-impl de::Error for Error {
-    fn custom<T: fmt::Display>(msg: T) -> Self {
-        Error::Custom(msg.to_string())
+impl<'de> Enum<'de> {
+    fn new(variant: &'static str, input: &'de [u8]) -> Self {
+        let de = Deserializer::from_slice(input);
+
+        Self { variant, de, }
     }
 }
 
-impl error::Error for Error {}
+impl<'a, 'de> EnumAccess<'de> for &'a mut Enum<'de> {
+    type Error = Error;
+    type Variant = Self;
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Custom(msg) => write!(f, "Unknown Error: {}", msg),
-        }
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        use serde::de::IntoDeserializer;
+        let val: Result<_> = seed.deserialize(self.variant.into_deserializer());
+
+        Ok((val?, self))
+    }
+}
+
+impl<'a, 'de> VariantAccess<'de> for &'a mut Enum<'de> {
+    type Error = Error;
+
+    fn unit_variant(self) -> Result<()> {
+        Ok(())
+    }
+
+    // Newtype variants are represented in JSON as `{ NAME: VALUE }` so
+    // deserialize the value here.
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        seed.deserialize(&mut self.de)
+    }
+
+    // Tuple variants are represented in JSON as `{ NAME: [DATA...] }` so
+    // deserialize the sequence of data here.
+    fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        de::Deserializer::deserialize_seq(&mut self.de, visitor)
+    }
+
+    // Struct variants are represented in JSON as `{ NAME: { K: V, ... } }` so
+    // deserialize the inner map here.
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        de::Deserializer::deserialize_seq(&mut self.de, visitor)
     }
 }
 
 trait FromStrRadix: Sized {
-    fn from_str_radix(src: &str, radix: u32) -> Result<Self, std::num::ParseIntError>;
+    fn from_str_radix(src: &str, radix: u32) -> result::Result<Self, num::ParseIntError>;
 }
 
 macro_rules! integers {
     ($($num:ty)*) => {
         $(
         impl FromStrRadix for $num {
-            fn from_str_radix(src: &str, radix: u32) -> Result<Self, std::num::ParseIntError> {
+            fn from_str_radix(src: &str, radix: u32) -> result::Result<Self, num::ParseIntError> {
                 u128::from_str_radix(src, radix).map(|n| n as $num)
             }
         }
@@ -354,23 +428,14 @@ mod tests {
     }
 
     #[test]
-    fn value_to_bool() {
-        let yes: bool = super::from_der(&[0x1, 0x1, 0xFF][..]).unwrap();
-        let no: bool = super::from_der(&[0x1, 0x1, 0x0][..]).unwrap();
-
-        assert!(yes);
-        assert!(!no);
-    }
-
-    #[test]
-    fn value_long_length() {
+    fn value_long_length_form() {
         let (_, value) = parse_value([0x1, 0x81, 0x2, 0xF0, 0xF0][..].into()).unwrap();
 
         assert_eq!(value.contents, &[0xF0, 0xF0]);
     }
 
     #[test]
-    fn value_really_long_length() {
+    fn value_really_long_length_form() {
         let full_buffer = [0xff; 0x100];
 
         let mut value = vec![0x1, 0x82, 0x1, 0x0];
@@ -382,7 +447,7 @@ mod tests {
     }
 
     #[test]
-    fn value_indefinite_length() {
+    fn value_indefinite_length_form() {
         let (_, value) = parse_value([0x1, 0x80, 0xf0, 0xf0, 0xf0, 0xf0, 0, 0][..].into()).unwrap();
 
         assert_eq!(value.contents, &[0xf0, 0xf0, 0xf0, 0xf0]);
@@ -394,11 +459,22 @@ mod tests {
     }
 
     #[test]
-    fn oid_from_bytes() {
-        let (_, value) =
-            parse_value([0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..].into()).unwrap();
-        let oid = ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap();
+    fn bool() {
+        let yes: bool = super::from_slice(&[0x1, 0x1, 0xFF][..]).unwrap();
+        let no: bool = super::from_slice(&[0x1, 0x1, 0x0][..]).unwrap();
 
-        assert_eq!(oid, value.try_into().unwrap());
+        assert!(yes);
+        assert!(!no);
     }
+
+    /*
+    #[test]
+    fn oid_from_bytes() {
+        let oid = ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap();
+        let from_raw =
+            crate::from_slice(&[0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..]).unwrap();
+
+        assert_eq!(oid, from_raw);
+    }
+    */
 }
