@@ -87,6 +87,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             Tag::BIT_STRING => self.deserialize_newtype_struct("BitString", visitor),
             Tag::OCTET_STRING => self.deserialize_bytes(visitor),
             Tag::NULL => self.deserialize_unit(visitor),
+            Tag::SEQUENCE => self.deserialize_seq(visitor),
             Tag::OBJECT_IDENTIFIER => self.deserialize_newtype_struct("ObjectIdentifier", visitor),
             // Tag::REAL,
             // Tag::ENUMERATED => self.deserialize_,
