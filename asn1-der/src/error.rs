@@ -8,7 +8,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
-    Nom(nom::ErrorKind),
+    Nom(String),
     Number(std::num::ParseIntError),
     Custom(String),
 }
@@ -34,7 +34,7 @@ impl fmt::Display for Error {
         match self {
             Error::Custom(msg) => write!(f, "Unknown Error: {}", msg),
             Error::Io(error) => write!(f, "IO: {}", error),
-            Error::Nom(error) => write!(f, "Parsing: {}", error.description()),
+            Error::Nom(msg) => write!(f, "Parsing: {}", msg),
             Error::Number(error) => write!(f, "Number: {}", error.description()),
         }
     }
@@ -52,8 +52,8 @@ impl From<std::num::ParseIntError> for Error {
     }
 }
 
-impl<I> From<Err<I>> for Error {
+impl<I: std::fmt::Debug> From<Err<I>> for Error {
     fn from(nom_error: Err<I>) -> Self {
-        Error::Nom(nom_error.into_error_kind())
+        Error::Nom(nom_error.to_string())
     }
 }
