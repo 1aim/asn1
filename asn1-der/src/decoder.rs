@@ -29,42 +29,33 @@ impl<'de> Deserializer<'de> {
     }
 
     /// Looks for the next tag but doesn't advance the slice.
-    fn look_at_tag(&mut self) -> Tag {
-        let (_, tag) = parse_identifier_octet(self.input).unwrap();
-
-        tag
+    fn look_at_tag(&mut self) -> Result<Tag> {
+        Ok(parse_identifier_octet(self.input)?.1)
     }
 
-    fn parse_tag(&mut self) -> Tag {
-        let (slice, tag) = parse_identifier_octet(self.input).unwrap();
+    fn parse_value(&mut self) -> Result<Value<&'de [u8]>> {
+        let (slice, contents) = parse_value(self.input)?;
         self.input = slice;
 
-        tag
+        Ok(contents)
     }
 
-    fn parse_value(&mut self) -> Value<&'de [u8]> {
-        let (slice, contents) = parse_value(self.input).unwrap();
-        self.input = slice;
-
-        contents
-    }
-
-    fn parse_bool(&mut self) -> bool {
-        let value = self.parse_value();
+    fn parse_bool(&mut self) -> Result<bool> {
+        let value = self.parse_value()?;
 
         if value.contents.len() != 1 {
             panic!("Incorrect length for boolean")
         }
 
         // TODO: This logic changes for DER & CER.
-        match value.contents[0] {
+        Ok(match value.contents[0] {
             0 => false,
             _ => true,
-        }
+        })
     }
 
-    fn parse_integer<T: FromStrRadix>(&mut self) -> T {
-        let value = self.parse_value();
+    fn parse_integer<T: FromStrRadix>(&mut self) -> Result<T> {
+        let value = self.parse_value()?;
 
         let mut radix_str = String::with_capacity(value.contents.len() * 8);
 
@@ -72,7 +63,7 @@ impl<'de> Deserializer<'de> {
             radix_str.push_str(&format!("{:08b}", byte));
         }
 
-        T::from_str_radix(&radix_str, 2).unwrap()
+        Ok(T::from_str_radix(&radix_str, 2)?)
     }
 }
 
@@ -80,7 +71,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = Error;
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self.look_at_tag() {
+        match self.look_at_tag()? {
             Tag::EOC => return Err(Error::Custom("Unexpected end Of contents.".into())),
             Tag::BOOL => self.deserialize_bool(visitor),
             Tag::INTEGER => self.deserialize_i64(visitor),
@@ -97,62 +88,62 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_bool(self.parse_bool())
+        visitor.visit_bool(self.parse_bool()?)
     }
 
     fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_i8(self.parse_integer())
+        visitor.visit_i8(self.parse_integer()?)
     }
 
     fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_i16(self.parse_integer())
+        visitor.visit_i16(self.parse_integer()?)
     }
 
     fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_i32(self.parse_integer())
+        visitor.visit_i32(self.parse_integer()?)
     }
 
     fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_i64(self.parse_integer())
+        visitor.visit_i64(self.parse_integer()?)
     }
 
     fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_i128(self.parse_integer())
+        visitor.visit_i128(self.parse_integer()?)
     }
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_u8(self.parse_integer())
+        visitor.visit_u8(self.parse_integer()?)
     }
 
     fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_u16(self.parse_integer())
+        visitor.visit_u16(self.parse_integer()?)
     }
 
     fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_u32(self.parse_integer())
+        visitor.visit_u32(self.parse_integer()?)
     }
 
     fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_u64(self.parse_integer())
+        visitor.visit_u64(self.parse_integer()?)
     }
 
     fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_u128(self.parse_integer())
+        visitor.visit_u128(self.parse_integer()?)
     }
 
     fn deserialize_struct<V: Visitor<'de>>(self, name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
         match name {
             "ASN.1#OctetString" => {
-                visitor.visit_seq(OctetString::new(self.parse_value().contents))
+                visitor.visit_seq(OctetString::new(self.parse_value()?.contents))
             }
             _ => {
-                visitor.visit_seq(Sequence::new(self.parse_value().contents, fields.len()))
+                visitor.visit_seq(Sequence::new(self.parse_value()?.contents, fields.len()))
             }
         }
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        let value = self.parse_value();
+        let value = self.parse_value()?;
         visitor.visit_seq(Sequence::new(value.contents, None))
     }
 
@@ -165,7 +156,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         where
              V: Visitor<'de>,
     {
-        let value = self.parse_value();
+        let value = self.parse_value()?;
 
         if let Some(variant) = variants.get(value.tag.tag) {
             visitor.visit_enum(&mut Enum::new(variant, value.contents))
@@ -178,7 +169,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         where
             V: Visitor<'de>,
     {
-        self.parse_value();
+        self.parse_value()?;
         visitor.visit_unit()
     }
 
@@ -186,7 +177,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         where
             V: Visitor<'de>,
     {
-        let value = self.parse_value();
+        let value = self.parse_value()?;
         visitor.visit_seq(OctetString::new(value.contents))
     }
 
