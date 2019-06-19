@@ -36,17 +36,18 @@ impl<'a> Value<'a> {
 
 pub struct Serializer<W: Write> {
     output: W,
+    is_octet_string: bool,
 }
 
 impl Serializer<Vec<u8>> {
     fn new_sink() -> Self {
-        Self { output: Vec::new() }
+        Self { output: Vec::new(), is_octet_string: false }
     }
 }
 
 impl<W: Write> Serializer<W> {
     fn new(output: W) -> Self {
-        Self { output }
+        Self { output, is_octet_string: false }
     }
 
     fn encode_preamble(&mut self, tag: Tag, original_length: usize) -> Result<()> {
@@ -101,7 +102,6 @@ impl<W: Write> Serializer<W> {
         Ok(())
     }
 }
-
 
 impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     type Ok = ();
@@ -205,24 +205,27 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         variant_index: u32,
         _variant: &'static str,
     ) -> Result<()> {
-        // Null's encoding is always two bytes.
+        let variant_tag = Tag::new(Class::Context, false, variant_index as usize);
         let mut sink = Serializer::new_sink();
         sink.encode_value(Value::new(Tag::NULL, &[]))?;
-
-        let variant_tag = Tag::new(Class::Context, false, variant_index as usize);
-
         self.encode_value(Value::new(variant_tag, &sink.output))
     }
 
     fn serialize_newtype_struct<T>(
         self,
-        _name: &'static str,
+        name: &'static str,
         value: &T,
     ) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        value.serialize(self)
+        match name {
+            "ASN.1#OctetString" => {
+                self.is_octet_string = true;
+                value.serialize(self)
+            }
+            _ => value.serialize(self),
+        }
     }
 
     fn serialize_newtype_variant<T>(
@@ -285,7 +288,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         self,
         _name: &'static str,
         _variant_index: u32,
-        variant: &'static str,
+        _variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
         self.serialize_seq(Some(len))
@@ -295,6 +298,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 pub struct Sequence<'a, W: Write> {
     ser: &'a mut Serializer<W>,
     sink: Serializer<Vec<u8>>,
+    raw_sink: RawSerializer<Vec<u8>>,
 }
 
 impl<'a, W: Write> Sequence<'a, W> {
@@ -302,6 +306,7 @@ impl<'a, W: Write> Sequence<'a, W> {
         Self {
             ser,
             sink: Serializer::new(Vec::new()),
+            raw_sink: RawSerializer::new(Vec::new()),
         }
     }
 }
@@ -313,11 +318,20 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
     fn serialize_element<T>(&mut self, value: &T) -> Result<Self::Ok>
         where T: ?Sized + Serialize
     {
-        value.serialize(&mut self.sink)
+        if self.ser.is_octet_string {
+            value.serialize(&mut self.raw_sink)
+        } else {
+            value.serialize(&mut self.sink)
+        }
     }
 
     fn end(self) -> Result<()> {
-        self.ser.encode_value(Value::new(Tag::SEQUENCE, &self.sink.output))
+        if self.ser.is_octet_string {
+            self.ser.is_octet_string = false;
+            self.ser.encode_value(Value::new(Tag::OCTET_STRING, &self.raw_sink.output))
+        } else {
+            self.ser.encode_value(Value::new(Tag::SEQUENCE, &self.sink.output))
+        }
     }
 }
 
@@ -422,6 +436,197 @@ impl<'a, W: Write> ser::SerializeStructVariant for Sequence<'a, W> {
         ser::SerializeSeq::end(self)
     }
 }
+
+/// Serializer used solely to encode octet strings properly.
+struct RawSerializer<W> {
+    output: W,
+}
+
+impl<W: Write> RawSerializer<W> {
+    fn new(output: W) -> Self {
+        Self { output }
+    }
+}
+
+impl<'a, W: Write> ser::Serializer for &'a mut RawSerializer<W> {
+    type Ok = ();
+
+    type Error = Error;
+
+    type SerializeSeq = Impossible<Self::Ok, Self::Error>;
+    type SerializeTuple = Impossible<Self::Ok, Self::Error>;
+    type SerializeTupleStruct = Impossible<Self::Ok, Self::Error>;
+    type SerializeTupleVariant = Impossible<Self::Ok, Self::Error>;
+    type SerializeMap = Impossible<Self::Ok, Self::Error>;
+    type SerializeStruct = Impossible<Self::Ok, Self::Error>;
+    type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
+
+    fn serialize_bool(self, _: bool) -> Result<Self::Ok> {
+        unreachable!()
+    }
+
+    fn serialize_i8(self, _: i8) -> Result<Self::Ok> {
+        unreachable!()
+    }
+
+    fn serialize_i16(self, _: i16) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_i32(self, _: i32) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_i64(self, _: i64) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_i128(self, _: i128) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_u8(self, v: u8) -> Result<()> {
+        self.output.write(&[v])?;
+        Ok(())
+    }
+
+    fn serialize_u16(self, _: u16) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_u32(self, _: u32) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_u64(self, _: u64) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_u128(self, _: u128) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_f32(self, _: f32) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_f64(self, _v: f64) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_char(self, _: char) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_str(self, _: &str) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_bytes(self, _: &[u8]) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_none(self) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_some<T>(self, _: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        unreachable!()
+    }
+
+    fn serialize_unit(self) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+    ) -> Result<()> {
+        unreachable!()
+    }
+
+    fn serialize_newtype_struct<T>(
+        self,
+        _name: &'static str,
+        _value: &T,
+    ) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        unreachable!()
+    }
+
+    fn serialize_newtype_variant<T>(
+        self,
+        _name: &'static str,
+        variant_index: u32,
+        _variant: &'static str,
+        value: &T,
+    ) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
+        unreachable!()
+    }
+
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        unreachable!()
+    }
+
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
+        unreachable!()
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        _name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleStruct> {
+        unreachable!()
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleVariant> {
+        unreachable!()
+    }
+
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+        unreachable!()
+    }
+
+    fn serialize_struct(
+        self,
+        _name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStruct> {
+        unreachable!()
+    }
+
+    fn serialize_struct_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStructVariant> {
+        unreachable!()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

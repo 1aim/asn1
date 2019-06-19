@@ -140,8 +140,15 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor.visit_u128(self.parse_integer())
     }
 
-    fn deserialize_struct<V: Visitor<'de>>(self, _name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
-        visitor.visit_seq(Sequence::new(self.parse_value().contents, fields.len()))
+    fn deserialize_struct<V: Visitor<'de>>(self, name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
+        match name {
+            "ASN.1#OctetString" => {
+                visitor.visit_seq(OctetString::new(self.parse_value().contents))
+            }
+            _ => {
+                visitor.visit_seq(Sequence::new(self.parse_value().contents, fields.len()))
+            }
+        }
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -175,17 +182,40 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor.visit_unit()
     }
 
-    fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
         where
             V: Visitor<'de>,
     {
-        visitor.visit_bytes(&self.look_at_tag().to_vec()?)
+        let value = self.parse_value();
+        visitor.visit_seq(OctetString::new(value.contents))
     }
 
     forward_to_deserialize_any! {
         f32 f64 char str string
-        bytes byte_buf option unit_struct newtype_struct tuple
-        tuple_struct map ignored_any
+        byte_buf option unit_struct newtype_struct tuple
+        tuple_struct map ignored_any identifier
+    }
+}
+
+struct OctetString<'de> {
+    contents: &'de [u8]
+}
+
+impl<'de> OctetString<'de> {
+    fn new(contents: &'de [u8]) -> Self {
+        Self { contents }
+    }
+}
+
+impl<'de> SeqAccess<'de> for OctetString<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        use serde::de::value::SeqDeserializer;
+        seed.deserialize(SeqDeserializer::new(self.contents.into_iter().cloned())).map(Some)
     }
 }
 

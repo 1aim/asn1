@@ -20,16 +20,15 @@ mod tests {
         assert_eq!(false, from_slice(&to_vec(&false).unwrap()).unwrap());
     }
 
-    /*
     #[test]
     fn octet_string() {
-        let a = vec![1u8, 2, 3, 4, 5];
-        let b = vec![5u8, 4, 3, 2, 1];
+        use core::types::OctetString;
+        let a = OctetString::from(vec![1u8, 2, 3, 4, 5]);
+        let b = OctetString::from(vec![5u8, 4, 3, 2, 1]);
 
-        assert_eq!(a.clone(), from_slice::<Vec<u8>>(&to_vec(&a).expect("encoding")).expect("decoding"));
-        assert_eq!(b.clone(), from_slice::<Vec<u8>>(&to_vec(&b).unwrap()).unwrap());
+        assert_eq!(a, from_slice(&to_vec(&a).expect("encoding")).expect("decoding"));
+        assert_eq!(b, from_slice(&to_vec(&b).unwrap()).unwrap());
     }
-    */
 
     macro_rules! integer_tests {
         ($($integer:ident)*) => {
@@ -101,6 +100,16 @@ mod tests {
 
         assert_eq!(Kind::Number(5), from_slice(&to_vec(&Kind::Number(5)).unwrap()).unwrap());
         assert_eq!(Kind::Vec(vec![1, 2, 3, 4]), from_slice(&to_vec(&Kind::Vec(vec![1, 2, 3, 4])).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn sequence_in_sequence_in_choice() {
+        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        enum Foo {
+            Bar {
+                data: Vec<u8>,
+            }
+        }
     }
 
     /*
