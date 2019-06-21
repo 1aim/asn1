@@ -14,6 +14,8 @@ num-integer = "0.1"
 nom = "4.2.3"
 failure = "0.1.5"
 serde = "1.0.92"
+log = "0.4.6"
+hex = "0.3.2"
 
 [dev-dependencies]
 serde = "1.0.92"

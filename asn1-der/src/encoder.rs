@@ -4,6 +4,7 @@ use std::{collections::VecDeque, io::Write};
 
 use serde::{ser, Serialize};
 use core::Class;
+use log::debug;
 
 use crate::{error::{Error, Result}, tag::Tag};
 
@@ -23,6 +24,8 @@ pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     let mut vec = Vec::new();
 
     to_writer(&mut vec, value)?;
+
+    debug!("HEX Debug representation: {:?}", hex::encode(&vec));
 
     Ok(vec)
 }
@@ -463,6 +466,12 @@ mod tests {
     #[test]
     fn universal_string() {
         assert_eq!(&[28, 5, 0x4A, 0x6F, 0x6E, 0x65, 0x73][..], &*to_vec(&"Jones").unwrap());
+    }
+
+    #[test]
+    fn fixed_array_as_octet_string() {
+        let array = [8u8; 4];
+        assert_eq!(&[4, 4, 8, 8, 8, 8][..], &*to_vec(&array).unwrap());
     }
 
     #[test]

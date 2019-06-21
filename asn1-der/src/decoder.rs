@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, dbg, num, result};
+use std::{convert::TryFrom, num, result};
 
 use core::Class;
 use nom::*;
@@ -33,13 +33,8 @@ impl<'de> Deserializer<'de> {
         Ok(parse_identifier_octet(self.input)?.1)
     }
 
-    fn peek_value(&mut self) -> Result<Value<&'de [u8]>> {
-        let (_, contents) = parse_value(self.input).unwrap();
-        Ok(contents)
-    }
-
     fn parse_value(&mut self) -> Result<Value<&'de [u8]>> {
-        let (slice, contents) = parse_value(dbg!(self.input)).unwrap();
+        let (slice, contents) = parse_value(self.input)?;
         self.input = slice;
 
         Ok(contents)
