@@ -546,6 +546,13 @@ mod tests {
     }
 
     #[test]
+    fn fixed_array_as_sequence() {
+        let array = [8u8; 4];
+        let raw = &[48, 4*3, 2, 1, 8, 2, 1, 8, 2, 1, 8, 2, 1, 8][..];
+        assert_eq!(array, from_slice::<[u8; 4]>(&raw).unwrap());
+    }
+
+    #[test]
     fn choice_newtype_variant() {
         #[derive(Clone, Debug, Deserialize, PartialEq)]
         enum Foo {

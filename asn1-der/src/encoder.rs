@@ -34,20 +34,21 @@ pub struct Serializer<W: Write> {
     output: W,
     tag: Option<Tag>,
     implicit: bool,
+    is_constructed: bool,
 }
 
 impl Serializer<Vec<u8>> {
-    fn serialize_to_vec<T: ?Sized + Serialize>(value: &T, implicit: bool) -> Result<Vec<u8>> {
+    fn serialize_to_vec<T: ?Sized + Serialize>(value: &T, implicit: bool) -> Result<Self> {
         let mut ser = Self::new(Vec::new());
         ser.implicit = implicit;
         value.serialize(&mut ser)?;
-        Ok(ser.output)
+        Ok(ser)
     }
 }
 
 impl<W: Write> Serializer<W> {
     fn new(output: W) -> Self {
-        Self { output, tag: None, implicit: false }
+        Self { output, tag: None, implicit: false, is_constructed: false }
     }
 
     fn set_tag(&mut self, tag: Tag) {
@@ -250,13 +251,18 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     where
         T: ?Sized + Serialize,
     {
-        let contents = Serializer::serialize_to_vec(value, true);
-        let variant_tag = Tag::new(Class::Context, false, variant_index as usize);
+        let ser = Serializer::serialize_to_vec(value, true)?;
+        let variant_tag = Tag::new(Class::Context, ser.is_constructed, variant_index as usize);
         self.set_tag(variant_tag);
-        self.encode(&contents?)
+        self.encode(&ser.output)
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        match self.tag {
+            Some(Tag::OCTET_STRING) => {}
+            _ => self.is_constructed = true,
+        }
+
         Ok(Sequence::new(self))
     }
 
@@ -469,9 +475,9 @@ mod tests {
     }
 
     #[test]
-    fn fixed_array_as_octet_string() {
+    fn fixed_array_as_sequence() {
         let array = [8u8; 4];
-        assert_eq!(&[4, 4, 8, 8, 8, 8][..], &*to_vec(&array).unwrap());
+        assert_eq!(&[48, 4*3, 2, 1, 8, 2, 1, 8, 2, 1, 8, 2, 1, 8][..], &*to_vec(&array).unwrap());
     }
 
     #[test]
