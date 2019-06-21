@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, num, result};
+use std::{convert::TryFrom, dbg, num, result};
 
 use core::Class;
 use nom::*;
@@ -33,8 +33,13 @@ impl<'de> Deserializer<'de> {
         Ok(parse_identifier_octet(self.input)?.1)
     }
 
+    fn peek_value(&mut self) -> Result<Value<&'de [u8]>> {
+        let (_, contents) = parse_value(self.input).unwrap();
+        Ok(contents)
+    }
+
     fn parse_value(&mut self) -> Result<Value<&'de [u8]>> {
-        let (slice, contents) = parse_value(self.input)?;
+        let (slice, contents) = parse_value(dbg!(self.input)).unwrap();
         self.input = slice;
 
         Ok(contents)
@@ -72,7 +77,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         match self.look_at_tag()? {
-            Tag::EOC => return Err(Error::Custom("Unexpected end Of contents.".into())),
+            Tag::EOC => return Err(Error::Custom("Unexpected End Of contents.".into())),
             Tag::BOOL => self.deserialize_bool(visitor),
             Tag::INTEGER => self.deserialize_i64(visitor),
             Tag::BIT_STRING => self.deserialize_newtype_struct("BitString", visitor),
@@ -83,7 +88,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             // Tag::REAL,
             // Tag::ENUMERATED => self.deserialize_,
             Tag::UTF8_STRING => self.deserialize_str(visitor),
-            tag => panic!("Type unknown: {:?}", tag), // visitor.visit_struct(self),
+            tag => panic!("TAG: {:?}", tag), // _ => self.deserialize_seq(visitor),
         }
     }
 
@@ -131,15 +136,62 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor.visit_u128(self.parse_integer()?)
     }
 
-    fn deserialize_struct<V: Visitor<'de>>(self, name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
+    fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+    }
+
+    fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+    }
+
+    fn deserialize_char<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+    }
+
+    fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+    }
+
+    fn deserialize_string<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+    }
+
+    fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+    }
+
+    fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+    }
+
+    fn deserialize_unit_struct<V: Visitor<'de>>(self, _name: &str, visitor: V) -> Result<V::Value> {
+        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+    }
+
+    fn deserialize_newtype_struct<V: Visitor<'de>>(self, name: &str, visitor: V) -> Result<V::Value> {
         match name {
             "ASN.1#OctetString" => {
                 visitor.visit_seq(OctetString::new(self.parse_value()?.contents))
             }
-            _ => {
-                visitor.visit_seq(Sequence::new(self.parse_value()?.contents, fields.len()))
-            }
+            _ => visitor.visit_newtype_struct(self),
         }
+    }
+
+    fn deserialize_tuple<V: Visitor<'de>>(self, _len: usize, visitor: V) -> Result<V::Value> {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V: Visitor<'de>>(self, _name: &str, _len: usize, visitor: V) -> Result<V::Value> {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        self.deserialize_seq(visitor)
+    }
+
+
+    fn deserialize_struct<V: Visitor<'de>>(self, _name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
+        visitor.visit_seq(Sequence::new(self.parse_value()?.contents, fields.len()))
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -156,12 +208,12 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         where
              V: Visitor<'de>,
     {
-        let value = self.parse_value()?;
+        let tag = self.look_at_tag()?;
 
-        if let Some(variant) = variants.get(value.tag.tag) {
-            visitor.visit_enum(&mut Enum::new(variant, value.contents))
+        if let Some(variant) = variants.get(tag.tag) {
+            visitor.visit_enum(&mut Enum::new(variant, self.input))
         } else {
-            self.deserialize_ignored_any(visitor)
+            panic!("Variant not found")
         }
     }
 
@@ -182,9 +234,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     forward_to_deserialize_any! {
-        f32 f64 char str string
-        byte_buf option unit_struct newtype_struct tuple
-        tuple_struct map ignored_any identifier
+        ignored_any identifier
     }
 }
 
@@ -280,8 +330,6 @@ impl<'a, 'de> VariantAccess<'de> for &'a mut Enum<'de> {
         Ok(())
     }
 
-    // Newtype variants are represented in JSON as `{ NAME: VALUE }` so
-    // deserialize the value here.
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
     where
         T: DeserializeSeed<'de>,
@@ -289,8 +337,6 @@ impl<'a, 'de> VariantAccess<'de> for &'a mut Enum<'de> {
         seed.deserialize(&mut self.de)
     }
 
-    // Tuple variants are represented in JSON as `{ NAME: [DATA...] }` so
-    // deserialize the sequence of data here.
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -298,8 +344,6 @@ impl<'a, 'de> VariantAccess<'de> for &'a mut Enum<'de> {
         de::Deserializer::deserialize_seq(&mut self.de, visitor)
     }
 
-    // Struct variants are represented in JSON as `{ NAME: { K: V, ... } }` so
-    // deserialize the inner map here.
     fn struct_variant<V>(
         self,
         _fields: &'static [&'static str],
@@ -418,7 +462,8 @@ fn take_contents(input: &[u8], length: u8) -> IResult<&[u8], &[u8]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::types::ObjectIdentifier;
+    use core::types::{ObjectIdentifier, OctetString};
+    use serde_derive::Deserialize;
 
     macro_rules! variant_tests {
         ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {
@@ -487,6 +532,34 @@ mod tests {
 
         assert!(yes);
         assert!(!no);
+    }
+
+    #[test]
+    fn choice() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        enum Foo {
+            Ein,
+            Zwei,
+            Drei,
+        }
+
+        assert_eq!(Foo::Ein, from_slice(&[0x80, 0][..]).unwrap());
+        assert_eq!(Foo::Zwei, from_slice(&[0x81, 0][..]).unwrap());
+        assert_eq!(Foo::Drei, from_slice(&[0x82, 0][..]).unwrap());
+    }
+
+    #[test]
+    fn choice_newtype_variant() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        enum Foo {
+            Bar(bool),
+            Baz(OctetString),
+        }
+
+        let os = OctetString::from(vec![1, 2, 3, 4, 5]);
+
+        assert_eq!(Foo::Bar(true), from_slice(&[0x80, 1, 0xff][..]).unwrap());
+        assert_eq!(os, from_slice(&[0x81, 5, 1, 2, 3, 4, 5][..]).unwrap());
     }
 
     /*

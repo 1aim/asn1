@@ -13,6 +13,7 @@ pub use value::Value;
 mod tests {
     use super::*;
     use serde_derive::{Deserialize, Serialize};
+    use core::types::OctetString;
 
     #[test]
     fn bool() {
@@ -88,20 +89,27 @@ mod tests {
             Drei,
         }
 
-        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-        enum Kind {
-            Number(u8),
-            Vec(Vec<u8>),
-        }
-
         assert_eq!(Foo::Ein, from_slice(&to_vec(&Foo::Ein).unwrap()).unwrap());
         assert_eq!(Foo::Zwei, from_slice(&to_vec(&Foo::Zwei).unwrap()).unwrap());
         assert_eq!(Foo::Drei, from_slice(&to_vec(&Foo::Drei).unwrap()).unwrap());
-
-        assert_eq!(Kind::Number(5), from_slice(&to_vec(&Kind::Number(5)).unwrap()).unwrap());
-        assert_eq!(Kind::Vec(vec![1, 2, 3, 4]), from_slice(&to_vec(&Kind::Vec(vec![1, 2, 3, 4])).unwrap()).unwrap());
     }
 
+    #[test]
+    fn choice_newtype_variant() {
+        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        enum Foo {
+            Bar(bool),
+            Baz(OctetString),
+        }
+
+        let bar = Foo::Bar(true);
+        let baz = Foo::Baz(OctetString::from(vec![1, 2, 3, 4, 5]));
+
+        assert_eq!(bar, from_slice(&to_vec(&bar).unwrap()).unwrap());
+        assert_eq!(baz, from_slice(&to_vec(&baz).unwrap()).unwrap());
+    }
+
+    /*
     #[test]
     fn sequence_in_sequence_in_choice() {
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -110,9 +118,12 @@ mod tests {
                 data: Vec<u8>,
             }
         }
+
+        let bar = Foo::Bar { data: Vec::from(vec![1, 2, 3, 4])};
+
+        assert_eq!(bar, from_slice(&to_vec(&bar).unwrap()).unwrap());
     }
 
-    /*
     #[test]
     fn object_identifier() {
         let iso = ObjectIdentifier::new(vec![1, 2]).unwrap();

@@ -23,34 +23,42 @@ pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     Ok(vec)
 }
 
-struct Value<'a> {
-    tag: Tag,
-    contents: &'a [u8]
-}
-
-impl<'a> Value<'a> {
-    fn new(tag: Tag, contents: &'a [u8]) -> Self {
-        Self { tag, contents }
-    }
-}
-
 pub struct Serializer<W: Write> {
     output: W,
-    is_octet_string: bool,
+    tag: Option<Tag>,
+    implicit: bool,
 }
 
 impl Serializer<Vec<u8>> {
-    fn new_sink() -> Self {
-        Self { output: Vec::new(), is_octet_string: false }
+    fn serialize_to_vec<T: ?Sized + Serialize>(value: &T, implicit: bool) -> Result<Vec<u8>> {
+        let mut ser = Self::new(Vec::new());
+        ser.implicit = implicit;
+        value.serialize(&mut ser)?;
+        Ok(ser.output)
     }
 }
 
 impl<W: Write> Serializer<W> {
     fn new(output: W) -> Self {
-        Self { output, is_octet_string: false }
+        Self { output, tag: None, implicit: false }
     }
 
-    fn encode_preamble(&mut self, tag: Tag, original_length: usize) -> Result<()> {
+    fn set_tag(&mut self, tag: Tag) {
+        self.tag = Some(tag);
+    }
+
+    fn encode(&mut self, contents: &[u8]) -> Result<()> {
+        // TODO: Switch bool to operate on the true version of this expression.
+        if !self.implicit {
+            self.encode_preamble(contents.len())?;
+        }
+
+        self.output.write(contents)?;
+        Ok(())
+    }
+
+    fn encode_preamble(&mut self, original_length: usize) -> Result<()> {
+        let tag = self.tag.take().ok_or(Error::Custom(String::from("no tag present.")))?;
         tag.encode(&mut self.output)?;
 
         if original_length <= 127 {
@@ -74,7 +82,8 @@ impl<W: Write> Serializer<W> {
     fn encode_bool(&mut self, v: bool) -> Result<()> {
         let v = if v { 0xff } else { 0 };
 
-        self.encode_value(Value::new(Tag::BOOL, &[v]))
+        self.set_tag(Tag::BOOL);
+        self.encode(&[v])
     }
 
     fn encode_integer(&mut self, mut value: u128) -> Result<()> {
@@ -93,13 +102,8 @@ impl<W: Write> Serializer<W> {
             contents.push_front(0);
         }
 
-        self.encode_value(Value::new(Tag::INTEGER,  &*Vec::from(contents)))
-    }
-
-    fn encode_value(&mut self, v: Value) -> Result<()> {
-        self.encode_preamble(v.tag, v.contents.len())?;
-        self.output.write(v.contents)?;
-        Ok(())
+        self.set_tag(Tag::INTEGER);
+        self.encode(&Vec::from(contents))
     }
 }
 
@@ -177,7 +181,8 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
-        self.encode_value(Value::new(Tag::OCTET_STRING, v))
+        self.set_tag(Tag::OCTET_STRING);
+        self.encode(v)
     }
 
     fn serialize_none(self) -> Result<()> {
@@ -205,10 +210,8 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         variant_index: u32,
         _variant: &'static str,
     ) -> Result<()> {
-        let variant_tag = Tag::new(Class::Context, false, variant_index as usize);
-        let mut sink = Serializer::new_sink();
-        sink.encode_value(Value::new(Tag::NULL, &[]))?;
-        self.encode_value(Value::new(variant_tag, &sink.output))
+        self.set_tag(Tag::from_context(false, variant_index));
+        self.encode(&[])
     }
 
     fn serialize_newtype_struct<T>(
@@ -221,11 +224,12 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     {
         match name {
             "ASN.1#OctetString" => {
-                self.is_octet_string = true;
-                value.serialize(self)
+                self.set_tag(Tag::OCTET_STRING);
             }
-            _ => value.serialize(self),
+            _ => {}
         }
+
+        value.serialize(self)
     }
 
     fn serialize_newtype_variant<T>(
@@ -238,12 +242,10 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     where
         T: ?Sized + Serialize,
     {
+        let contents = Serializer::serialize_to_vec(value, true);
         let variant_tag = Tag::new(Class::Context, false, variant_index as usize);
-        let mut sink = Serializer::new_sink();
-
-        value.serialize(&mut sink)?;
-
-        self.encode_value(Value::new(variant_tag , &sink.output))
+        self.set_tag(variant_tag);
+        self.encode(&contents?)
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
@@ -265,10 +267,11 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     fn serialize_tuple_variant(
         self,
         _name: &'static str,
-        _variant_index: u32,
+        variant_index: u32,
         _variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
+        self.set_tag(Tag::from_context(false, variant_index));
         self.serialize_seq(Some(len))
     }
 
@@ -287,11 +290,11 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     fn serialize_struct_variant(
         self,
         _name: &'static str,
-        _variant_index: u32,
+        variant_index: u32,
         _variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        self.serialize_seq(Some(len))
+        self.serialize_tuple_variant(_name, variant_index, _variant, len)
     }
 }
 
@@ -318,20 +321,21 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
     fn serialize_element<T>(&mut self, value: &T) -> Result<Self::Ok>
         where T: ?Sized + Serialize
     {
-        if self.ser.is_octet_string {
-            value.serialize(&mut self.raw_sink)
-        } else {
-            value.serialize(&mut self.sink)
+        match self.ser.tag {
+            Some(Tag::OCTET_STRING) => value.serialize(&mut self.raw_sink),
+            _ => value.serialize(&mut self.sink)
         }
+
     }
 
     fn end(self) -> Result<()> {
-        if self.ser.is_octet_string {
-            self.ser.is_octet_string = false;
-            self.ser.encode_value(Value::new(Tag::OCTET_STRING, &self.raw_sink.output))
-        } else {
-            self.ser.encode_value(Value::new(Tag::SEQUENCE, &self.sink.output))
-        }
+        self.ser.tag = self.ser.tag.or(Some(Tag::SEQUENCE));
+        let contents = match self.ser.tag {
+            Some(Tag::OCTET_STRING) => self.raw_sink.output,
+            _ => self.sink.output,
+        };
+
+        self.ser.encode(&contents)
     }
 }
 
@@ -425,7 +429,7 @@ impl<'a, W: Write> ser::SerializeStructVariant for Sequence<'a, W> {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
@@ -568,9 +572,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut RawSerializer<W> {
     fn serialize_newtype_variant<T>(
         self,
         _name: &'static str,
-        variant_index: u32,
+        _variant_index: u32,
         _variant: &'static str,
-        value: &T,
+        _value: &T,
     ) -> Result<()>
     where
         T: ?Sized + Serialize,
@@ -631,7 +635,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut RawSerializer<W> {
 #[cfg(test)]
 mod tests {
     use serde_derive::{Deserialize, Serialize};
-    use core::types::ObjectIdentifier;
+    use core::types::{ObjectIdentifier, OctetString};
 
     use super::*;
 
@@ -643,15 +647,59 @@ mod tests {
 
     #[test]
     fn choice() {
-        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        #[derive(Clone, Debug, Serialize, PartialEq)]
         enum Foo {
             Ein,
             Zwei,
             Drei,
         }
 
-        assert_eq!(&[0x80, 2, 5, 0][..], &*to_vec(&Foo::Ein).unwrap());
+        assert_eq!(&[0x80, 0][..], &*to_vec(&Foo::Ein).unwrap());
+        assert_eq!(&[0x81, 0][..], &*to_vec(&Foo::Zwei).unwrap());
+        assert_eq!(&[0x82, 0][..], &*to_vec(&Foo::Drei).unwrap());
+    }
 
+    #[test]
+    fn choice_newtype_variant() {
+        #[derive(Clone, Debug, Serialize, PartialEq)]
+        enum Foo {
+            Bar(bool),
+            Baz(OctetString),
+        }
+
+        let os = OctetString::from(vec![1, 2, 3, 4, 5]);
+
+        assert_eq!(&[0x80, 1, 0xff][..], &*to_vec(&Foo::Bar(true)).unwrap());
+        assert_eq!(&[0x81, 5, 1, 2, 3, 4, 5][..], &*to_vec(&Foo::Baz(os)).unwrap());
+    }
+
+    #[test]
+    fn sequence_in_sequence_in_choice() {
+        use hex::encode;
+        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        enum Foo {
+            Bar {
+                data: OctetString,
+            }
+        }
+        let bar = Foo::Bar { data: OctetString::from(vec![1, 2, 3, 4])};
+
+        let raw = &[
+            0x80,
+            6,
+            0x4,
+            4,
+            1,
+            2,
+            3,
+            4,
+        ][..];
+
+        let result = to_vec(&bar).unwrap();
+
+        println!("{}", encode(&result));
+
+        assert_eq!(raw, &*result);
     }
 
     /*

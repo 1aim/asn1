@@ -42,12 +42,19 @@ impl Tag {
     pub const CHARACTER_STRING: Tag = Tag::new(Class::Universal, false, 29);
     pub const BMP_STRING: Tag = Tag::new(Class::Universal, false, 30);
 
+
     pub const fn new(class: Class, is_constructed: bool, tag: usize) -> Self {
         Self {
             class,
             is_constructed,
             tag,
         }
+    }
+
+    pub fn from_context<I: Into<u64>>(is_constructed: bool, tag: I) -> Self {
+        // TODO: This is bad as it will implicitly truncate larger tags.
+        // This will be fixed when tag is moved to BigInt.
+        Self::new(Class::Context, is_constructed, tag.into() as usize)
     }
 
     pub fn set_tag(mut self, tag: usize) -> Self {
