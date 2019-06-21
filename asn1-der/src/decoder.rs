@@ -145,19 +145,21 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     fn deserialize_char<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+        self.deserialize_str(visitor)
     }
 
     fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+        let value = self.parse_value()?;
+
+        visitor.visit_str(&*String::from_utf8_lossy(value.contents))
     }
 
     fn deserialize_string<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+        self.deserialize_str(visitor)
     }
 
     fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+        self.deserialize_bytes(visitor)
     }
 
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {

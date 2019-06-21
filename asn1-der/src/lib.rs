@@ -31,6 +31,12 @@ mod tests {
         assert_eq!(b, from_slice(&to_vec(&b).unwrap()).unwrap());
     }
 
+    #[test]
+    fn universal_string() {
+        let name = "Jones";
+        assert_eq!(name, from_slice::<String>(&*to_vec(&name).unwrap()).unwrap());
+    }
+
     macro_rules! integer_tests {
         ($($integer:ident)*) => {
             $(
