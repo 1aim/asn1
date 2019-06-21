@@ -11,7 +11,7 @@ impl OctetString {
         Self::default()
     }
 
-    pub fn into_inner(self) -> Vec<u8> {
+    pub fn into_vec(self) -> Vec<u8> {
         self.0
     }
 }
