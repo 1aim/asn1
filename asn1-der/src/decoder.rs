@@ -30,11 +30,11 @@ impl<'de> Deserializer<'de> {
 
     /// Looks for the next tag but doesn't advance the slice.
     fn look_at_tag(&mut self) -> Result<Tag> {
-        Ok(parse_identifier_octet(self.input)?.1)
+        Ok(parse_identifier_octet(self.input).unwrap().1)
     }
 
     fn parse_value(&mut self) -> Result<Value<&'de [u8]>> {
-        let (slice, contents) = parse_value(self.input)?;
+        let (slice, contents) = parse_value(self.input).unwrap();
         self.input = slice;
 
         Ok(contents)
@@ -451,6 +451,8 @@ fn take_contents(input: &[u8], length: u8) -> IResult<&[u8], &[u8]> {
                 >> contents: take!(result)
                 >> (contents)
         )
+    } else if length == 0 {
+        Ok((&[], input))
     } else {
         take!(input, length)
     }
@@ -564,6 +566,30 @@ mod tests {
 
         assert_eq!(Foo::Bar(true), from_slice(&[0x80, 1, 0xff][..]).unwrap());
         assert_eq!(os, from_slice(&[0x81, 5, 1, 2, 3, 4, 5][..]).unwrap());
+    }
+
+    #[test]
+    fn from_hex() {
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        struct Response {
+            status: Status,
+            body: Body,
+        }
+
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        enum Status {
+            Success,
+            Error(u8),
+        }
+
+        #[derive(Clone, Debug, Deserialize, PartialEq)]
+        struct Body {
+            data: OctetString,
+        }
+
+        let encoded = hex::decode("3026800030220420bcf31629dca5ca1eae98e9a74b338861e47d96b701a73bf8d1cc12364e8742ed").unwrap();
+
+        from_slice::<Response>(&encoded).unwrap();
     }
 
     /*
