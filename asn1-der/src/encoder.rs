@@ -34,7 +34,7 @@ pub struct Serializer<W: Write> {
     output: W,
     tag: Option<Tag>,
     implicit: bool,
-    is_constructed: bool,
+    constructed: bool,
 }
 
 impl Serializer<Vec<u8>> {
@@ -48,11 +48,15 @@ impl Serializer<Vec<u8>> {
 
 impl<W: Write> Serializer<W> {
     fn new(output: W) -> Self {
-        Self { output, tag: None, implicit: false, is_constructed: false }
+        Self { output, tag: None, implicit: false, constructed: false }
     }
 
     fn set_tag(&mut self, tag: Tag) {
         self.tag = Some(tag);
+    }
+
+    fn set_constructed(&mut self) {
+        self.constructed = true;
     }
 
     fn encode(&mut self, contents: &[u8]) -> Result<()> {
@@ -66,6 +70,7 @@ impl<W: Write> Serializer<W> {
     }
 
     fn encode_preamble(&mut self, original_length: usize) -> Result<()> {
+
         let tag = self.tag.take().ok_or(Error::Custom(String::from("no tag present.")))?;
         tag.encode(&mut self.output)?;
 
@@ -219,7 +224,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         variant_index: u32,
         _variant: &'static str,
     ) -> Result<()> {
-        self.set_tag(Tag::from_context(false, variant_index));
+        self.set_tag(Tag::from_context(self.constructed, variant_index));
         self.encode(&[])
     }
 
@@ -252,17 +257,13 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         T: ?Sized + Serialize,
     {
         let ser = Serializer::serialize_to_vec(value, true)?;
-        let variant_tag = Tag::new(Class::Context, ser.is_constructed, variant_index as usize);
+        let is_constructed = ser.tag.map(|t| t.is_constructed).unwrap_or(false);
+        let variant_tag = Tag::new(Class::Context, is_constructed, variant_index as usize);
         self.set_tag(variant_tag);
         self.encode(&ser.output)
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        match self.tag {
-            Some(Tag::OCTET_STRING) => {}
-            _ => self.is_constructed = true,
-        }
-
         Ok(Sequence::new(self))
     }
 
@@ -285,11 +286,12 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         _variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        self.set_tag(Tag::from_context(false, variant_index));
+        self.set_tag(Tag::from_context(self.constructed, variant_index));
         self.serialize_seq(Some(len))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
+        self.set_constructed();
         self.serialize_seq(len)
     }
 
@@ -298,17 +300,18 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         _name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct> {
-        self.serialize_seq(Some(len))
+        self.serialize_map(Some(len))
     }
 
     fn serialize_struct_variant(
         self,
-        _name: &'static str,
+        name: &'static str,
         variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        self.serialize_tuple_variant(_name, variant_index, _variant, len)
+        self.set_constructed();
+        self.serialize_tuple_variant(name, variant_index, variant, len)
     }
 }
 
@@ -344,6 +347,8 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
 
     fn end(self) -> Result<()> {
         self.ser.tag = self.ser.tag.or(Some(Tag::SEQUENCE));
+        self.ser.constructed = false;
+
         let contents = match self.ser.tag {
             Some(Tag::OCTET_STRING) => self.raw_sink.output,
             _ => self.sink.output,
@@ -500,12 +505,19 @@ mod tests {
         enum Foo {
             Bar(bool),
             Baz(OctetString),
+            Blah(Blah),
+        }
+
+        #[derive(Clone, Debug, Serialize, PartialEq)]
+        struct Blah {
+            data: OctetString,
         }
 
         let os = OctetString::from(vec![1, 2, 3, 4, 5]);
 
         assert_eq!(&[0x80, 1, 0xff][..], &*to_vec(&Foo::Bar(true)).unwrap());
-        assert_eq!(&[0x81, 5, 1, 2, 3, 4, 5][..], &*to_vec(&Foo::Baz(os)).unwrap());
+        assert_eq!(&[0x81, 5, 1, 2, 3, 4, 5][..], &*to_vec(&Foo::Baz(os.clone())).unwrap());
+        assert_eq!(&[0xA2, 7, 4, 5, 1, 2, 3, 4, 5][..], &*to_vec(&Foo::Blah(Blah { data: os })).unwrap());
     }
 
     #[test]
@@ -517,10 +529,11 @@ mod tests {
                 data: OctetString,
             }
         }
+
         let bar = Foo::Bar { data: OctetString::from(vec![1, 2, 3, 4])};
 
         let raw = &[
-            0x80,
+            0xA0,
             6,
             0x4,
             4,
@@ -532,8 +545,7 @@ mod tests {
 
         let result = to_vec(&bar).unwrap();
 
-        println!("{}", encode(&result));
-
+        assert_eq!(raw, &*result);
         assert_eq!(raw, &*result);
     }
 

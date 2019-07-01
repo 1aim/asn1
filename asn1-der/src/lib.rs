@@ -115,21 +115,39 @@ mod tests {
         assert_eq!(baz, from_slice(&to_vec(&baz).unwrap()).unwrap());
     }
 
-    /*
     #[test]
     fn sequence_in_sequence_in_choice() {
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-        enum Foo {
+        enum FooInline {
             Bar {
-                data: Vec<u8>,
+                data: OctetString,
             }
         }
 
-        let bar = Foo::Bar { data: Vec::from(vec![1, 2, 3, 4])};
+        // FooExtern should have the same encoding as FooInline.
+        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        enum FooExtern {
+            Bar(BarData)
+        }
 
-        assert_eq!(bar, from_slice(&to_vec(&bar).unwrap()).unwrap());
+        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        struct BarData {
+            data: OctetString,
+        }
+
+        let bar = FooInline::Bar { data: OctetString::from(vec![1, 2, 3, 4])};
+        let bar_extern = FooExtern::Bar(BarData { data: OctetString::from(vec![1, 2, 3, 4])});
+        let inline_encoded = to_vec(&bar).unwrap();
+        let extern_encoded = to_vec(&bar_extern).unwrap();
+
+        assert_eq!(bar, from_slice(&inline_encoded).unwrap());
+        assert_eq!(bar_extern, from_slice(&inline_encoded).unwrap());
+
+        assert_eq!(bar, from_slice(&extern_encoded).unwrap());
+        assert_eq!(bar_extern, from_slice(&extern_encoded).unwrap());
     }
 
+    /*
     #[test]
     fn object_identifier() {
         let iso = ObjectIdentifier::new(vec![1, 2]).unwrap();
