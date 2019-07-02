@@ -1,8 +1,9 @@
 use std::convert::TryFrom;
 
+use core::tag::{Class, Tag};
 use nom::*;
 
-use crate::{tag::{Class, Tag}, value::Value};
+use super::Value;
 
 named!(
     parse_initial_octet<Tag>,
@@ -32,7 +33,7 @@ named!(
     do_parse!(length: take!(1) >> contents: apply!(take_contents, length[0]) >> (&contents))
 );
 
-named!(pub(crate) parse_value<&[u8], Value<&[u8]>>, do_parse!(
+named!(pub(crate) parse_value<&[u8], Value>, do_parse!(
     tag: parse_identifier_octet >>
     contents: parse_contents >>
     (Value::new(tag, contents))

@@ -5,7 +5,8 @@ use std::{collections::VecDeque, io::Write};
 use serde::{ser, Serialize};
 use log::debug;
 
-use crate::{error::{Error, Result}, tag::{Class, Tag}};
+use crate::error::{Error, Result};
+use core::tag::{Class, Tag};
 
 use self::raw::RawSerializer;
 
@@ -71,7 +72,7 @@ impl<W: Write> Serializer<W> {
     fn encode_preamble(&mut self, original_length: usize) -> Result<()> {
 
         let tag = self.tag.take().ok_or(Error::Custom(String::from("no tag present.")))?;
-        tag.encode(&mut self.output)?;
+        encode_tag(tag, &mut self.output)?;
 
         if original_length <= 127 {
             self.output.write(&[original_length as u8])?;
@@ -459,11 +460,47 @@ impl<'a, W: Write> ser::SerializeStructVariant for Sequence<'a, W> {
     }
 }
 
+pub fn encode_tag<W: Write>(tag: Tag, buffer: &mut W) -> Result<()> {
+    let mut tag_byte = tag.class as u8;
+    let mut tag_number = tag.tag;
+
+    // Constructed is a single bit.
+    tag_byte <<= 1;
+    if tag.is_constructed {
+        tag_byte |= 1;
+    }
+
+    // Tag number is five bits
+    tag_byte <<= 5;
+
+    if tag_number >= 0x1f {
+        tag_byte |= 0x1f;
+        buffer.write(&[tag_byte])?;
+
+        while tag_number != 0 {
+            let mut encoded_number: u8 = (tag_number & 0x7f) as u8;
+            tag_number >>= 7;
+
+            // Fill the last bit unless we're at the last bit.
+            if tag_number != 0 {
+                encoded_number |= 0x80;
+            }
+
+            buffer.write(&[encoded_number])?;
+        }
+
+    } else {
+        tag_byte |= tag_number as u8;
+        buffer.write(&[tag_byte])?;
+    }
+
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
     use serde_derive::{Deserialize, Serialize};
-    use core::types::{ObjectIdentifier, OctetString};
+    use core::types::OctetString;
 
     use super::*;
 
@@ -521,7 +558,6 @@ mod tests {
 
     #[test]
     fn sequence_in_sequence_in_choice() {
-        use hex::encode;
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
         enum Foo {
             Bar {

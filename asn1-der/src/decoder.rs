@@ -6,7 +6,8 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-use crate::{tag::Tag, value::*, error::{Result, Error}};
+use core::tag::Tag;
+use crate::{error::{Result, Error}};
 use self::parser::*;
 
 pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
@@ -17,6 +18,18 @@ where
     let mut deserializer = Deserializer::from_slice(bytes);
 
     T::deserialize(&mut deserializer)
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) struct Value<'a> {
+    tag: Tag,
+    contents: &'a [u8],
+}
+
+impl<'a> Value<'a> {
+    fn new(tag: Tag, contents: &'a [u8]) -> Self {
+        Self { tag, contents }
+    }
 }
 
 struct Deserializer<'de> {
@@ -34,7 +47,7 @@ impl<'de> Deserializer<'de> {
         Ok(parse_identifier_octet(self.input)?.1)
     }
 
-    fn parse_value(&mut self) -> Result<Value<&'de [u8]>> {
+    fn parse_value(&mut self) -> Result<Value<'de>> {
         log::trace!("Attempting to parse: {:?}", self.input);
         let (slice, contents) = parse_value(self.input)?;
         self.input = slice;
@@ -410,9 +423,9 @@ integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::types::{ObjectIdentifier, OctetString};
+    use core::types::OctetString;
     use serde_derive::Deserialize;
-    use crate::tag::Class;
+    use core::tag::Class;
 
     macro_rules! variant_tests {
         ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {
@@ -420,7 +433,7 @@ mod tests {
                 $(
                     #[test]
                     fn $fn_name() {
-                        let (rest, result) = $test_fn($input.into()).unwrap();
+                        let (rest, result) = $test_fn((&$input[..]).into()).unwrap();
                         eprintln!("REST {:?}", rest);
                         assert_eq!($expected, result);
                     }
@@ -431,15 +444,15 @@ mod tests {
 
     variant_tests! {
         parse_identifier_octet: {
-            universal_bool(&[0x1][..]) == Tag::new(Class::Universal, false, 1);
-            private_primitive(&[0xC0][..]) == Tag::new(Class::Private, false, 0);
-            context_constructed(&[0xA0][..]) == Tag::new(Class::Context, true, 0);
-            private_long_constructed(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F][..])
+            universal_bool([0x1]) == Tag::new(Class::Universal, false, 1);
+            private_primitive([0xC0]) == Tag::new(Class::Private, false, 0);
+            context_constructed([0xA0]) == Tag::new(Class::Context, true, 0);
+            private_long_constructed([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F])
                 == Tag::new(Class::Private, true, 0x1FFFFFFFFFFFF);
         }
 
         parse_value: {
-            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::<&[u8]>::new(Tag::new(Class::Universal, false, 1), &[0xff]);
+            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::new(Tag::new(Class::Universal, false, 1), &[0xff]);
         }
     }
 

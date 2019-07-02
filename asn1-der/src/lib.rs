@@ -1,13 +1,9 @@
 mod decoder;
 mod encoder;
-mod tag;
-mod value;
 mod error;
 
 pub use decoder::from_slice;
 pub use encoder::to_vec;
-pub use tag::Tag;
-pub use value::Value;
 
 #[cfg(test)]
 mod tests {
