@@ -6,8 +6,8 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-use core::tag::Tag;
-use crate::{error::{Result, Error}};
+use core::identifier::Identifier;
+use crate::error::{Result, Error};
 use self::parser::*;
 
 pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
@@ -22,12 +22,12 @@ where
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct Value<'a> {
-    tag: Tag,
+    tag: Identifier,
     contents: &'a [u8],
 }
 
 impl<'a> Value<'a> {
-    fn new(tag: Tag, contents: &'a [u8]) -> Self {
+    fn new(tag: Identifier, contents: &'a [u8]) -> Self {
         Self { tag, contents }
     }
 }
@@ -43,7 +43,7 @@ impl<'de> Deserializer<'de> {
     }
 
     /// Looks for the next tag but doesn't advance the slice.
-    fn look_at_tag(&mut self) -> Result<Tag> {
+    fn look_at_tag(&mut self) -> Result<Identifier> {
         Ok(parse_identifier_octet(self.input)?.1)
     }
 
@@ -90,17 +90,17 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         match self.look_at_tag()? {
-            Tag::EOC => return Err(Error::Custom("Unexpected End Of contents.".into())),
-            Tag::BOOL => self.deserialize_bool(visitor),
-            Tag::INTEGER => self.deserialize_i64(visitor),
-            Tag::BIT_STRING => self.deserialize_newtype_struct("BitString", visitor),
-            Tag::OCTET_STRING => self.deserialize_bytes(visitor),
-            Tag::NULL => self.deserialize_unit(visitor),
-            Tag::SEQUENCE => self.deserialize_seq(visitor),
-            Tag::OBJECT_IDENTIFIER => self.deserialize_newtype_struct("ObjectIdentifier", visitor),
-            // Tag::REAL,
-            // Tag::ENUMERATED => self.deserialize_,
-            Tag::UTF8_STRING => self.deserialize_str(visitor),
+            Identifier::EOC => return Err(Error::Custom("Unexpected End Of contents.".into())),
+            Identifier::BOOL => self.deserialize_bool(visitor),
+            Identifier::INTEGER => self.deserialize_i64(visitor),
+            Identifier::BIT_STRING => self.deserialize_newtype_struct("BitString", visitor),
+            Identifier::OCTET_STRING => self.deserialize_bytes(visitor),
+            Identifier::NULL => self.deserialize_unit(visitor),
+            Identifier::SEQUENCE => self.deserialize_seq(visitor),
+            Identifier::OBJECT_IDENTIFIER => self.deserialize_newtype_struct("ObjectIdentifier", visitor),
+            // Identifier::REAL,
+            // Identifier::ENUMERATED => self.deserialize_,
+            Identifier::UTF8_STRING => self.deserialize_str(visitor),
             tag => panic!("TAG: {:?}", tag), // _ => self.deserialize_seq(visitor),
         }
     }
@@ -425,7 +425,7 @@ mod tests {
     use super::*;
     use core::types::OctetString;
     use serde_derive::Deserialize;
-    use core::tag::Class;
+    use core::identifier::Class;
 
     macro_rules! variant_tests {
         ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {
@@ -444,15 +444,15 @@ mod tests {
 
     variant_tests! {
         parse_identifier_octet: {
-            universal_bool([0x1]) == Tag::new(Class::Universal, false, 1);
-            private_primitive([0xC0]) == Tag::new(Class::Private, false, 0);
-            context_constructed([0xA0]) == Tag::new(Class::Context, true, 0);
+            universal_bool([0x1]) == Identifier::new(Class::Universal, false, 1);
+            private_primitive([0xC0]) == Identifier::new(Class::Private, false, 0);
+            context_constructed([0xA0]) == Identifier::new(Class::Context, true, 0);
             private_long_constructed([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F])
-                == Tag::new(Class::Private, true, 0x1FFFFFFFFFFFF);
+                == Identifier::new(Class::Private, true, 0x1FFFFFFFFFFFF);
         }
 
         parse_value: {
-            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::new(Tag::new(Class::Universal, false, 1), &[0xff]);
+            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::new(Identifier::new(Class::Universal, false, 1), &[0xff]);
         }
     }
 

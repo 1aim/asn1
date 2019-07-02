@@ -6,7 +6,7 @@ use serde::{ser, Serialize};
 use log::debug;
 
 use crate::error::{Error, Result};
-use core::tag::{Class, Tag};
+use core::identifier::Identifier;
 
 use self::raw::RawSerializer;
 
@@ -32,7 +32,7 @@ pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
 
 pub struct Serializer<W: Write> {
     output: W,
-    tag: Option<Tag>,
+    tag: Option<Identifier>,
     implicit: bool,
     constructed: bool,
 }
@@ -51,7 +51,7 @@ impl<W: Write> Serializer<W> {
         Self { output, tag: None, implicit: false, constructed: false }
     }
 
-    fn set_tag(&mut self, tag: Tag) {
+    fn set_tag(&mut self, tag: Identifier) {
         self.tag = Some(tag);
     }
 
@@ -95,7 +95,7 @@ impl<W: Write> Serializer<W> {
     fn encode_bool(&mut self, v: bool) -> Result<()> {
         let v = if v { 0xff } else { 0 };
 
-        self.set_tag(Tag::BOOL);
+        self.set_tag(Identifier::BOOL);
         self.encode(&[v])
     }
 
@@ -115,7 +115,7 @@ impl<W: Write> Serializer<W> {
             contents.push_front(0);
         }
 
-        self.set_tag(Tag::INTEGER);
+        self.set_tag(Identifier::INTEGER);
         self.encode(&Vec::from(contents))
     }
 }
@@ -190,12 +190,12 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_str(self, v: &str) -> Result<()> {
-        self.set_tag(Tag::UNIVERSAL_STRING);
+        self.set_tag(Identifier::UNIVERSAL_STRING);
         self.encode(v.as_bytes())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
-        self.set_tag(Tag::OCTET_STRING);
+        self.set_tag(Identifier::OCTET_STRING);
         self.encode(v)
     }
 
@@ -224,7 +224,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         variant_index: u32,
         _variant: &'static str,
     ) -> Result<()> {
-        self.set_tag(Tag::from_context(self.constructed, variant_index));
+        self.set_tag(Identifier::from_context(self.constructed, variant_index));
         self.encode(&[])
     }
 
@@ -238,7 +238,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     {
         match name {
             "ASN.1#OctetString" => {
-                self.set_tag(Tag::OCTET_STRING);
+                self.set_tag(Identifier::OCTET_STRING);
             }
             _ => {}
         }
@@ -258,7 +258,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     {
         let ser = Serializer::serialize_to_vec(value, true)?;
         let is_constructed = ser.tag.map(|t| t.is_constructed).unwrap_or(false);
-        let variant_tag = Tag::new(Class::Context, is_constructed, variant_index as usize);
+        let variant_tag = Identifier::from_context(is_constructed, variant_index);
         self.set_tag(variant_tag);
         self.encode(&ser.output)
     }
@@ -286,7 +286,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         _variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        self.set_tag(Tag::from_context(self.constructed, variant_index));
+        self.set_tag(Identifier::from_context(self.constructed, variant_index));
         self.serialize_seq(Some(len))
     }
 
@@ -339,18 +339,18 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
         where T: ?Sized + Serialize
     {
         match self.ser.tag {
-            Some(Tag::OCTET_STRING) => value.serialize(&mut self.raw_sink),
+            Some(Identifier::OCTET_STRING) => value.serialize(&mut self.raw_sink),
             _ => value.serialize(&mut self.sink)
         }
 
     }
 
     fn end(self) -> Result<()> {
-        self.ser.tag = self.ser.tag.or(Some(Tag::SEQUENCE));
+        self.ser.tag = self.ser.tag.or(Some(Identifier::SEQUENCE));
         self.ser.constructed = false;
 
         let contents = match self.ser.tag {
-            Some(Tag::OCTET_STRING) => self.raw_sink.output,
+            Some(Identifier::OCTET_STRING) => self.raw_sink.output,
             _ => self.sink.output,
         };
 
@@ -460,7 +460,7 @@ impl<'a, W: Write> ser::SerializeStructVariant for Sequence<'a, W> {
     }
 }
 
-pub fn encode_tag<W: Write>(tag: Tag, buffer: &mut W) -> Result<()> {
+pub fn encode_tag<W: Write>(tag: Identifier, buffer: &mut W) -> Result<()> {
     let mut tag_byte = tag.class as u8;
     let mut tag_number = tag.tag;
 
@@ -470,7 +470,7 @@ pub fn encode_tag<W: Write>(tag: Tag, buffer: &mut W) -> Result<()> {
         tag_byte |= 1;
     }
 
-    // Tag number is five bits
+    // Identifier number is five bits
     tag_byte <<= 5;
 
     if tag_number >= 0x1f {

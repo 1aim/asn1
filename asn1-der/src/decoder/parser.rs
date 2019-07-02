@@ -1,21 +1,21 @@
 use std::convert::TryFrom;
 
-use core::tag::{Class, Tag};
+use core::identifier::{Class, Identifier};
 use nom::*;
 
 use super::Value;
 
 named!(
-    parse_initial_octet<Tag>,
+    parse_initial_octet<Identifier>,
     bits!(do_parse!(
         class: map!(take_bits!(u8, 2), Class::try_from)
             >> is_constructed: map!(take_bits!(u8, 1), is_constructed)
             >> tag: take_bits!(usize, 5)
-            >> (Tag::new(class.expect("Invalid class"), is_constructed, tag))
+            >> (Identifier::new(class.expect("Invalid class"), is_constructed, tag))
     ))
 );
 
-named!(pub(crate) parse_identifier_octet<Tag>, do_parse!(
+named!(pub(crate) parse_identifier_octet<Identifier>, do_parse!(
     identifier: parse_initial_octet >>
     // 31 is 5 bits set to 1.
     long_tag: cond!(identifier.tag >= 31, do_parse!(
