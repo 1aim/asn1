@@ -147,6 +147,35 @@ mod tests {
         assert_eq!(bar_extern, from_slice(&extern_encoded).unwrap());
     }
 
+    #[test]
+    fn response() {
+        #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+        struct Response {
+            status: Status,
+            body: Body,
+        }
+
+        #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+        enum Status {
+            Success,
+            Error(u8),
+        }
+
+        #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+        struct Body {
+            data: OctetString,
+        }
+
+        let response = Response {
+            status: Status::Success,
+            body: Body {
+                data: OctetString::from(vec![1, 2, 3, 4, 5])
+            }
+        };
+
+        assert_eq!(response, from_slice(&to_vec(&response).unwrap()).unwrap());
+    }
+
     /*
     #[test]
     fn object_identifier() {

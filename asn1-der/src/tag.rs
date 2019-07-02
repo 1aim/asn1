@@ -77,7 +77,7 @@ impl Tag {
     }
 
     pub(crate) fn decode(bytes: &[u8]) -> nom::IResult<&[u8], Self> {
-        crate::decoder::parse_identifier_octet(bytes)
+        crate::decoder::parser::parse_identifier_octet(bytes)
     }
 
     pub(crate) fn encode<W: Write>(self, buffer: &mut W) -> Result<()> {

@@ -1,3 +1,4 @@
+pub(crate) mod parser;
 use std::{convert::TryFrom, num, result};
 
 use core::Class;
@@ -8,11 +9,13 @@ use serde::{
 };
 
 use crate::{tag::Tag, value::*, error::{Result, Error}};
+use self::parser::*;
 
 pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
 where
     T: Deserialize<'a>,
 {
+    log::trace!("Starting deserialisation: {:?}", bytes);
     let mut deserializer = Deserializer::from_slice(bytes);
 
     T::deserialize(&mut deserializer)
@@ -29,13 +32,25 @@ impl<'de> Deserializer<'de> {
     }
 
     /// Looks for the next tag but doesn't advance the slice.
+    fn parse_tag(&mut self) -> Result<Tag> {
+        let (slice, contents) = parse_identifier_octet(self.input)?;
+        self.input = slice;
+
+        Ok(contents)
+    }
+
+    /// Looks for the next tag but doesn't advance the slice.
     fn look_at_tag(&mut self) -> Result<Tag> {
-        Ok(parse_identifier_octet(self.input).unwrap().1)
+        Ok(parse_identifier_octet(self.input)?.1)
     }
 
     fn parse_value(&mut self) -> Result<Value<&'de [u8]>> {
-        let (slice, contents) = parse_value(self.input).unwrap();
+        log::trace!("Attempting to parse: {:?}", self.input);
+        let (slice, contents) = parse_value(self.input)?;
         self.input = slice;
+
+        log::trace!("Value: {:?}", contents);
+        log::trace!("Remaining: {:?}", slice);
 
         Ok(contents)
     }
@@ -88,127 +103,156 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising bool.");
         visitor.visit_bool(self.parse_bool()?)
     }
 
     fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising i8.");
         visitor.visit_i8(self.parse_integer()?)
     }
 
     fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising i16.");
         visitor.visit_i16(self.parse_integer()?)
     }
 
     fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising i32.");
         visitor.visit_i32(self.parse_integer()?)
     }
 
     fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising i64.");
         visitor.visit_i64(self.parse_integer()?)
     }
 
     fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising i128.");
         visitor.visit_i128(self.parse_integer()?)
     }
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising u8.");
         visitor.visit_u8(self.parse_integer()?)
     }
 
     fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising u16.");
         visitor.visit_u16(self.parse_integer()?)
     }
 
     fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising u32.");
         visitor.visit_u32(self.parse_integer()?)
     }
 
     fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising u64.");
         visitor.visit_u64(self.parse_integer()?)
     }
 
     fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising u128.");
         visitor.visit_u128(self.parse_integer()?)
     }
 
-    fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+    fn deserialize_f32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising f32.");
         unimplemented!() // visitor.visit_u128(self.parse_integer()?)
     }
 
-    fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+    fn deserialize_f64<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising f64.");
         unimplemented!() // visitor.visit_u128(self.parse_integer()?)
     }
 
     fn deserialize_char<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising char.");
         self.deserialize_str(visitor)
     }
 
     fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising str.");
         let value = self.parse_value()?;
 
         visitor.visit_str(&*String::from_utf8_lossy(value.contents))
     }
 
     fn deserialize_string<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising string.");
         self.deserialize_str(visitor)
     }
 
     fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising byte buf.");
         self.deserialize_bytes(visitor)
     }
 
-    fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+    fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising option.");
         unimplemented!() // visitor.visit_u128(self.parse_integer()?)
     }
 
-    fn deserialize_unit_struct<V: Visitor<'de>>(self, _name: &str, visitor: V) -> Result<V::Value> {
+    fn deserialize_unit_struct<V: Visitor<'de>>(self, _name: &str, _visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising unit struct.");
         unimplemented!() // visitor.visit_u128(self.parse_integer()?)
     }
 
     fn deserialize_newtype_struct<V: Visitor<'de>>(self, name: &str, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising newtype struct {:?}.", name);
+
         match name {
             "ASN.1#OctetString" => {
-                visitor.visit_seq(OctetString::new(self.parse_value()?.contents))
+                let value = self.parse_value()?;
+                visitor.visit_seq(OctetString::new(value.contents))
             }
-            _ => visitor.visit_newtype_struct(self),
+            _ =>  visitor.visit_newtype_struct(self),
         }
     }
 
-    fn deserialize_tuple<V: Visitor<'de>>(self, _len: usize, visitor: V) -> Result<V::Value> {
+    fn deserialize_tuple<V: Visitor<'de>>(self, len: usize, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising {} length tuple.", len);
         self.deserialize_seq(visitor)
     }
 
-    fn deserialize_tuple_struct<V: Visitor<'de>>(self, _name: &str, _len: usize, visitor: V) -> Result<V::Value> {
+    fn deserialize_tuple_struct<V: Visitor<'de>>(self, name: &str, len: usize, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising {} length tuple {:?}.", len, name);
         self.deserialize_seq(visitor)
     }
 
     fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising map.");
         self.deserialize_seq(visitor)
     }
 
-
-    fn deserialize_struct<V: Visitor<'de>>(self, _name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
-        visitor.visit_seq(Sequence::new(self.parse_value()?.contents, fields.len()))
+    fn deserialize_struct<V: Visitor<'de>>(self, name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising struct {:?} with fields {:?}.", name, fields);
+        let value = self.parse_value()?;
+        visitor.visit_seq(Sequence::new(value.contents, fields.len()))
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising sequence.");
         let value = self.parse_value()?;
         visitor.visit_seq(Sequence::new(value.contents, None))
     }
 
     fn deserialize_enum<V>(
         self,
-        _name: &'static str,
+        name: &'static str,
         variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value>
         where
              V: Visitor<'de>,
     {
+        log::trace!("Deserialising enum {:?} with variants {:?}.", name, variants);
         let tag = self.look_at_tag()?;
 
         if let Some(variant) = variants.get(tag.tag) {
-            visitor.visit_enum(&mut Enum::new(variant, self.input))
+            log::trace!("Attempting to deserialise to {}::{}", name, variant);
+            visitor.visit_enum(Enum::new(variant, self))
         } else {
             panic!("Variant not found")
         }
@@ -218,6 +262,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         where
             V: Visitor<'de>,
     {
+        log::trace!("Deserialising unit");
         self.parse_value()?;
         visitor.visit_unit()
     }
@@ -226,6 +271,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         where
             V: Visitor<'de>,
     {
+        log::trace!("Deserialising bytes");
         let value = self.parse_value()?;
         visitor.visit_seq(OctetString::new(value.contents))
     }
@@ -292,20 +338,18 @@ impl<'de> SeqAccess<'de> for Sequence<'de> {
     }
 }
 
-struct Enum<'de> {
-    de: Deserializer<'de>,
+struct Enum<'a, 'de: 'a> {
+    de: &'a mut Deserializer<'de>,
     variant: &'static str,
 }
 
-impl<'de> Enum<'de> {
-    fn new(variant: &'static str, input: &'de [u8]) -> Self {
-        let de = Deserializer::from_slice(input);
-
+impl<'a, 'de> Enum<'a, 'de> {
+    fn new(variant: &'static str, de: &'a mut Deserializer<'de>) -> Self {
         Self { variant, de, }
     }
 }
 
-impl<'a, 'de> EnumAccess<'de> for &'a mut Enum<'de> {
+impl<'a, 'de> EnumAccess<'de> for Enum<'a, 'de> {
     type Error = Error;
     type Variant = Self;
 
@@ -320,10 +364,12 @@ impl<'a, 'de> EnumAccess<'de> for &'a mut Enum<'de> {
     }
 }
 
-impl<'a, 'de> VariantAccess<'de> for &'a mut Enum<'de> {
+impl<'a, 'de> VariantAccess<'de> for Enum<'a, 'de> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<()> {
+        self.de.parse_value()?;
+        log::trace!("Deserialised as unit variant.");
         Ok(())
     }
 
@@ -331,14 +377,14 @@ impl<'a, 'de> VariantAccess<'de> for &'a mut Enum<'de> {
     where
         T: DeserializeSeed<'de>,
     {
-        seed.deserialize(&mut self.de)
+        seed.deserialize(self.de)
     }
 
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        de::Deserializer::deserialize_seq(&mut self.de, visitor)
+        de::Deserializer::deserialize_seq(self.de, visitor)
     }
 
     fn struct_variant<V>(
@@ -349,7 +395,7 @@ impl<'a, 'de> VariantAccess<'de> for &'a mut Enum<'de> {
     where
         V: Visitor<'de>,
     {
-        de::Deserializer::deserialize_seq(&mut self.de, visitor)
+        de::Deserializer::deserialize_seq(self.de, visitor)
     }
 }
 
@@ -370,93 +416,6 @@ macro_rules! integers {
 }
 
 integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
-
-named!(
-    parse_initial_octet<Tag>,
-    bits!(do_parse!(
-        class: map!(take_bits!(u8, 2), Class::try_from)
-            >> is_constructed: map!(take_bits!(u8, 1), is_constructed)
-            >> tag: take_bits!(usize, 5)
-            >> (Tag::new(class.expect("Invalid class"), is_constructed, tag))
-    ))
-);
-
-named!(pub(crate) parse_identifier_octet<Tag>, do_parse!(
-    identifier: parse_initial_octet >>
-    // 31 is 5 bits set to 1.
-    long_tag: cond!(identifier.tag >= 31, do_parse!(
-        body: take_while!(is_part_of_octet) >>
-        end: take!(1) >>
-        result: value!(parse_tag(&body, end[0])) >>
-        (result)
-    )) >>
-
-    (identifier.set_tag(long_tag.unwrap_or(identifier.tag)))
-));
-
-named!(
-    parse_contents,
-    do_parse!(length: take!(1) >> contents: apply!(take_contents, length[0]) >> (&contents))
-);
-
-named!(pub(crate) parse_value<&[u8], Value<&[u8]>>, do_parse!(
-    tag: parse_identifier_octet >>
-    contents: parse_contents >>
-    (Value::new(tag, contents))
-));
-
-fn is_constructed(byte: u8) -> bool {
-    byte != 0
-}
-
-fn is_part_of_octet(input: u8) -> bool {
-    input & 0x80 != 0
-}
-
-fn parse_tag(body: &[u8], end: u8) -> usize {
-    let mut tag = 0;
-
-    for byte in body {
-        tag <<= 7;
-        tag |= (byte & 0x7F) as usize;
-    }
-
-    tag <<= 7;
-    // end doesn't need to be bitmasked as we know the MSB is `0` (X.690 8.1.2.4.2.a).
-    tag |= end as usize;
-
-    tag
-}
-
-fn concat_bits(body: &[u8], width: u8) -> usize {
-    let mut result: usize = 0;
-
-    for byte in body {
-        result <<= width;
-        result |= *byte as usize;
-    }
-
-    result
-}
-
-fn take_contents(input: &[u8], length: u8) -> IResult<&[u8], &[u8]> {
-    if length == 128 {
-        take_until_and_consume!(input, &[0, 0][..])
-    } else if length >= 127 {
-        let length = length ^ 0x80;
-        do_parse!(
-            input,
-            length: take!(length)
-                >> result: value!(concat_bits(&length, 8))
-                >> contents: take!(result)
-                >> (contents)
-        )
-    } else if length == 0 {
-        Ok((&[], input))
-    } else {
-        take!(input, length)
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -566,30 +525,6 @@ mod tests {
 
         assert_eq!(Foo::Bar(true), from_slice(&[0x80, 1, 0xff][..]).unwrap());
         assert_eq!(os, from_slice(&[0x81, 5, 1, 2, 3, 4, 5][..]).unwrap());
-    }
-
-    #[test]
-    fn from_hex() {
-        #[derive(Clone, Debug, Deserialize, PartialEq)]
-        struct Response {
-            status: Status,
-            body: Body,
-        }
-
-        #[derive(Clone, Debug, Deserialize, PartialEq)]
-        enum Status {
-            Success,
-            Error(u8),
-        }
-
-        #[derive(Clone, Debug, Deserialize, PartialEq)]
-        struct Body {
-            data: OctetString,
-        }
-
-        let encoded = hex::decode("3026800030220420bcf31629dca5ca1eae98e9a74b338861e47d96b701a73bf8d1cc12364e8742ed").unwrap();
-
-        from_slice::<Response>(&encoded).unwrap();
     }
 
     /*
