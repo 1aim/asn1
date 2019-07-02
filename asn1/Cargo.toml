@@ -1,17 +1,10 @@
 [package]
-name    = "asn1"
+name = "asn1"
 version = "0.1.0"
-authors = ["meh. <meh@1aim.com>"]
-license = "MIT/Apache-2.0"
+authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"
 
 [dependencies]
-core   = { version = "0.1", package = "asn1-core", path = "../asn1-core" }
-
-impl-der = { version = "0.1", package = "asn1-der", path = "../asn1-der", optional = true }
-
-[dev-dependencies]
-bytes = "0.4"
-
-[features]
-der = ["derive/der", "impl-der"]
+core = { path = "../asn1-core", package = "asn1-core" }
+der = { path = "../asn1-der", package = "asn1-der", optional = true }
+notation = { path = "../asn1-notation", package = "asn1-notation", optional = true }

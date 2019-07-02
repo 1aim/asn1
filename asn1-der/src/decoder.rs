@@ -1,8 +1,6 @@
 pub(crate) mod parser;
-use std::{convert::TryFrom, num, result};
+use std::{num, result};
 
-use core::Class;
-use nom::*;
 use serde::{
     de::{self, Deserialize, DeserializeSeed, EnumAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
@@ -29,14 +27,6 @@ impl<'de> Deserializer<'de> {
 
     fn from_slice(input: &'de [u8]) -> Self {
         Self { input }
-    }
-
-    /// Looks for the next tag but doesn't advance the slice.
-    fn parse_tag(&mut self) -> Result<Tag> {
-        let (slice, contents) = parse_identifier_octet(self.input)?;
-        self.input = slice;
-
-        Ok(contents)
     }
 
     /// Looks for the next tag but doesn't advance the slice.
@@ -422,6 +412,7 @@ mod tests {
     use super::*;
     use core::types::{ObjectIdentifier, OctetString};
     use serde_derive::Deserialize;
+    use crate::tag::Class;
 
     macro_rules! variant_tests {
         ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {

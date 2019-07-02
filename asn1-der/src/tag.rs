@@ -1,6 +1,24 @@
 use std::io::Write;
 
-use core::Class;
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub enum Class {
+    Universal = 0,
+    Application,
+    Context,
+    Private,
+}
+
+impl From<u8> for Class {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Class::Universal,
+            1 => Class::Application,
+            2 => Class::Context,
+            3 => Class::Private,
+            _ => panic!("Impossible Class"),
+        }
+    }
+}
 
 use crate::error::Result;
 

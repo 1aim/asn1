@@ -3,10 +3,9 @@ mod raw;
 use std::{collections::VecDeque, io::Write};
 
 use serde::{ser, Serialize};
-use core::Class;
 use log::debug;
 
-use crate::{error::{Error, Result}, tag::Tag};
+use crate::{error::{Error, Result}, tag::{Class, Tag}};
 
 use self::raw::RawSerializer;
 

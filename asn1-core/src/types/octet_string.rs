@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename="ASN.1#OctetString")]

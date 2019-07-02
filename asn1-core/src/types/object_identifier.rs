@@ -1,5 +1,5 @@
 use failure::{ensure, Fallible};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename="ASN.1#ObjectIdentifier")]

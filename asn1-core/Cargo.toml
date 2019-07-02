@@ -1,16 +1,10 @@
 [package]
-name = "asn1-core"
+name    = "asn1-core"
 version = "0.1.0"
-authors = ["meh. <meh@1aim.com>"]
+authors = ["Erin Power <e.power@dac.eu>"]
+license = "MIT/Apache-2.0"
 edition = "2018"
 
 [dependencies]
-chrono = "0.4"
-
-num-traits  = "0.2"
-num-integer = "0.1"
-bigint  = { version = "0.2", package = "num-bigint" }
+serde = { version = "1", features = ["derive"] }
 failure = "0.1.5"
-derefable = "0.1.0"
-serde = "1.0.92"
-serde_derive = "1.0.92"

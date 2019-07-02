@@ -4,7 +4,7 @@ use log::{debug, LevelFilter};
 fn main() {
     let matches = clap_app!(casn1 =>
         (version: crate_version!())
-        (author: "Aaron P. <theaaronepower@gmail.com> + Contributors")
+        (author: "Erin Power <e.power@dac.eu> + Contributors")
         (about: crate_description!())
         (@arg dependencies: -d --dependencies
             +takes_value
@@ -32,7 +32,7 @@ fn main() {
 
     let directory = matches.value_of("dependencies").unwrap_or("./asn1");
 
-    let mut module = asn1_spec::Asn1::new(matches.value_of("input").unwrap())
+    let module = asn1_notation::Asn1::new(matches.value_of("input").unwrap())
         .dependencies(directory)
         .build()
         .unwrap_or_else(|e| panic!("{}", e));

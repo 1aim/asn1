@@ -1,7 +1,7 @@
 [package]
-name = "asn1-spec"
+name = "asn1-notation"
 version = "0.1.0"
-authors = ["Aaron Power <a.power@1aim.com>"]
+authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"
 
 [dependencies]

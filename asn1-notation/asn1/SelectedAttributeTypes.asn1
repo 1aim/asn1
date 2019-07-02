@@ -8,7 +8,7 @@ BEGIN
 -- Directory services. Other applications may use them for their own purposes, but this will not constrain
 -- extensions and modifications needed to maintain or improve the Directory service.
 IMPORTS
-  -- INFO(Aaron): I've commented out any imports and the types that we
+  -- INFO(Erin): I've commented out any imports and the types that we
   -- don't use.
   -- from ITU-T Rec. X.501 | ISO/IEC 9594-2
   directoryAbstractService, id-at, id-avc, id-cat, id-mr, id-not, id-pr,

@@ -1,21 +1,16 @@
 [package]
 name = "asn1-der"
 version = "0.1.0"
-authors = ["meh. <meh@1aim.com>"]
+authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"
 
 [dependencies]
 core  = { version = "0.1", package = "asn1-core", path = "../asn1-core" }
-bytes = "0.4"
-
-bigint  = { version = "0.2", package = "num-bigint" }
-num-traits  = "0.2"
-num-integer = "0.1"
-nom = "4.2.3"
 failure = "0.1.5"
-serde = "1.0.92"
-log = "0.4.6"
 hex = "0.3.2"
+log = "0.4.6"
+nom = "4.2.3"
+serde = "1.0.92"
 
 [dev-dependencies]
 serde = "1.0.92"

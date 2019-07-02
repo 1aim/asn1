@@ -1,9 +1,8 @@
 use std::convert::TryFrom;
 
-use core::Class;
 use nom::*;
 
-use crate::{tag::Tag, value::Value};
+use crate::{tag::{Class, Tag}, value::Value};
 
 named!(
     parse_initial_octet<Tag>,

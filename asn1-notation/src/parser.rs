@@ -195,7 +195,7 @@ impl<'a> Parser<'a> {
 
         while self.look(Rule::Symbol).is_some() {
             match self.rule_peek() {
-                // TODO(Aaron): Support parameterization
+                // TODO(Erin): Support parameterization
                 Rule::Reference => {
                     symbols.push(self.parse_reference());
                 }
