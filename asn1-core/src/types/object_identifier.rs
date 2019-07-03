@@ -2,7 +2,7 @@ use failure::{ensure, Fallible};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-#[serde(rename="ASN.1#ObjectIdentifier")]
+#[serde(rename = "ASN.1#ObjectIdentifier")]
 pub struct ObjectIdentifier<T: AsRef<[u128]>>(pub T);
 
 impl<A: AsRef<[u128]>> ObjectIdentifier<A> {

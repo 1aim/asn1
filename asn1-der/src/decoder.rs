@@ -6,9 +6,9 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-use core::identifier::Identifier;
-use crate::error::{Result, Error};
 use self::parser::*;
+use crate::error::{Error, Result};
+use core::identifier::Identifier;
 
 pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
 where
@@ -37,7 +37,6 @@ struct Deserializer<'de> {
 }
 
 impl<'de> Deserializer<'de> {
-
     fn from_slice(input: &'de [u8]) -> Self {
         Self { input }
     }
@@ -97,7 +96,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             Identifier::OCTET_STRING => self.deserialize_bytes(visitor),
             Identifier::NULL => self.deserialize_unit(visitor),
             Identifier::SEQUENCE => self.deserialize_seq(visitor),
-            Identifier::OBJECT_IDENTIFIER => self.deserialize_newtype_struct("ObjectIdentifier", visitor),
+            Identifier::OBJECT_IDENTIFIER => {
+                self.deserialize_newtype_struct("ObjectIdentifier", visitor)
+            }
             // Identifier::REAL,
             // Identifier::ENUMERATED => self.deserialize_,
             Identifier::UTF8_STRING => self.deserialize_str(visitor),
@@ -197,12 +198,20 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         unimplemented!() // visitor.visit_u128(self.parse_integer()?)
     }
 
-    fn deserialize_unit_struct<V: Visitor<'de>>(self, _name: &str, _visitor: V) -> Result<V::Value> {
+    fn deserialize_unit_struct<V: Visitor<'de>>(
+        self,
+        _name: &str,
+        _visitor: V,
+    ) -> Result<V::Value> {
         log::trace!("Deserialising unit struct.");
         unimplemented!() // visitor.visit_u128(self.parse_integer()?)
     }
 
-    fn deserialize_newtype_struct<V: Visitor<'de>>(self, name: &str, visitor: V) -> Result<V::Value> {
+    fn deserialize_newtype_struct<V: Visitor<'de>>(
+        self,
+        name: &str,
+        visitor: V,
+    ) -> Result<V::Value> {
         log::trace!("Deserialising newtype struct {:?}.", name);
 
         match name {
@@ -210,7 +219,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 let value = self.parse_value()?;
                 visitor.visit_seq(OctetString::new(value.contents))
             }
-            _ =>  visitor.visit_newtype_struct(self),
+            _ => visitor.visit_newtype_struct(self),
         }
     }
 
@@ -219,7 +228,12 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_seq(visitor)
     }
 
-    fn deserialize_tuple_struct<V: Visitor<'de>>(self, name: &str, len: usize, visitor: V) -> Result<V::Value> {
+    fn deserialize_tuple_struct<V: Visitor<'de>>(
+        self,
+        name: &str,
+        len: usize,
+        visitor: V,
+    ) -> Result<V::Value> {
         log::trace!("Deserialising {} length tuple {:?}.", len, name);
         self.deserialize_seq(visitor)
     }
@@ -229,7 +243,12 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_seq(visitor)
     }
 
-    fn deserialize_struct<V: Visitor<'de>>(self, name: &str, fields: &[&str], visitor: V) -> Result<V::Value> {
+    fn deserialize_struct<V: Visitor<'de>>(
+        self,
+        name: &str,
+        fields: &[&str],
+        visitor: V,
+    ) -> Result<V::Value> {
         log::trace!("Deserialising struct {:?} with fields {:?}.", name, fields);
         let value = self.parse_value()?;
         visitor.visit_seq(Sequence::new(value.contents, fields.len()))
@@ -247,10 +266,14 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value>
-        where
-             V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
-        log::trace!("Deserialising enum {:?} with variants {:?}.", name, variants);
+        log::trace!(
+            "Deserialising enum {:?} with variants {:?}.",
+            name,
+            variants
+        );
         let tag = self.look_at_tag()?;
 
         if let Some(variant) = variants.get(tag.tag) {
@@ -262,8 +285,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         log::trace!("Deserialising unit");
         self.parse_value()?;
@@ -271,8 +294,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         log::trace!("Deserialising bytes");
         let value = self.parse_value()?;
@@ -285,7 +308,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 }
 
 struct OctetString<'de> {
-    contents: &'de [u8]
+    contents: &'de [u8],
 }
 
 impl<'de> OctetString<'de> {
@@ -302,7 +325,8 @@ impl<'de> SeqAccess<'de> for OctetString<'de> {
         T: DeserializeSeed<'de>,
     {
         use serde::de::value::SeqDeserializer;
-        seed.deserialize(SeqDeserializer::new(self.contents.into_iter().cloned())).map(Some)
+        seed.deserialize(SeqDeserializer::new(self.contents.into_iter().cloned()))
+            .map(Some)
     }
 }
 
@@ -329,12 +353,12 @@ impl<'de> SeqAccess<'de> for Sequence<'de> {
     {
         if let Some(ref mut elements) = self.elements {
             if *elements == 0 {
-                return Ok(None)
+                return Ok(None);
             }
 
             *elements -= 1;
         } else if self.de.input.is_empty() {
-            return Ok(None)
+            return Ok(None);
         }
 
         seed.deserialize(&mut self.de).map(Some)
@@ -348,7 +372,7 @@ struct Enum<'a, 'de: 'a> {
 
 impl<'a, 'de> Enum<'a, 'de> {
     fn new(variant: &'static str, de: &'a mut Deserializer<'de>) -> Self {
-        Self { variant, de, }
+        Self { variant, de }
     }
 }
 
@@ -390,11 +414,7 @@ impl<'a, 'de> VariantAccess<'de> for Enum<'a, 'de> {
         de::Deserializer::deserialize_seq(self.de, visitor)
     }
 
-    fn struct_variant<V>(
-        self,
-        _fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value>
+    fn struct_variant<V>(self, _fields: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
@@ -423,9 +443,9 @@ integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::identifier::Class;
     use core::types::OctetString;
     use serde_derive::Deserialize;
-    use core::identifier::Class;
 
     macro_rules! variant_tests {
         ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {
@@ -513,7 +533,7 @@ mod tests {
     #[test]
     fn fixed_array_as_sequence() {
         let array = [8u8; 4];
-        let raw = &[48, 4*3, 2, 1, 8, 2, 1, 8, 2, 1, 8, 2, 1, 8][..];
+        let raw = &[48, 4 * 3, 2, 1, 8, 2, 1, 8, 2, 1, 8, 2, 1, 8][..];
         assert_eq!(array, from_slice::<[u8; 4]>(&raw).unwrap());
     }
 

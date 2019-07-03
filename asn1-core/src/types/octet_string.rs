@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq)]
-#[serde(rename="ASN.1#OctetString")]
+#[serde(rename = "ASN.1#OctetString")]
 pub struct OctetString(Vec<u8>);
 
 impl OctetString {

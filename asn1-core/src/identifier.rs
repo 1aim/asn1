@@ -46,7 +46,6 @@ impl Identifier {
     pub const CHARACTER_STRING: Identifier = Identifier::new(Class::Universal, false, 29);
     pub const BMP_STRING: Identifier = Identifier::new(Class::Universal, false, 30);
 
-
     pub const fn new(class: Class, is_constructed: bool, tag: usize) -> Self {
         Self {
             class,

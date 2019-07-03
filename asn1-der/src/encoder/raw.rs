@@ -1,5 +1,8 @@
-use serde::{ser::{self, Impossible}, Serialize};
 use crate::error::{Error, Result};
+use serde::{
+    ser::{self, Impossible},
+    Serialize,
+};
 use std::io::Write;
 
 /// Serializer used solely to encode octet strings properly.
@@ -119,11 +122,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut RawSerializer<W> {
         unreachable!()
     }
 
-    fn serialize_newtype_struct<T>(
-        self,
-        _name: &'static str,
-        _value: &T,
-    ) -> Result<()>
+    fn serialize_newtype_struct<T>(self, _name: &'static str, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
@@ -173,11 +172,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut RawSerializer<W> {
         unreachable!()
     }
 
-    fn serialize_struct(
-        self,
-        _name: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeStruct> {
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
         unreachable!()
     }
 
@@ -191,5 +186,3 @@ impl<'a, W: Write> ser::Serializer for &'a mut RawSerializer<W> {
         unreachable!()
     }
 }
-
-

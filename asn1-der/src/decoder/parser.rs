@@ -4,8 +4,8 @@ use nom::IResult;
 use super::Value;
 
 pub(crate) fn parse_value(input: &[u8]) -> IResult<&[u8], Value> {
-    let (input, identifier)  = parse_identifier_octet(input)?;
-    let (input, contents)  = parse_contents(input)?;
+    let (input, identifier) = parse_identifier_octet(input)?;
+    let (input, contents) = parse_contents(input)?;
 
     Ok((input, Value::new(identifier, contents)))
 }
@@ -87,4 +87,3 @@ fn take_contents(input: &[u8], length: u8) -> IResult<&[u8], &[u8]> {
         nom::bytes::streaming::take(length)(input)
     }
 }
-

@@ -8,8 +8,8 @@ pub use encoder::to_vec;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_derive::{Deserialize, Serialize};
     use core::types::OctetString;
+    use serde_derive::{Deserialize, Serialize};
 
     #[test]
     fn bool() {
@@ -23,14 +23,20 @@ mod tests {
         let a = OctetString::from(vec![1u8, 2, 3, 4, 5]);
         let b = OctetString::from(vec![5u8, 4, 3, 2, 1]);
 
-        assert_eq!(a, from_slice(&to_vec(&a).expect("encoding")).expect("decoding"));
+        assert_eq!(
+            a,
+            from_slice(&to_vec(&a).expect("encoding")).expect("decoding")
+        );
         assert_eq!(b, from_slice(&to_vec(&b).unwrap()).unwrap());
     }
 
     #[test]
     fn universal_string() {
         let name = "Jones";
-        assert_eq!(name, from_slice::<String>(&*to_vec(&name).unwrap()).unwrap());
+        assert_eq!(
+            name,
+            from_slice::<String>(&*to_vec(&name).unwrap()).unwrap()
+        );
     }
 
     macro_rules! integer_tests {
@@ -60,13 +66,12 @@ mod tests {
         }
 
         let raw = &[
-            0x30,    // Sequence tag
-            9,       // Length
+            0x30, // Sequence tag
+            9,    // Length
             1, 1, 0xff, // A
             1, 1, 0, // B
             1, 1, 0xff, // C
         ][..];
-
 
         let default = Bools {
             a: true,
@@ -115,15 +120,13 @@ mod tests {
     fn sequence_in_sequence_in_choice() {
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
         enum FooInline {
-            Bar {
-                data: OctetString,
-            }
+            Bar { data: OctetString },
         }
 
         // FooExtern should have the same encoding as FooInline.
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
         enum FooExtern {
-            Bar(BarData)
+            Bar(BarData),
         }
 
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -131,8 +134,12 @@ mod tests {
             data: OctetString,
         }
 
-        let bar = FooInline::Bar { data: OctetString::from(vec![1, 2, 3, 4])};
-        let bar_extern = FooExtern::Bar(BarData { data: OctetString::from(vec![1, 2, 3, 4])});
+        let bar = FooInline::Bar {
+            data: OctetString::from(vec![1, 2, 3, 4]),
+        };
+        let bar_extern = FooExtern::Bar(BarData {
+            data: OctetString::from(vec![1, 2, 3, 4]),
+        });
         let inline_encoded = to_vec(&bar).unwrap();
         let extern_encoded = to_vec(&bar_extern).unwrap();
 
@@ -165,8 +172,8 @@ mod tests {
         let response = Response {
             status: Status::Success,
             body: Body {
-                data: OctetString::from(vec![1, 2, 3, 4, 5])
-            }
+                data: OctetString::from(vec![1, 2, 3, 4, 5]),
+            },
         };
 
         assert_eq!(response, from_slice(&to_vec(&response).unwrap()).unwrap());
