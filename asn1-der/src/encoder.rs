@@ -1,4 +1,5 @@
 mod raw;
+mod object_identifier;
 
 use std::{collections::VecDeque, io::Write};
 
@@ -8,7 +9,10 @@ use serde::{ser, Serialize};
 use crate::error::{Error, Result};
 use core::identifier::Identifier;
 
-use self::raw::RawSerializer;
+use self::{
+    raw::RawSerializer,
+    object_identifier::ObjectIdentifierSerializer,
+};
 
 pub fn to_writer<W, T>(writer: W, value: &T) -> Result<()>
 where
@@ -243,6 +247,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
             "ASN.1#OctetString" => {
                 self.set_tag(Identifier::OCTET_STRING);
             }
+            "ASN.1#ObjectIdentifier" => {
+                self.set_tag(Identifier::OBJECT_IDENTIFIER);
+            }
             _ => {}
         }
 
@@ -316,17 +323,22 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
 pub struct Sequence<'a, W: Write> {
     ser: &'a mut Serializer<W>,
-    sink: Serializer<Vec<u8>>,
-    raw_sink: RawSerializer<Vec<u8>>,
+    sink: SerializerKind<Vec<u8>>,
 }
 
 impl<'a, W: Write> Sequence<'a, W> {
     fn new(ser: &'a mut Serializer<W>) -> Self {
-        Self {
-            ser,
-            sink: Serializer::new(Vec::new()),
-            raw_sink: RawSerializer::new(Vec::new()),
-        }
+        let sink = match ser.tag {
+            Some(Identifier::OCTET_STRING) => {
+                SerializerKind::OctetString(RawSerializer::new(Vec::new()))
+            }
+            Some(Identifier::OBJECT_IDENTIFIER) => {
+                SerializerKind::ObjectIdentifier(ObjectIdentifierSerializer::new(Vec::new()))
+            }
+            _ => SerializerKind::Normal(Serializer::new(Vec::new())),
+        };
+
+        Self { ser, sink, }
     }
 }
 
@@ -338,20 +350,14 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
     where
         T: ?Sized + Serialize,
     {
-        match self.ser.tag {
-            Some(Identifier::OCTET_STRING) => value.serialize(&mut self.raw_sink),
-            _ => value.serialize(&mut self.sink),
-        }
+        self.sink.serialize(value)
     }
 
     fn end(self) -> Result<()> {
         self.ser.tag = self.ser.tag.or(Some(Identifier::SEQUENCE));
         self.ser.constructed = false;
 
-        let contents = match self.ser.tag {
-            Some(Identifier::OCTET_STRING) => self.raw_sink.output,
-            _ => self.sink.output,
-        };
+        let contents = self.sink.output()?;
 
         self.ser.encode(&contents)
     }
@@ -497,6 +503,30 @@ pub fn encode_tag<W: Write>(tag: Identifier, buffer: &mut W) -> Result<()> {
     Ok(())
 }
 
+enum SerializerKind<W: Write> {
+    Normal(Serializer<W>),
+    OctetString(RawSerializer<W>),
+    ObjectIdentifier(ObjectIdentifierSerializer<W>),
+}
+
+impl<W: Write> SerializerKind<W> {
+    fn serialize<T: ser::Serialize + ?Sized>(&mut self, value: &T) -> Result<()> {
+        match self {
+            SerializerKind::Normal(ser) => value.serialize(ser),
+            SerializerKind::OctetString(ser) => value.serialize(ser),
+            SerializerKind::ObjectIdentifier(ser) => value.serialize(ser),
+        }
+    }
+
+    fn output(self) -> Result<W> {
+        match self {
+            SerializerKind::Normal(ser) => Ok(ser.output),
+            SerializerKind::OctetString(ser) => Ok(ser.output),
+            SerializerKind::ObjectIdentifier(ser) => ser.output(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use core::types::OctetString;
@@ -587,14 +617,16 @@ mod tests {
         assert_eq!(raw, &*result);
     }
 
-    /*
     #[test]
-    fn object_identifier_to_bytes() {
-        let itu: Vec<u8> = to_vec(ObjectIdentifier::new(vec![2, 999, 3]).unwrap());
-        let rsa: Vec<u8> = to_vec(ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap());
+    fn object_identifier() {
+        use core::types::ObjectIdentifier;
 
+        let just_root: Vec<u8> = to_vec(&ObjectIdentifier::new(vec![1, 2]).unwrap()).unwrap();
+        let itu: Vec<u8> = to_vec(&ObjectIdentifier::new(vec![2, 999, 3]).unwrap()).unwrap();
+        let rsa: Vec<u8> = to_vec(&ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap()).unwrap();
+
+        assert_eq!(&[0x6, 0x1, 0x2a][..], &*just_root);
         assert_eq!(&[0x6, 0x3, 0x88, 0x37, 0x03][..], &*itu);
         assert_eq!(&[0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..], &*rsa);
     }
-    */
 }

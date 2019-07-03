@@ -83,6 +83,7 @@ mod tests {
 
         // The representation of SEQUENCE and SEQUENCE OF are the same in this case.
         let bools_vec = vec![true, false, true];
+
         assert_eq!(bools_vec, from_slice::<Vec<bool>>(&raw).unwrap());
         assert_eq!(raw, &*to_vec(&bools_vec).unwrap());
     }
@@ -179,18 +180,18 @@ mod tests {
         assert_eq!(response, from_slice(&to_vec(&response).unwrap()).unwrap());
     }
 
-    /*
     #[test]
     fn object_identifier() {
+        use core::types::ObjectIdentifier;
+
         let iso = ObjectIdentifier::new(vec![1, 2]).unwrap();
         let us_ansi = ObjectIdentifier::new(vec![1, 2, 840]).unwrap();
         let rsa = ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap();
         let pkcs = ObjectIdentifier::new(vec![1, 2, 840, 113549, 1]).unwrap();
 
-        assert_eq!(iso.clone(), from_slice(&to_vec(iso)).unwrap());
-        assert_eq!(us_ansi.clone(), from_slice(&to_vec(us_ansi)).unwrap());
-        assert_eq!(rsa.clone(), from_slice(&to_vec(rsa)).unwrap());
-        assert_eq!(pkcs.clone(), from_slice(&to_vec(pkcs)).unwrap());
+        assert_eq!(iso.clone(), from_slice(&to_vec(&iso).unwrap()).unwrap());
+        assert_eq!(us_ansi.clone(), from_slice(&to_vec(&us_ansi).unwrap()).unwrap());
+        assert_eq!(rsa.clone(), from_slice(&to_vec(&rsa).unwrap()).unwrap());
+        assert_eq!(pkcs.clone(), from_slice(&to_vec(&pkcs).unwrap()).unwrap());
     }
-    */
 }

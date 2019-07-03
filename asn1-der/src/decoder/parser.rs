@@ -10,24 +10,23 @@ pub(crate) fn parse_value(input: &[u8]) -> IResult<&[u8], Value> {
     Ok((input, Value::new(identifier, contents)))
 }
 
-fn parse_contents(input: &[u8]) -> IResult<&[u8], &[u8]> {
-    let (input, length) = nom::bytes::streaming::take(1usize)(input)?;
-    take_contents(input, length[0])
-}
-
 pub(crate) fn parse_identifier_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
     let (input, identifier) = parse_initial_octet(input)?;
 
     let (input, tag) = if identifier.tag >= 0x1f {
-        let (input, body) = nom::bytes::streaming::take_while(|i| i & 0x80 != 0)(input)?;
-        let (input, end) = nom::bytes::streaming::take(1usize)(input)?;
-
-        (input, parse_tag(body, end[0]))
+        parse_encoded_number(input)?
     } else {
         (input, identifier.tag)
     };
 
     Ok((input, identifier.set_tag(tag)))
+}
+
+pub(crate) fn parse_encoded_number(input: &[u8]) -> IResult<&[u8], usize> {
+    let (input, body) = nom::bytes::streaming::take_while(|i| i & 0x80 != 0)(input)?;
+    let (input, end) = nom::bytes::streaming::take(1usize)(input)?;
+
+    Ok((input, concat_number(body, end[0])))
 }
 
 fn parse_initial_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
@@ -42,7 +41,12 @@ fn parse_initial_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
     Ok((input, Identifier::new(class, constructed, tag)))
 }
 
-fn parse_tag(body: &[u8], end: u8) -> usize {
+fn parse_contents(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (input, length) = nom::bytes::streaming::take(1usize)(input)?;
+    take_contents(input, length[0])
+}
+
+fn concat_number(body: &[u8], end: u8) -> usize {
     let mut tag = 0;
 
     for byte in body {

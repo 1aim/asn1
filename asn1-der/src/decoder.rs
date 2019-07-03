@@ -1,14 +1,21 @@
 pub(crate) mod parser;
+mod object_identifier;
+mod octet_string;
+
 use std::{num, result};
 
+use core::identifier::Identifier;
 use serde::{
     de::{self, Deserialize, DeserializeSeed, EnumAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
 };
 
-use self::parser::*;
 use crate::error::{Error, Result};
-use core::identifier::Identifier;
+use self::{
+    parser::*,
+    object_identifier::ObjectIdentifier,
+    octet_string::OctetString,
+};
 
 pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
 where
@@ -219,6 +226,10 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 let value = self.parse_value()?;
                 visitor.visit_seq(OctetString::new(value.contents))
             }
+            "ASN.1#ObjectIdentifier" => {
+                let value = self.parse_value()?;
+                visitor.visit_seq(ObjectIdentifier::new(value.contents))
+            }
             _ => visitor.visit_newtype_struct(self),
         }
     }
@@ -304,29 +315,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     forward_to_deserialize_any! {
         ignored_any identifier
-    }
-}
-
-struct OctetString<'de> {
-    contents: &'de [u8],
-}
-
-impl<'de> OctetString<'de> {
-    fn new(contents: &'de [u8]) -> Self {
-        Self { contents }
-    }
-}
-
-impl<'de> SeqAccess<'de> for OctetString<'de> {
-    type Error = Error;
-
-    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
-    where
-        T: DeserializeSeed<'de>,
-    {
-        use serde::de::value::SeqDeserializer;
-        seed.deserialize(SeqDeserializer::new(self.contents.into_iter().cloned()))
-            .map(Some)
     }
 }
 
