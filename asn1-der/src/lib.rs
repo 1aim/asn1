@@ -172,6 +172,13 @@ mod tests {
         assert_eq!(response, from_slice(&to_vec(&response).unwrap()).unwrap());
     }
 
+    #[test]
+    fn string() {
+        let string = "Hello World!";
+
+        assert_eq!(string, from_slice::<String>(&to_vec(&string).unwrap()).unwrap());
+    }
+
     /*
     #[test]
     fn object_identifier() {
