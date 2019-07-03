@@ -7,10 +7,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
-    Io(io::Error),
-    Nom(String),
-    Number(std::num::ParseIntError),
     Custom(String),
+    IncorrectLength(String),
+    Io(io::Error),
+    NoVariantFound(usize),
+    Number(std::num::ParseIntError),
+    Parser(String),
 }
 
 impl de::Error for Error {
@@ -33,8 +35,10 @@ impl fmt::Display for Error {
 
         match self {
             Error::Custom(msg) => write!(f, "Unknown Error: {}", msg),
+            Error::IncorrectLength(kind) => write!(f, "Incorrect length for {}", kind),
             Error::Io(error) => write!(f, "IO: {}", error),
-            Error::Nom(msg) => write!(f, "Parsing: {}", msg),
+            Error::NoVariantFound(index) => write!(f, "No variant found with index '{}'.", index),
+            Error::Parser(msg) => write!(f, "Parsing: {}", msg),
             Error::Number(error) => write!(f, "Number: {}", error.description()),
         }
     }
@@ -54,6 +58,6 @@ impl From<std::num::ParseIntError> for Error {
 
 impl<I: std::fmt::Debug> From<Err<I>> for Error {
     fn from(nom_error: Err<I>) -> Self {
-        Error::Nom(format!("{:?}", nom_error))
+        Error::Parser(format!("{:?}", nom_error))
     }
 }

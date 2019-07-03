@@ -67,15 +67,15 @@ impl<'de> Deserializer<'de> {
     fn parse_bool(&mut self) -> Result<bool> {
         let value = self.parse_value()?;
 
-        if value.contents.len() != 1 {
-            panic!("Incorrect length for boolean")
+        if value.contents.len() == 1 {
+            // TODO: This logic changes for DER & CER.
+            Ok(match value.contents[0] {
+                0 => false,
+                _ => true,
+            })
+        } else {
+            Err(Error::IncorrectLength(String::from("bool")))
         }
-
-        // TODO: This logic changes for DER & CER.
-        Ok(match value.contents[0] {
-            0 => false,
-            _ => true,
-        })
     }
 
     fn parse_integer<T: FromStrRadix>(&mut self) -> Result<T> {
@@ -109,7 +109,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             // Identifier::REAL,
             // Identifier::ENUMERATED => self.deserialize_,
             Identifier::UTF8_STRING => self.deserialize_str(visitor),
-            tag => panic!("TAG: {:?}", tag), // _ => self.deserialize_seq(visitor),
+            _ => self.deserialize_seq(visitor),
         }
     }
 
@@ -291,7 +291,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             log::trace!("Attempting to deserialise to {}::{}", name, variant);
             visitor.visit_enum(Enum::new(variant, self))
         } else {
-            panic!("Variant not found")
+            Err(Error::NoVariantFound(tag.tag))
         }
     }
 
