@@ -1,50 +1,45 @@
-use std::convert::TryFrom;
-
 use core::identifier::{Class, Identifier};
-use nom::*;
+use nom::IResult;
 
 use super::Value;
 
-named!(
-    parse_initial_octet<Identifier>,
-    bits!(do_parse!(
-        class: map!(take_bits!(u8, 2), Class::try_from)
-            >> is_constructed: map!(take_bits!(u8, 1), is_constructed)
-            >> tag: take_bits!(usize, 5)
-            >> (Identifier::new(class.expect("Invalid class"), is_constructed, tag))
-    ))
-);
+pub(crate) fn parse_value(input: &[u8]) -> IResult<&[u8], Value> {
+    let (input, identifier)  = parse_identifier_octet(input)?;
+    let (input, contents)  = parse_contents(input)?;
 
-named!(pub(crate) parse_identifier_octet<Identifier>, do_parse!(
-    identifier: parse_initial_octet >>
-    // 31 is 5 bits set to 1.
-    long_tag: cond!(identifier.tag >= 31, do_parse!(
-        body: take_while!(is_part_of_octet) >>
-        end: take!(1) >>
-        result: value!(parse_tag(&body, end[0])) >>
-        (result)
-    )) >>
-
-    (identifier.set_tag(long_tag.unwrap_or(identifier.tag)))
-));
-
-named!(
-    parse_contents,
-    do_parse!(length: take!(1) >> contents: apply!(take_contents, length[0]) >> (&contents))
-);
-
-named!(pub(crate) parse_value<&[u8], Value>, do_parse!(
-    tag: parse_identifier_octet >>
-    contents: parse_contents >>
-    (Value::new(tag, contents))
-));
-
-fn is_constructed(byte: u8) -> bool {
-    byte != 0
+    Ok((input, Value::new(identifier, contents)))
 }
 
-fn is_part_of_octet(input: u8) -> bool {
-    input & 0x80 != 0
+fn parse_contents(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (input, length) = nom::bytes::streaming::take(1usize)(input)?;
+    take_contents(input, length[0])
+}
+
+pub(crate) fn parse_identifier_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
+    let (input, identifier) = parse_initial_octet(input)?;
+
+    let (input, tag) = if identifier.tag >= 0x1f {
+        let (input, body) = nom::bytes::streaming::take_while(|i| i & 0x80 != 0)(input)?;
+        let (input, end) = nom::bytes::streaming::take(1usize)(input)?;
+
+        (input, parse_tag(body, end[0]))
+    } else {
+        (input, identifier.tag)
+    };
+
+    Ok((input, identifier.set_tag(tag)))
+}
+
+fn parse_initial_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
+    let (input, octet) = nom::bytes::streaming::take(1usize)(input)?;
+    let initial_octet = octet[0];
+
+    let class_bits = (initial_octet & 0xC0) >> 6;
+    let class = Class::from(class_bits);
+    let constructed = (initial_octet & 0x20) != 0;
+    let tag = (initial_octet & 0x1f) as usize;
+
+    Ok((input, Identifier::new(class, constructed, tag)))
 }
 
 fn parse_tag(body: &[u8], end: u8) -> usize {
@@ -75,21 +70,21 @@ fn concat_bits(body: &[u8], width: u8) -> usize {
 }
 
 fn take_contents(input: &[u8], length: u8) -> IResult<&[u8], &[u8]> {
-    if length == 128 {
-        take_until_and_consume!(input, &[0, 0][..])
-    } else if length >= 127 {
+    if length == 0x80 {
+        const EOC_OCTET: &[u8] = &[0, 0];
+        let (input, contents) = nom::bytes::streaming::take_until(EOC_OCTET)(input)?;
+        let (input, _) = nom::bytes::streaming::tag(EOC_OCTET)(input)?;
+
+        Ok((input, contents))
+    } else if length >= 0x7f {
         let length = length ^ 0x80;
-        do_parse!(
-            input,
-            length: take!(length)
-                >> result: value!(concat_bits(&length, 8))
-                >> contents: take!(result)
-                >> (contents)
-        )
+        let (input, length_slice) = nom::bytes::streaming::take(length)(input)?;
+        let length = concat_bits(&length_slice, 8);
+        nom::bytes::streaming::take(length)(input)
     } else if length == 0 {
         Ok((input, &[]))
     } else {
-        take!(input, length)
+        nom::bytes::streaming::take(length)(input)
     }
 }
 

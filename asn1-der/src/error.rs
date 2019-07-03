@@ -54,6 +54,6 @@ impl From<std::num::ParseIntError> for Error {
 
 impl<I: std::fmt::Debug> From<Err<I>> for Error {
     fn from(nom_error: Err<I>) -> Self {
-        Error::Nom(nom_error.to_string())
+        Error::Nom(format!("{:?}", nom_error))
     }
 }
