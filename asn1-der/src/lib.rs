@@ -194,4 +194,10 @@ mod tests {
         assert_eq!(rsa.clone(), from_slice(&to_vec(&rsa).unwrap()).unwrap());
         assert_eq!(pkcs.clone(), from_slice(&to_vec(&pkcs).unwrap()).unwrap());
     }
+
+    #[test]
+    fn long_sequence() {
+        let vec = vec![5u8; 0xffff];
+        assert_eq!(vec, from_slice::<Vec<u8>>(&to_vec(&vec).unwrap()).unwrap());
+    }
 }

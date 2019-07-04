@@ -88,14 +88,15 @@ impl<W: Write> Serializer<W> {
         if original_length <= 127 {
             self.output.write(&[original_length as u8])?;
         } else {
-            let mut length = original_length;
-            let mut length_buffer = Vec::new();
+            let mut length = dbg!(original_length);
+            let mut length_buffer = std::collections::VecDeque::new();
 
             while length != 0 {
-                length_buffer.push((length & 0xff) as u8);
+                length_buffer.push_front((length & 0xff) as u8);
                 length >>= 8;
             }
 
+            let length_buffer: Vec<u8> = length_buffer.into();
             self.output.write(&[length_buffer.len() as u8 | 0x80])?;
             self.output.write(&length_buffer)?;
         }
@@ -555,6 +556,19 @@ mod tests {
             &[48, 4 * 3, 2, 1, 8, 2, 1, 8, 2, 1, 8, 2, 1, 8][..],
             &*to_vec(&array).unwrap()
         );
+    }
+
+    #[test]
+    fn encode_long_sequence() {
+        let vec = vec![5; 0xffff];
+        let preamble = vec![0x30u8, 0x83, 0x2, 0xFF, 0xFD];
+        let encoded = {
+            let mut v = preamble.clone();
+            v.extend_from_slice(&vec);
+            v
+        };
+
+        assert_eq!(&*preamble, &to_vec(&vec).unwrap()[..preamble.len()]);
     }
 
     #[test]
