@@ -8,3 +8,10 @@ edition = "2018"
 core = { path = "../asn1-core", package = "asn1-core" }
 der = { path = "../asn1-der", package = "asn1-der", optional = true }
 notation = { path = "../asn1-notation", package = "asn1-notation", optional = true }
+
+[[example]]
+name = "print"
+required-features = ["der"]
+
+[dev-dependencies]
+hex = "0.3.2"
