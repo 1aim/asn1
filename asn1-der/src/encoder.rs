@@ -88,7 +88,7 @@ impl<W: Write> Serializer<W> {
         if original_length <= 127 {
             self.output.write(&[original_length as u8])?;
         } else {
-            let mut length = dbg!(original_length);
+            let mut length = original_length;
             let mut length_buffer = std::collections::VecDeque::new();
 
             while length != 0 {
