@@ -200,4 +200,19 @@ mod tests {
         let vec = vec![5u8; 0xffff];
         assert_eq!(vec, from_slice::<Vec<u8>>(&to_vec(&vec).unwrap()).unwrap());
     }
+
+    #[test]
+    fn sequence_with_option() {
+        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        struct Foo {
+            a: u8,
+            b: Option<u8>,
+        }
+
+        let some = Foo { a: 1, b: Some(2) };
+        let none = Foo { a: 1, b: None };
+
+        assert_eq!(some, from_slice(&to_vec(&some).unwrap()).unwrap());
+        assert_eq!(none, from_slice(&to_vec(&none).unwrap()).unwrap());
+    }
 }

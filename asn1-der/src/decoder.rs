@@ -49,7 +49,7 @@ impl<'de> Deserializer<'de> {
     }
 
     /// Looks for the next tag but doesn't advance the slice.
-    fn look_at_tag(&mut self) -> Result<Identifier> {
+    fn peek_at_identifier(&mut self) -> Result<Identifier> {
         Ok(parse_identifier_octet(self.input)?.1)
     }
 
@@ -95,7 +95,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = Error;
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self.look_at_tag()? {
+        match self.peek_at_identifier()? {
             Identifier::EOC => return Err(Error::Custom("Unexpected End Of contents.".into())),
             Identifier::BOOL => self.deserialize_bool(visitor),
             Identifier::INTEGER => self.deserialize_i64(visitor),
@@ -200,18 +200,30 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_bytes(visitor)
     }
 
-    fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
+    fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising option.");
-        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+
+        let is_none = if self.peek_at_identifier().map(|i| i == Identifier::NULL).unwrap_or(false) {
+            self.parse_value()?;
+            true
+        } else {
+            self.input.is_empty()
+        };
+
+        if is_none {
+            visitor.visit_none()
+        } else {
+            visitor.visit_some(self)
+        }
     }
 
     fn deserialize_unit_struct<V: Visitor<'de>>(
         self,
         _name: &str,
-        _visitor: V,
+        visitor: V,
     ) -> Result<V::Value> {
         log::trace!("Deserialising unit struct.");
-        unimplemented!() // visitor.visit_u128(self.parse_integer()?)
+        self.deserialize_unit(visitor)
     }
 
     fn deserialize_newtype_struct<V: Visitor<'de>>(
@@ -285,7 +297,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             name,
             variants
         );
-        let tag = self.look_at_tag()?;
+        let tag = self.peek_at_identifier()?;
 
         if let Some(variant) = variants.get(tag.tag) {
             log::trace!("Attempting to deserialise to {}::{}", name, variant);

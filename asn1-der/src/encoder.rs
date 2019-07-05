@@ -562,12 +562,6 @@ mod tests {
     fn encode_long_sequence() {
         let vec = vec![5; 0xffff];
         let preamble = vec![0x30u8, 0x83, 0x2, 0xFF, 0xFD];
-        let encoded = {
-            let mut v = preamble.clone();
-            v.extend_from_slice(&vec);
-            v
-        };
-
         assert_eq!(&*preamble, &to_vec(&vec).unwrap()[..preamble.len()]);
     }
 
@@ -642,5 +636,20 @@ mod tests {
         assert_eq!(&[0x6, 0x1, 0x2a][..], &*just_root);
         assert_eq!(&[0x6, 0x3, 0x88, 0x37, 0x03][..], &*itu);
         assert_eq!(&[0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..], &*rsa);
+    }
+
+    #[test]
+    fn sequence_with_option() {
+        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+        struct Foo {
+            a: u8,
+            b: Option<u8>,
+        }
+
+        let some = Foo { a: 1, b: Some(2) };
+        let none = Foo { a: 1, b: None };
+
+        assert_eq!(&[0x30, 3 * 2, 0x2, 0x1, 0x1, 0x2, 0x1, 0x2][..], &*to_vec(&some).unwrap());
+        assert_eq!(&[0x30, 0x3, 0x2, 0x1, 0x1][..], &*to_vec(&none).unwrap());
     }
 }
