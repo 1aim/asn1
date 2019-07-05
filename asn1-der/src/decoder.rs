@@ -17,6 +17,7 @@ use self::{
     octet_string::OctetString,
 };
 
+/// Deserialize an instance of `T` from bytes of ASN.1 DER.
 pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
 where
     T: Deserialize<'a>,
@@ -27,6 +28,7 @@ where
     T::deserialize(&mut deserializer)
 }
 
+/// An untyped ASN.1 value.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Value<'a> {
     tag: Identifier,

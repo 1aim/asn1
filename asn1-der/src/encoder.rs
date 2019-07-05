@@ -24,6 +24,7 @@ where
     Ok(())
 }
 
+/// Serialize an instance of `T` as a ASN.1 DER byte vector.
 pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     let mut vec = Vec::new();
 

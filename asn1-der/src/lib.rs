@@ -1,9 +1,16 @@
+//! # ASN.1 Distingushed Encoding Rules (DER)
+//! Distingushed Encoding Rules are a superset of the ASN.1 Basic Encoding Rules
+//! (BER), designed to be canonical (An encoding where there is only a single
+//! way to encode a value) and for when you have all of the data needed to
+//! encode. DER is used in frequently in cryptography (X.509 certificates,
+//! PKCS#12).
 mod decoder;
 mod encoder;
-mod error;
+pub mod error;
 
 pub use decoder::from_slice;
 pub use encoder::to_vec;
+pub use error::Result;
 
 #[cfg(test)]
 mod tests {
