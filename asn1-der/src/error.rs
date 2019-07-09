@@ -1,17 +1,27 @@
+//! When serialising or deserialising ASN.1 goes wrong.
 use std::{error, fmt, io};
 
 use nom::Err;
 use serde::{de, ser};
 
+/// Alias for a `Result` with the error type `asn1_der::Error`.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// This type represents all possible errors that can occur when serialising or
+/// deserialising ASN.1.
 #[derive(Debug)]
 pub enum Error {
+    /// An unknown error from `serde`.
     Custom(String),
+    /// Incorrect length of content bytes for a provided ASN.1 type.
     IncorrectLength(String),
+    /// Failure to read or write bytes to an IO stream.
     Io(io::Error),
+    /// No enum variant found matching the tag when deserialising.
     NoVariantFound(usize),
+    /// Couldn't parse IO stream into a number.
     Number(std::num::ParseIntError),
+    /// Malformed ASN.1 DER.
     Parser(String),
 }
 

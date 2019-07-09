@@ -10,8 +10,8 @@
 //! the notation provides a language independent way to define protocol
 //! messages. The notation language also provides **extensibility** as a
 //! first-class citizen, allowing standards to be iterable, without breaking
-//! existing production application. Below are some examples of where ASN.1 is
-//! in use today.
+//! existing production applications. Below are some examples of areas where
+//! ASN.1 is in use today.
 //!
 //! * **Information sharing** — X.500 Directory & LDAP
 //! * **Security** — X.509 certificates, PKCS#12
@@ -29,7 +29,7 @@
 //! * [`asn1_der`] provides [`serde::{Deserialize, Serialize}`] implementations
 //! for ASN.1 DER (Distingushed Encoding Rules).
 //!
-//! * [`asn_notation`] provides a interface to an ASN.1 notation compiler.
+//! * [`asn1_notation`] provides a interface to an ASN.1 notation compiler.
 //! **Note:** The notation compiler is still a work in progress, and its use
 //! is **not currently recommended.**
 //!

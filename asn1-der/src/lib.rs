@@ -4,6 +4,7 @@
 //! way to encode a value) and for when you have all of the data needed to
 //! encode. DER is used in frequently in cryptography (X.509 certificates,
 //! PKCS#12).
+#![deny(missing_docs)]
 mod decoder;
 mod encoder;
 pub mod error;
