@@ -83,7 +83,7 @@ use serde::{
 pub struct BitString(BitVec);
 
 impl BitString {
-    /// Instantiate a new empty instance of `BitString`.
+    /// Instantiates a new empty instance of `BitString`.
     pub fn new() -> Self {
         Self::default()
     }
