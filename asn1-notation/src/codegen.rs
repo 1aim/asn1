@@ -18,6 +18,7 @@ pub trait Backend: Default {
     fn generate_value(&mut self, value: &Value) -> Result<String>;
     fn generate_value_assignment(&mut self, name: String, ty: Type, value: Value) -> Result<()>;
     fn generate_sequence(&mut self, name: &str, fields: &[ComponentType]) -> Result<String>;
+    fn generate_sequence_of(&mut self, name: &str, ty: &Type) -> Result<String>;
     fn generate_builtin(&mut self, builtin: &BuiltinType) -> Result<String>;
     fn write_prelude<W: Write>(&mut self, writer: &mut W) -> Result<()>;
     fn write_footer<W: Write>(&self, writer: &mut W) -> Result<()>;
@@ -28,7 +29,6 @@ pub struct Rust {
     consts: HashSet<Constant>,
     structs: Vec<Struct>,
     prelude: HashSet<Import>,
-    indentation: usize,
 }
 
 impl Backend for Rust {
@@ -53,6 +53,17 @@ impl Backend for Rust {
         self.structs.push(generated_struct);
 
         Ok(String::from(name))
+    }
+
+    fn generate_sequence_of(&mut self, name: &str, ty: &Type) -> Result<String> {
+        let inner_type = match ty.raw_type {
+            RawType::Referenced(ref reference) => {
+                &reference.item
+            }
+            _ => unimplemented!(),
+        };
+
+        Ok(format!("pub type {} = Vec<{}>;", name, inner_type))
     }
 
     fn generate_type(&mut self, ty: &Type) -> Result<String> {
@@ -83,7 +94,17 @@ impl Backend for Rust {
                 String::from("ObjectIdentifier")
             }
 
-            BuiltinType::OctetString => String::from("Vec<u8>"),
+            BuiltinType::OctetString => {
+                self.prelude.insert(Import::new(
+                    Visibility::Private,
+                    ["asn1", "types", "OctetString"]
+                        .into_iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                ));
+
+                String::from("ObjectIdentifier")
+            },
             BuiltinType::Integer(_) => String::from("isize"),
             ref builtin => {
                 warn!("UNKNOWN BUILTIN TYPE: {:?}", builtin);
@@ -96,9 +117,10 @@ impl Backend for Rust {
 
     fn write_prelude<W: Write>(&mut self, writer: &mut W) -> Result<()> {
         let prelude = mem::replace(&mut self.prelude, HashSet::new());
-        let consts = mem::replace(&mut self.consts, HashSet::new());
         writer.write(itertools::join(prelude.iter().map(ToString::to_string), "\n").as_bytes())?;
 
+        /*
+        let consts = mem::replace(&mut self.consts, HashSet::new());
         writer.write(
             itertools::join(
                 consts.into_iter().filter_map(|c| c.generate(self).ok()),
@@ -106,6 +128,7 @@ impl Backend for Rust {
             )
             .as_bytes(),
         )?;
+        */
         Ok(())
     }
 
@@ -146,7 +169,7 @@ impl<W: Write, B: Backend> CodeGenerator<W, B> {
     }
 
     pub fn generate(mut self) -> Result<W> {
-        let mut table = self.table;
+        let table = self.table;
 
         for (name, (ty, value)) in table.values.clone().into_iter() {
             self.backend.generate_value_assignment(name, ty, value)?;
@@ -156,6 +179,9 @@ impl<W: Write, B: Backend> CodeGenerator<W, B> {
             match &ty.raw_type {
                 RawType::Builtin(BuiltinType::Sequence(components)) => {
                     self.backend.generate_sequence(&name, &components)?;
+                }
+                RawType::Builtin(BuiltinType::SequenceOf(ty)) => {
+                    write!(self.writer, "{}\n", self.backend.generate_sequence_of(&name, &ty)?)?;
                 }
                 _ => {}
             }

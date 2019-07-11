@@ -12,12 +12,12 @@ use self::{codegen::*, parser::Parser, semantics::*};
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
-pub struct Asn1 {
+pub struct NotationCompiler {
     path: PathBuf,
     dependencies: Option<PathBuf>,
 }
 
-impl Asn1 {
+impl NotationCompiler {
     pub fn new<I: Into<PathBuf>>(path: I) -> Self {
         Self {
             path: path.into(),

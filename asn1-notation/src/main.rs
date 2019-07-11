@@ -1,6 +1,8 @@
 use clap::{clap_app, crate_description, crate_version};
 use log::{debug, LevelFilter};
 
+use asn1_notation::NotationCompiler;
+
 fn main() {
     let matches = clap_app!(casn1 =>
         (version: crate_version!())
@@ -32,7 +34,7 @@ fn main() {
 
     let directory = matches.value_of("dependencies").unwrap_or("./asn1");
 
-    let module = asn1_notation::Asn1::new(matches.value_of("input").unwrap())
+    let module = NotationCompiler::new(matches.value_of("input").unwrap())
         .dependencies(directory)
         .build()
         .unwrap_or_else(|e| panic!("{}", e));
