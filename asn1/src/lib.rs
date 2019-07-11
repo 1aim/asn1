@@ -1,12 +1,12 @@
 //! # Abstract Syntax Notation One (ASN.1)
 //! This crate is a collection of implementations for the ITU-T X.680–699 set of
-//! standards, also known as ASN.1. ASN.1 is divided between two areas. The
-//! notation language used to specify Protocol Data Units (PDUs), and the
+//! standards, also known as ASN.1. ASN.1 is divided between two areas: the
+//! notation language used to specify Protocol Data Units (PDUs) and the
 //! encoding/decoding rules for encoding the specification notation.
 //!
 //! ## Use cases of ASN.1
-//! ASN.1 is used in variety of applications, it's use is mainly in open
-//! standards for large organisations as ASN.1 itself is an open standard, and
+//! ASN.1 is used in variety of applications, it's main use is in open
+//! standards for large organisations, as ASN.1 itself is an open standard, and
 //! the notation provides a language independent way to define protocol
 //! messages. The notation language also provides **extensibility** as a
 //! first-class citizen, allowing standards to be iterable, without breaking
