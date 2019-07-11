@@ -73,9 +73,9 @@
 //! the encoded data. These guidelines use implicit tagging in the examples
 //! whenever it is legal to do so. This may, depending on the encoding rules,
 //! result in a compact representation, which is highly desirable in some
-//! applications. In other applications, compactness may be less important than,
+//! applications. In other applications compactness may be less important than,
 //! for example, the ability to carry out strong type-checking. In the latter
-//! case, explicit tagging can be used.
+//! case explicit tagging can be used.
 //! ```asn1
 //! CustomerRecord ::= SET {
 //!     name [0] IMPLICIT VisibleString,
@@ -100,11 +100,11 @@ pub enum Class {
 }
 
 /// An abstract representation of the identifier octets used in BER, CER, and
-/// DER to identify a encoded value.
+/// DER to identify an encoded value.
 ///
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Identifier {
-    /// The class of the identifier.
+    /// The class of the Identifier.
     pub class: Class,
     /// Whether the Identifier uses constructed or primitive encoding.
     pub is_constructed: bool,
