@@ -11,9 +11,123 @@ use serde::{
 };
 
 
-/// A representation of the `BIT STRING` ASN.1 data type. Uses `bit_vec::BitVec`
-/// internally. Please refer to the `BitVec` documentation for using
-/// `BitString`.
+/// A representation of the `BIT STRING` ASN.1 data type. `BitString` is
+/// a wrapper around the `bit_vec::BitVec` type. Please refer to the [`BitVec`]
+/// documentation for using `BitString` in Rust. The following is documentation
+/// on how to use a `BIT STRING` in ASN.1.
+///
+/// A bit string has a tag which is universal class, number 3.
+///
+/// The first bit in a bit string is called the leading bit. The final bit in a
+/// bit string is called the trailing bit.
+/// * **Note** — This terminology is used in specifying the value notation and
+/// in defining encoding rules.
+///
+/// [`BitVec`]: https://docs.rs/bit-vec/0.6.1/bit_vec/struct.BitVec.html
+///
+/// # Notation
+/// The following describes the notation used for defining `BIT STRING` types
+/// and values.
+///
+/// ## Type
+/// ```asn1-notation
+/// BitStringType ::=
+///     BIT STRING
+///   | BIT STRING "{" NamedBitList "}"
+///
+/// NamedBitList ::=
+///     NamedBit
+///   | NamedBitList "," NamedBit
+///
+/// NamedBit ::=
+///     identifier "(" number ")"
+///   | identifier "(" DefinedValue ")"
+/// ```
+/// The `DefinedValue` shall be a reference to a non-negative value of type
+/// integer.
+///
+/// The value of each `number` or `DefinedValue` appearing in the
+/// `NamedBitList` shall be different, and is the number of a distinguished
+/// bit in a bitstring value. The leading bit of the bit string is identified by
+/// the `number` zero, with succeeding bits having successive values.
+/// * **Note 1** — The order of the `NamedBit` production sequences in the
+/// `NamedBitList` is not significant.
+/// * **Note 2** — Since an `identifier` that
+/// appears within the `NamedBitList` cannot be used to specify the value
+/// associated with a `NamedBit`, the `DefinedValue` can never be misinterpreted
+/// as an `IntegerValue`. Therefore in the following case:
+/// ```asn1
+/// a INTEGER ::= 1
+/// T1 ::= INTEGER { a(2) }
+/// T2 ::= BIT STRING { a(3), b(a) }
+/// ```
+/// The last occurrence of `a` in `T2` denotes the value `1`, as it cannot be a
+/// reference to the second nor the third occurrence of `a`.
+///
+/// The presence of a `NamedBitList` has no effect on the set of abstract
+/// values of this type. Values containing 1 bits other than the named bits are
+/// permitted.
+///
+/// When a `NamedBitList` is used in defining a bitstring type ASN.1 encoding
+/// rules are free to add (or remove) arbitrarily any trailing 0 bits to (or
+/// from) values that are being encoded or decoded. Application designers should
+/// therefore ensure that different semantics are not associated with such
+/// values which differ only in the number of trailing 0 bits.
+///
+/// ## Value
+/// ```asn1-notation
+/// BitStringValue ::=
+///     bstring
+///   | hstring
+///   | "{" IdentifierList "}"
+///   | "{" "}"
+///   | CONTAINING Value
+///
+/// IdentifierList ::=
+///     identifier
+///   | IdentifierList "," identifier
+/// ```
+/// Each `identifier` in `BitStringValue` shall be the same as an `identifier`
+/// in the `BitStringType` production sequence with which the value
+/// is associated.
+///
+/// If the bit string has named bits, the `BitStringValue` notation denotes a
+/// bit string value with ones in the bit positions specified by the numbers
+/// corresponding to the `identifier`s, and with all other bits zero.
+/// * **Note** — For a `BitStringType` that has a `NamedBitList`, the `"{" "}"`
+///   production sequence in `BitStringValue` is used to denote the bit string
+///   which contains no one bits.
+///
+/// When using the `bstring` notation, the leading bit of the bitstring value is
+/// on the left, and the trailing bit of the bitstring value is on the right.
+///
+/// When using the `hstring` notation, the most significant bit of each
+/// hexadecimal digit corresponds to the leftmost bit in the bitstring.
+/// * **Note** — This notation does not, in any way, constrain the way encoding
+///   rules place a bitstring into octets for transfer.
+///
+/// The `hstring` notation shall not be used unless the bitstring value consists
+/// of a multiple of four bits. The following are alternative notations for the
+/// same bitstring value. If the type was defined using a `NamedBitList`, the
+/// (single) trailing zero does not form part of the value, which is thus 15
+/// bits in length. If the type was defined without a `NamedBitList`, the
+/// trailing zero does form part of the value, which is thus 16 bits in length.
+/// ```asn1
+/// 'A98A'H
+/// '1010100110001010'B
+/// ```
+///
+/// The `CONTAINING` alternative can only be used if there is a contents
+/// constraint on the bitstring type which includes CONTAINING. The `Value`
+/// shall then be value notation for a value of the `Type` in the
+/// `ContentsConstraint` (see Rec. ITU-T X.682 | ISO/IEC 8824-3, clause 11).
+/// * **Note** — This value notation can never appear in a subtype constraint
+/// because Rec. ITU-T X.682 | ISO/IEC 8824-3, clause 11.3 forbids further
+/// constraints after a `ContentsConstraint`, and the above text forbids its use
+/// unless the governor has a `ContentsConstraint`.
+///
+/// The `CONTAINING` alternative shall be used if there is a contents constraint
+/// on the bitstring type which does not containENCODED BY.
 ///
 /// # Example
 /// Use a bit string type to model binary data whose format and length are
@@ -27,10 +141,11 @@ use serde::{
 /// body1 G3FacsimilePage ::= '1101'B
 /// body2 G3FacsimilePage ::= '1101000'B
 /// ```
-/// **Note** that `body1` and `body2` are distinct abstract values because trailing
-/// 0 bits are significant (due to there being no "NamedBitList" in the
+/// * **Note** — that `body1` and `body2` are distinct abstract values because
+/// trailing 0 bits are significant (due to there being no `NamedBitList` in the
 /// definition of G3FacsimilePage).
-/// # Example
+///
+/// # Fixed size example
 /// Use a bit string type with a size constraint to model the values of a fixed
 /// sized bit field.
 /// ```asn1
@@ -39,7 +154,7 @@ use serde::{
 /// map2 BitField ::= '9A4'H
 /// map3 BitField ::= '1001101001'B -- Illegal - violates size constraint.
 /// ```
-/// # Example
+/// # Bit map example
 /// Use a bit string type to model the values of a bit map, an ordered
 /// collection of logical variables indicating whether a particular condition
 /// holds for each of a correspondingly ordered collection of objects.
@@ -52,10 +167,10 @@ use serde::{
 /// sunnyDaysLastWeek3 DaysOfTheWeek ::= '1101000'B
 /// sunnyDaysLastWeek4 DaysOfTheWeek ::= '11010000'B -- Illegal
 /// ```
-/// **Note** that if the bit string value is less than 7 bits long, then the
+/// * **Note** — that if the bit string value is less than 7 bits long, then the
 /// missing bits indicate a cloudy day for those days, hence the first three
 /// values above have the same abstract value.
-/// # Example
+/// # Fixed size bit map example
 /// Use a bit string type to model the values of a bit map, a fixed-size ordered
 /// collection of logical variables indicating whether a particular condition
 /// holds for each of a correspondingly ordered collection of objects.
@@ -68,7 +183,7 @@ use serde::{
 /// sunnyDaysLastWeek3 DaysOfTheWeek ::= '1101000'B
 /// sunnyDaysLastWeek4 DaysOfTheWeek ::= '11010000'B -- Illegal -- violates size constraint.
 /// ```
-/// **Note** that the first and third values have the same abstract value.
+/// * **Note** — that the first and third values have the same abstract value.
 /// # Example
 /// Use a bit string type with named bits to model the values of a collection of
 /// related logical variables.
@@ -77,7 +192,8 @@ use serde::{
 /// jane PersonalStatus ::= { married, employed, collegeGraduate }
 /// alice PersonalStatus ::= '110100'B
 /// ```
-/// **Note** that `jane` and `alice` have the same abstract values.
+/// * **Note** — that `jane` and `alice` have the same abstract values.
+///
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(rename="ASN.1#BitString")]
 pub struct BitString(BitVec);
