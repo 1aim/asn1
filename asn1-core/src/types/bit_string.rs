@@ -167,7 +167,7 @@ use serde::{
 /// sunnyDaysLastWeek3 DaysOfTheWeek ::= '1101000'B
 /// sunnyDaysLastWeek4 DaysOfTheWeek ::= '11010000'B -- Illegal
 /// ```
-/// * **Note** — that if the bit string value is less than 7 bits long, then the
+/// * **Note** — If the bit string value is less than 7 bits long, then the
 /// missing bits indicate a cloudy day for those days, hence the first three
 /// values above have the same abstract value.
 /// # Fixed size bit map example
