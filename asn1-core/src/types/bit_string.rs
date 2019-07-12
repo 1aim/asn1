@@ -184,7 +184,7 @@ use serde::{
 /// sunnyDaysLastWeek3 DaysOfTheWeek ::= '1101000'B
 /// sunnyDaysLastWeek4 DaysOfTheWeek ::= '11010000'B -- Illegal -- violates size constraint.
 /// ```
-/// * **Note** — that the first and third values have the same abstract value.
+/// * **Note** — The first and third values have the same abstract value.
 /// # Example
 /// Use a bit string type with named bits to model the values of a collection of
 /// related logical variables.
