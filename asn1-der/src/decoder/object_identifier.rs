@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use serde::de::{DeserializeSeed, SeqAccess, value::SeqDeserializer};
+use serde::de::{value::SeqDeserializer, DeserializeSeed, SeqAccess};
 
 /// An ObjectIdentifier deserializer
 pub(crate) struct ObjectIdentifier<'de> {
@@ -31,8 +31,7 @@ impl<'de> SeqAccess<'de> for ObjectIdentifier<'de> {
             buffer.push(number as u128);
         }
 
-        seed.deserialize(SeqDeserializer::new(buffer.into_iter())).map(Some)
+        seed.deserialize(SeqDeserializer::new(buffer.into_iter()))
+            .map(Some)
     }
 }
-
-

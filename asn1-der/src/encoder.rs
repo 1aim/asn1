@@ -1,5 +1,5 @@
-mod raw;
 mod object_identifier;
+mod raw;
 
 use std::{collections::VecDeque, io::Write};
 
@@ -9,10 +9,7 @@ use serde::{ser, Serialize};
 use crate::error::{Error, Result};
 use core::identifier::Identifier;
 
-use self::{
-    raw::RawSerializer,
-    object_identifier::ObjectIdentifierSerializer,
-};
+use self::{object_identifier::ObjectIdentifierSerializer, raw::RawSerializer};
 
 pub fn to_writer<W, T>(writer: W, value: &T) -> Result<()>
 where
@@ -252,6 +249,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
             "ASN.1#ObjectIdentifier" => {
                 self.set_tag(Identifier::OBJECT_IDENTIFIER);
             }
+            "ASN.1#BitString" => {
+                self.set_tag(Identifier::BIT_STRING);
+            }
             _ => {}
         }
 
@@ -337,10 +337,13 @@ impl<'a, W: Write> Sequence<'a, W> {
             Some(Identifier::OBJECT_IDENTIFIER) => {
                 SerializerKind::ObjectIdentifier(ObjectIdentifierSerializer::new(Vec::new()))
             }
+            Some(Identifier::BIT_STRING) => {
+                SerializerKind::BitString(RawSerializer::new(Vec::new()))
+            }
             _ => SerializerKind::Normal(Serializer::new(Vec::new())),
         };
 
-        Self { ser, sink, }
+        Self { ser, sink }
     }
 }
 
@@ -506,14 +509,16 @@ pub fn encode_tag<W: Write>(tag: Identifier, buffer: &mut W) -> Result<()> {
 }
 
 enum SerializerKind<W: Write> {
+    BitString(RawSerializer<W>),
     Normal(Serializer<W>),
-    OctetString(RawSerializer<W>),
     ObjectIdentifier(ObjectIdentifierSerializer<W>),
+    OctetString(RawSerializer<W>),
 }
 
 impl<W: Write> SerializerKind<W> {
     fn serialize<T: ser::Serialize + ?Sized>(&mut self, value: &T) -> Result<()> {
         match self {
+            SerializerKind::BitString(ser) => value.serialize(ser),
             SerializerKind::Normal(ser) => value.serialize(ser),
             SerializerKind::OctetString(ser) => value.serialize(ser),
             SerializerKind::ObjectIdentifier(ser) => value.serialize(ser),
@@ -522,6 +527,7 @@ impl<W: Write> SerializerKind<W> {
 
     fn output(self) -> Result<W> {
         match self {
+            SerializerKind::BitString(ser) => Ok(ser.output),
             SerializerKind::Normal(ser) => Ok(ser.output),
             SerializerKind::OctetString(ser) => Ok(ser.output),
             SerializerKind::ObjectIdentifier(ser) => ser.output(),
@@ -632,7 +638,8 @@ mod tests {
 
         let just_root: Vec<u8> = to_vec(&ObjectIdentifier::new(vec![1, 2]).unwrap()).unwrap();
         let itu: Vec<u8> = to_vec(&ObjectIdentifier::new(vec![2, 999, 3]).unwrap()).unwrap();
-        let rsa: Vec<u8> = to_vec(&ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap()).unwrap();
+        let rsa: Vec<u8> =
+            to_vec(&ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap()).unwrap();
 
         assert_eq!(&[0x6, 0x1, 0x2a][..], &*just_root);
         assert_eq!(&[0x6, 0x3, 0x88, 0x37, 0x03][..], &*itu);
@@ -650,7 +657,22 @@ mod tests {
         let some = Foo { a: 1, b: Some(2) };
         let none = Foo { a: 1, b: None };
 
-        assert_eq!(&[0x30, 3 * 2, 0x2, 0x1, 0x1, 0x2, 0x1, 0x2][..], &*to_vec(&some).unwrap());
+        assert_eq!(
+            &[0x30, 3 * 2, 0x2, 0x1, 0x1, 0x2, 0x1, 0x2][..],
+            &*to_vec(&some).unwrap()
+        );
         assert_eq!(&[0x30, 0x3, 0x2, 0x1, 0x1][..], &*to_vec(&none).unwrap());
+    }
+
+    #[test]
+    fn bit_string() {
+        use core::types::BitString;
+
+        let bitvec = BitString::from_bytes(&[0x0A, 0x3B, 0x5F, 0x29, 0x1C, 0xD0]);
+
+        assert_eq!(
+            &[0x3u8, 0x7, 0x04, 0x0A, 0x3B, 0x5F, 0x29, 0x1C, 0xD0][..],
+            &*to_vec(&bitvec).unwrap()
+        );
     }
 }

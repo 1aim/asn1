@@ -14,7 +14,11 @@ pub(crate) struct ObjectIdentifierSerializer<W> {
 
 impl<W: Write> ObjectIdentifierSerializer<W> {
     pub fn new(output: W) -> Self {
-        Self { output, first_components: Vec::new(), encoded_len: 0 }
+        Self {
+            output,
+            first_components: Vec::new(),
+            encoded_len: 0,
+        }
     }
 
     pub fn output(mut self) -> Result<W> {
@@ -106,7 +110,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut ObjectIdentifierSerializer<W> {
 
         match self.first_components.len() {
             0..=1 => self.first_components.push(v),
-            2 =>  {
+            2 => {
                 let first = self.first_components[0];
                 let second = self.first_components[1];
                 encode_component((first * 40) + second, &mut self.output)?;
@@ -236,4 +240,3 @@ impl<'a, W: Write> ser::Serializer for &'a mut ObjectIdentifierSerializer<W> {
         unreachable!()
     }
 }
-

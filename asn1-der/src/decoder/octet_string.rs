@@ -24,4 +24,3 @@ impl<'de> SeqAccess<'de> for OctetString<'de> {
             .map(Some)
     }
 }
-

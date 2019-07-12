@@ -57,9 +57,7 @@ impl Backend for Rust {
 
     fn generate_sequence_of(&mut self, name: &str, ty: &Type) -> Result<String> {
         let inner_type = match ty.raw_type {
-            RawType::Referenced(ref reference) => {
-                &reference.item
-            }
+            RawType::Referenced(ref reference) => &reference.item,
             _ => unimplemented!(),
         };
 
@@ -104,7 +102,7 @@ impl Backend for Rust {
                 ));
 
                 String::from("ObjectIdentifier")
-            },
+            }
             BuiltinType::Integer(_) => String::from("isize"),
             ref builtin => {
                 warn!("UNKNOWN BUILTIN TYPE: {:?}", builtin);
@@ -181,7 +179,11 @@ impl<W: Write, B: Backend> CodeGenerator<W, B> {
                     self.backend.generate_sequence(&name, &components)?;
                 }
                 RawType::Builtin(BuiltinType::SequenceOf(ty)) => {
-                    write!(self.writer, "{}\n", self.backend.generate_sequence_of(&name, &ty)?)?;
+                    write!(
+                        self.writer,
+                        "{}\n",
+                        self.backend.generate_sequence_of(&name, &ty)?
+                    )?;
                 }
                 _ => {}
             }

@@ -198,7 +198,10 @@ mod tests {
         let pkcs = ObjectIdentifier::new(vec![1, 2, 840, 113549, 1]).unwrap();
 
         assert_eq!(iso.clone(), from_slice(&to_vec(&iso).unwrap()).unwrap());
-        assert_eq!(us_ansi.clone(), from_slice(&to_vec(&us_ansi).unwrap()).unwrap());
+        assert_eq!(
+            us_ansi.clone(),
+            from_slice(&to_vec(&us_ansi).unwrap()).unwrap()
+        );
         assert_eq!(rsa.clone(), from_slice(&to_vec(&rsa).unwrap()).unwrap());
         assert_eq!(pkcs.clone(), from_slice(&to_vec(&pkcs).unwrap()).unwrap());
     }
@@ -222,5 +225,15 @@ mod tests {
 
         assert_eq!(some, from_slice(&to_vec(&some).unwrap()).unwrap());
         assert_eq!(none, from_slice(&to_vec(&none).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn bit_string_full() {
+        env_logger::init();
+        use core::types::BitString;
+
+        let bits = BitString::from_bytes(&[0x0A, 0x3B, 0x5F, 0x29, 0x1C, 0xD0]);
+
+        assert_eq!(bits, from_slice(&to_vec(&bits).unwrap()).unwrap());
     }
 }

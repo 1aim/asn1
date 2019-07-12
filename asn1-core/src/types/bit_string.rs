@@ -1,15 +1,12 @@
-// use std::{fmt, error::Error};
 use std::ops;
+use std::{error::Error, fmt};
 
 use bit_vec::BitVec;
 use serde::{
     self,
-    Deserialize,
-    // de::{ SeqAccess, Visitor, },
-    Serialize,
-    Serializer
+    de::{Deserializer, SeqAccess, Visitor},
+    Deserialize, Serialize, Serializer,
 };
-
 
 /// A representation of the `BIT STRING` ASN.1 data type. `BitString` is
 /// a wrapper around the `bit_vec::BitVec` type. Please refer to the [`BitVec`]
@@ -195,8 +192,7 @@ use serde::{
 /// ```
 /// * **Note** — that `jane` and `alice` have the same abstract values.
 ///
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
-#[serde(rename="ASN.1#BitString")]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct BitString(BitVec);
 
 impl BitString {
@@ -231,26 +227,21 @@ impl From<BitVec> for BitString {
     }
 }
 
-/*
 struct BitStringVisitor;
 
 impl<'de> Visitor<'de> for BitStringVisitor {
-    type Value = Vec<u8>;
+    type Value = BitVec;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a bit string")
     }
 
-    fn visit_u8<E: Error>(self, v: u8) -> Result<Self::Value, E> {
-        unimplemented!()
-    }
-
     fn visit_bytes<E: Error>(self, v: &[u8]) -> Result<Self::Value, E> {
-        Ok(v.to_vec())
+        Ok(BitVec::from_bytes(v))
     }
 
     fn visit_borrowed_bytes<E: Error>(self, v: &[u8]) -> Result<Self::Value, E> {
-        Ok(v.to_vec())
+        Ok(BitVec::from_bytes(v))
     }
 
     fn visit_seq<S: SeqAccess<'de>>(self, mut visitor: S) -> Result<Self::Value, S::Error> {
@@ -259,16 +250,23 @@ impl<'de> Visitor<'de> for BitStringVisitor {
             values.push(value);
         }
 
-        Ok(values)
+        Ok(BitVec::from_bytes(&values))
     }
 }
-*/
+
+impl<'de> Deserialize<'de> for BitString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes = deserializer.deserialize_newtype_struct("ASN.1#BitString", BitStringVisitor)?;
+
+        Ok(BitString(bytes))
+    }
+}
 
 impl Serialize for BitString {
-    fn serialize<S>(
-        &self,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {

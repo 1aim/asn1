@@ -1,6 +1,7 @@
-pub(crate) mod parser;
+mod bit_string;
 mod object_identifier;
 mod octet_string;
+pub(crate) mod parser;
 
 use std::{num, result};
 
@@ -10,12 +11,11 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-use crate::error::{Error, Result};
 use self::{
+    bit_string::BitString, object_identifier::ObjectIdentifier, octet_string::OctetString,
     parser::*,
-    object_identifier::ObjectIdentifier,
-    octet_string::OctetString,
 };
+use crate::error::{Error, Result};
 
 /// Deserialize an instance of `T` from bytes of ASN.1 DER.
 pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
@@ -101,12 +101,12 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             Identifier::EOC => return Err(Error::Custom("Unexpected End Of contents.".into())),
             Identifier::BOOL => self.deserialize_bool(visitor),
             Identifier::INTEGER => self.deserialize_i64(visitor),
-            Identifier::BIT_STRING => self.deserialize_newtype_struct("BitString", visitor),
+            Identifier::BIT_STRING => self.deserialize_newtype_struct("ASN.1#BitString", visitor),
             Identifier::OCTET_STRING => self.deserialize_bytes(visitor),
             Identifier::NULL => self.deserialize_unit(visitor),
             Identifier::SEQUENCE => self.deserialize_seq(visitor),
             Identifier::OBJECT_IDENTIFIER => {
-                self.deserialize_newtype_struct("ObjectIdentifier", visitor)
+                self.deserialize_newtype_struct("ASN.1#ObjectIdentifier", visitor)
             }
             // Identifier::REAL,
             // Identifier::ENUMERATED => self.deserialize_,
@@ -205,7 +205,11 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising option.");
 
-        let is_none = if self.peek_at_identifier().map(|i| i == Identifier::NULL).unwrap_or(false) {
+        let is_none = if self
+            .peek_at_identifier()
+            .map(|i| i == Identifier::NULL)
+            .unwrap_or(false)
+        {
             self.parse_value()?;
             true
         } else {
@@ -219,11 +223,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         }
     }
 
-    fn deserialize_unit_struct<V: Visitor<'de>>(
-        self,
-        _name: &str,
-        visitor: V,
-    ) -> Result<V::Value> {
+    fn deserialize_unit_struct<V: Visitor<'de>>(self, _name: &str, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising unit struct.");
         self.deserialize_unit(visitor)
     }
@@ -233,18 +233,26 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         name: &str,
         visitor: V,
     ) -> Result<V::Value> {
-        log::trace!("Deserialising newtype struct {:?}.", name);
-
         match name {
             "ASN.1#OctetString" => {
+                log::trace!("Deserialising OCTET STRING.");
                 let value = self.parse_value()?;
                 visitor.visit_seq(OctetString::new(value.contents))
             }
             "ASN.1#ObjectIdentifier" => {
+                log::trace!("Deserialising OBJECT IDENTIFIER.");
                 let value = self.parse_value()?;
                 visitor.visit_seq(ObjectIdentifier::new(value.contents))
             }
-            _ => visitor.visit_newtype_struct(self),
+            "ASN.1#BitString" => {
+                log::trace!("Deserialising BIT STRING.");
+                let value = self.parse_value()?;
+                visitor.visit_seq(BitString::new(value.contents))
+            }
+            name => {
+                log::trace!("Deserialising newtype struct {:?}.", name);
+                visitor.visit_newtype_struct(self)
+            }
         }
     }
 
