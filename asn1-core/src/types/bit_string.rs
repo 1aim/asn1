@@ -170,6 +170,7 @@ use serde::{
 /// * **Note** — If the bit string value is less than 7 bits long, then the
 /// missing bits indicate a cloudy day for those days, hence the first three
 /// values above have the same abstract value.
+///
 /// # Fixed size bit map example
 /// Use a bit string type to model the values of a bit map, a fixed-size ordered
 /// collection of logical variables indicating whether a particular condition
