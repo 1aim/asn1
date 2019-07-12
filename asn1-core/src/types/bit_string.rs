@@ -18,8 +18,8 @@ use serde::{
 ///
 /// A bit string has a tag which is universal class, number 3.
 ///
-/// The first bit in a bit string is called the leading bit. The final bit in a
-/// bit string is called the trailing bit.
+/// The first and final bits in a bit string are called the leading and trailing
+/// bits respectively.
 /// * **Note** — This terminology is used in specifying the value notation and
 /// in defining encoding rules.
 ///
