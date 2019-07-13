@@ -1,10 +1,11 @@
 mod object_identifier;
 mod bit_string;
-mod raw;
+mod bytes;
 
-use std::{collections::VecDeque, io::Write};
+use std::io::Write;
 
 use log::debug;
+use num_bigint::ToBigInt;
 use serde::{ser, Serialize};
 
 use crate::error::{Error, Result};
@@ -13,7 +14,7 @@ use core::identifier::Identifier;
 use self::{
     bit_string::BitStringSerializer,
     object_identifier::ObjectIdentifierSerializer,
-    raw::OctetStringSerializer
+    bytes::ByteSerializer
 };
 
 pub fn to_writer<W, T>(writer: W, value: &T) -> Result<()>
@@ -86,7 +87,8 @@ impl<W: Write> Serializer<W> {
             .tag
             .take()
             .ok_or(Error::Custom(String::from("no tag present.")))?;
-        encode_tag(tag, &mut self.output)?;
+
+        self.encode_tag(tag)?;
 
         if original_length <= 127 {
             self.output.write(&[original_length as u8])?;
@@ -107,6 +109,42 @@ impl<W: Write> Serializer<W> {
         Ok(())
     }
 
+    fn encode_tag(&mut self, tag: Identifier) -> Result<()> {
+        let mut tag_byte = tag.class as u8;
+        let mut tag_number = tag.tag;
+
+        // Constructed is a single bit.
+        tag_byte <<= 1;
+        if tag.is_constructed {
+            tag_byte |= 1;
+        }
+
+        // Identifier number is five bits
+        tag_byte <<= 5;
+
+        if tag_number >= 0x1f {
+            tag_byte |= 0x1f;
+            self.output.write(&[tag_byte])?;
+
+            while tag_number != 0 {
+                let mut encoded_number: u8 = (tag_number & 0x7f) as u8;
+                tag_number >>= 7;
+
+                // Fill the last bit unless we're at the last bit.
+                if tag_number != 0 {
+                    encoded_number |= 0x80;
+                }
+
+                self.output.write(&[encoded_number])?;
+            }
+        } else {
+            tag_byte |= tag_number as u8;
+            self.output.write(&[tag_byte])?;
+        }
+
+        Ok(())
+    }
+
     fn encode_bool(&mut self, v: bool) -> Result<()> {
         let v = if v { 0xff } else { 0 };
 
@@ -114,24 +152,9 @@ impl<W: Write> Serializer<W> {
         self.encode(&[v])
     }
 
-    fn encode_integer(&mut self, mut value: u128) -> Result<()> {
-        let mut contents = VecDeque::new();
-
-        if value != 0 {
-            if value <= u8::max_value() as u128 {
-                contents.push_front(value as u8);
-            } else {
-                while value != 0 {
-                    contents.push_front(value as u8);
-                    value = value.wrapping_shr(8);
-                }
-            }
-        } else {
-            contents.push_front(0);
-        }
-
+    fn encode_integer<N: ToBigInt>(&mut self, value: N) -> Result<()> {
         self.set_tag(Identifier::INTEGER);
-        self.encode(&Vec::from(contents))
+        self.encode(&value.to_bigint().unwrap().to_signed_bytes_be())
     }
 }
 
@@ -153,39 +176,39 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok> {
-        self.serialize_i128(i128::from(v))
+        self.encode_integer(v)
     }
 
     fn serialize_i16(self, v: i16) -> Result<()> {
-        self.serialize_i128(i128::from(v))
+        self.encode_integer(v)
     }
 
     fn serialize_i32(self, v: i32) -> Result<()> {
-        self.serialize_i128(i128::from(v))
+        self.encode_integer(v)
     }
 
     fn serialize_i64(self, v: i64) -> Result<()> {
-        self.serialize_i128(i128::from(v))
+        self.encode_integer(v)
     }
 
     fn serialize_i128(self, v: i128) -> Result<()> {
-        self.encode_integer(v as u128)
+        self.encode_integer(v)
     }
 
     fn serialize_u8(self, v: u8) -> Result<()> {
-        self.serialize_u128(u128::from(v))
+        self.encode_integer(v)
     }
 
     fn serialize_u16(self, v: u16) -> Result<()> {
-        self.serialize_u128(u128::from(v))
+        self.encode_integer(v)
     }
 
     fn serialize_u32(self, v: u32) -> Result<()> {
-        self.serialize_u128(u128::from(v))
+        self.encode_integer(v)
     }
 
     fn serialize_u64(self, v: u64) -> Result<()> {
-        self.serialize_u128(u128::from(v))
+        self.encode_integer(v)
     }
 
     fn serialize_u128(self, v: u128) -> Result<()> {
@@ -256,6 +279,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
             }
             "ASN.1#BitString" => {
                 self.set_tag(Identifier::BIT_STRING);
+            }
+            "ASN.1#Integer" => {
+                self.set_tag(Identifier::INTEGER);
             }
             _ => {}
         }
@@ -337,13 +363,16 @@ impl<'a, W: Write> Sequence<'a, W> {
     fn new(ser: &'a mut Serializer<W>) -> Self {
         let sink = match ser.tag {
             Some(Identifier::OCTET_STRING) => {
-                SerializerKind::OctetString(OctetStringSerializer::new())
+                SerializerKind::OctetString(ByteSerializer::new())
             }
             Some(Identifier::OBJECT_IDENTIFIER) => {
                 SerializerKind::ObjectIdentifier(ObjectIdentifierSerializer::new())
             }
             Some(Identifier::BIT_STRING) => {
                 SerializerKind::BitString(BitStringSerializer::new())
+            }
+            Some(Identifier::INTEGER) => {
+                SerializerKind::Integer(ByteSerializer::new())
             }
             _ => SerializerKind::Normal(Serializer::new(Vec::new())),
         };
@@ -477,56 +506,22 @@ impl<'a, W: Write> ser::SerializeStructVariant for Sequence<'a, W> {
     }
 }
 
-pub fn encode_tag<W: Write>(tag: Identifier, buffer: &mut W) -> Result<()> {
-    let mut tag_byte = tag.class as u8;
-    let mut tag_number = tag.tag;
-
-    // Constructed is a single bit.
-    tag_byte <<= 1;
-    if tag.is_constructed {
-        tag_byte |= 1;
-    }
-
-    // Identifier number is five bits
-    tag_byte <<= 5;
-
-    if tag_number >= 0x1f {
-        tag_byte |= 0x1f;
-        buffer.write(&[tag_byte])?;
-
-        while tag_number != 0 {
-            let mut encoded_number: u8 = (tag_number & 0x7f) as u8;
-            tag_number >>= 7;
-
-            // Fill the last bit unless we're at the last bit.
-            if tag_number != 0 {
-                encoded_number |= 0x80;
-            }
-
-            buffer.write(&[encoded_number])?;
-        }
-    } else {
-        tag_byte |= tag_number as u8;
-        buffer.write(&[tag_byte])?;
-    }
-
-    Ok(())
-}
-
 enum SerializerKind {
     BitString(BitStringSerializer),
+    Integer(ByteSerializer),
     Normal(Serializer<Vec<u8>>),
     ObjectIdentifier(ObjectIdentifierSerializer),
-    OctetString(OctetStringSerializer),
+    OctetString(ByteSerializer),
 }
 
 impl SerializerKind {
     fn serialize<T: ser::Serialize + ?Sized>(&mut self, value: &T) -> Result<()> {
         match self {
             SerializerKind::BitString(ser) => value.serialize(ser),
+            SerializerKind::Integer(ser) => value.serialize(ser),
             SerializerKind::Normal(ser) => value.serialize(ser),
-            SerializerKind::OctetString(ser) => value.serialize(ser),
             SerializerKind::ObjectIdentifier(ser) => value.serialize(ser),
+            SerializerKind::OctetString(ser) => value.serialize(ser),
         }
     }
 
@@ -537,6 +532,7 @@ impl SerializerKind {
                 ser.output
             },
             SerializerKind::Normal(ser) => ser.output,
+            SerializerKind::Integer(ser) => ser.output,
             SerializerKind::OctetString(ser) => ser.output,
             SerializerKind::ObjectIdentifier(ser) => ser.output,
         }
@@ -545,7 +541,7 @@ impl SerializerKind {
 
 #[cfg(test)]
 mod tests {
-    use core::types::OctetString;
+    use core::types::*;
     use serde_derive::{Deserialize, Serialize};
 
     use super::*;
@@ -554,6 +550,14 @@ mod tests {
     fn bool() {
         assert_eq!(&[1, 1, 255][..], &*to_vec(&true).unwrap());
         assert_eq!(&[1, 1, 0][..], &*to_vec(&false).unwrap());
+    }
+
+    #[test]
+    fn integer() {
+        let small_integer = Integer::from(5);
+        let multi_byte_integer = Integer::from(0xffff);
+        assert_eq!(&[2, 1, 5][..], &*to_vec(&small_integer).unwrap());
+        assert_eq!(&[2, 3, 0, 0xff, 0xff][..], &*to_vec(&multi_byte_integer).unwrap());
     }
 
     #[test]

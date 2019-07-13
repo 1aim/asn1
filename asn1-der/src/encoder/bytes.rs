@@ -7,17 +7,17 @@ use crate::error::{Error, Result};
 
 /// Serializer used solely to encode octet strings properly.
 #[derive(Default)]
-pub(crate) struct OctetStringSerializer {
+pub(crate) struct ByteSerializer {
     pub output: Vec<u8>,
 }
 
-impl OctetStringSerializer {
+impl ByteSerializer {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<'a> ser::Serializer for &'a mut OctetStringSerializer {
+impl<'a> ser::Serializer for &'a mut ByteSerializer {
     type Ok = ();
 
     type Error = Error;

@@ -19,8 +19,8 @@ pub enum Error {
     Io(io::Error),
     /// No enum variant found matching the tag when deserialising.
     NoVariantFound(usize),
-    /// Couldn't parse IO stream into a number.
-    Number(std::num::ParseIntError),
+    /// Couldn't cast big integer down to primitive numeric.
+    IntegerOverflow(String),
     /// Malformed ASN.1 DER.
     Parser(String),
 }
@@ -41,15 +41,13 @@ impl error::Error for Error {}
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::error::Error as _;
-
         match self {
             Error::Custom(msg) => write!(f, "Unknown Error: {}", msg),
             Error::IncorrectLength(kind) => write!(f, "Incorrect length for {}", kind),
             Error::Io(error) => write!(f, "IO: {}", error),
             Error::NoVariantFound(index) => write!(f, "No variant found with index '{}'.", index),
             Error::Parser(msg) => write!(f, "Parsing: {}", msg),
-            Error::Number(error) => write!(f, "Number: {}", error.description()),
+            Error::IntegerOverflow(number) => write!(f, "Couldn't cast big int to {}", number),
         }
     }
 }
@@ -57,12 +55,6 @@ impl fmt::Display for Error {
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
         Error::Io(error)
-    }
-}
-
-impl From<std::num::ParseIntError> for Error {
-    fn from(error: std::num::ParseIntError) -> Self {
-        Error::Number(error)
     }
 }
 

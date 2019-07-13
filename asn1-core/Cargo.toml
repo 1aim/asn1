@@ -9,3 +9,4 @@ edition = "2018"
 serde = { version = "1", features = ["derive"] }
 failure = "0.1.5"
 bit-vec = "0.6"
+num-bigint = "0.2.2"

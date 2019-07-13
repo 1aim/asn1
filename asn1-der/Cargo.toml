@@ -12,6 +12,7 @@ log = "0.4.6"
 nom = "5"
 serde = "1.0.92"
 num-traits = "0.2.8"
+num-bigint = "0.2.2"
 
 [dev-dependencies]
 serde = "1.0.92"

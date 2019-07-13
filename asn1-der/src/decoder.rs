@@ -6,6 +6,8 @@ pub(crate) mod parser;
 use std::{num, result};
 
 use core::identifier::Identifier;
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 use serde::{
     de::{self, Deserialize, DeserializeSeed, EnumAccess, SeqAccess, VariantAccess, Visitor},
     forward_to_deserialize_any,
@@ -80,16 +82,10 @@ impl<'de> Deserializer<'de> {
         }
     }
 
-    fn parse_integer<T: FromStrRadix>(&mut self) -> Result<T> {
+    fn parse_integer(&mut self) -> Result<BigInt> {
         let value = self.parse_value()?;
 
-        let mut radix_str = String::with_capacity(value.contents.len() * 8);
-
-        for byte in value.contents {
-            radix_str.push_str(&format!("{:08b}", byte));
-        }
-
-        Ok(T::from_str_radix(&radix_str, 2)?)
+        Ok(BigInt::from_signed_bytes_be(&value.contents))
     }
 }
 
@@ -122,52 +118,92 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i8.");
-        visitor.visit_i8(self.parse_integer()?)
+        let value = self.parse_integer()?
+                       .to_i8()
+                       .ok_or_else(|| Error::IntegerOverflow("i8".into()))?;
+
+        visitor.visit_i8(value)
     }
 
     fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i16.");
-        visitor.visit_i16(self.parse_integer()?)
+        let value = self.parse_integer()?
+                        .to_i16()
+                        .ok_or_else(|| Error::IntegerOverflow("i16".into()))?;
+
+        visitor.visit_i16(value)
     }
 
     fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i32.");
-        visitor.visit_i32(self.parse_integer()?)
+        let value = self.parse_integer()?
+                        .to_i32()
+                        .ok_or_else(|| Error::IntegerOverflow("i32".into()))?;
+
+        visitor.visit_i32(value)
     }
 
     fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i64.");
-        visitor.visit_i64(self.parse_integer()?)
+        let value = self.parse_integer()?
+                        .to_i64()
+                        .ok_or_else(|| Error::IntegerOverflow("i64".into()))?;
+
+        visitor.visit_i64(value)
     }
 
     fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i128.");
-        visitor.visit_i128(self.parse_integer()?)
+        let value = self.parse_integer()?
+                        .to_i128()
+                        .ok_or_else(|| Error::IntegerOverflow("i128".into()))?;
+
+        visitor.visit_i128(value)
     }
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u8.");
-        visitor.visit_u8(self.parse_integer()?)
+        let value = self.parse_integer()?
+                        .to_u8()
+                        .ok_or_else(|| Error::IntegerOverflow("u8".into()))?;
+
+        visitor.visit_u8(value)
     }
 
     fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u16.");
-        visitor.visit_u16(self.parse_integer()?)
+        let value = self.parse_integer()?
+                        .to_u16()
+                        .ok_or_else(|| Error::IntegerOverflow("u16".into()))?;
+
+        visitor.visit_u16(value)
     }
 
     fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u32.");
-        visitor.visit_u32(self.parse_integer()?)
-    }
+        let value = self.parse_integer()?
+                        .to_u32()
+                        .ok_or_else(|| Error::IntegerOverflow("u32".into()))?;
+
+        visitor.visit_u32(value)
+}
 
     fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u64.");
-        visitor.visit_u64(self.parse_integer()?)
+        let value = self.parse_integer()?
+                        .to_u64()
+                        .ok_or_else(|| Error::IntegerOverflow("u64".into()))?;
+
+        visitor.visit_u64(value)
     }
 
     fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u128.");
-        visitor.visit_u128(self.parse_integer()?)
+        let value = self.parse_integer()?
+                        .to_u128()
+                        .ok_or_else(|| Error::IntegerOverflow("u128".into()))?;
+
+        visitor.visit_u128(value)
     }
 
     fn deserialize_f32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
