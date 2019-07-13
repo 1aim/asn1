@@ -270,17 +270,7 @@ impl Serialize for BitString {
     where
         S: Serializer,
     {
-        let mut bytes = self.0.to_bytes();
-
-        if let Some(last) = bytes.last() {
-            let zeroes = last.trailing_zeros();
-            bytes.insert(0, zeroes as u8);
-        } else {
-            // If there is no last, then the vec is empty and we put in a single
-            // zero octet. (X.690 8.6.2.3).
-            bytes.push(0);
-        }
-
+        let bytes = self.0.to_bytes();
         serializer.serialize_newtype_struct("ASN.1#BitString", &bytes)
     }
 }

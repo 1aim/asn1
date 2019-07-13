@@ -5,19 +5,20 @@ use serde::{
 
 use crate::error::{Error, Result};
 
-/// Serializer used solely to encode octet strings properly.
+/// Serializer used solely to encode bit strings properly.
 #[derive(Default)]
-pub(crate) struct OctetStringSerializer {
+pub(crate) struct BitStringSerializer {
     pub output: Vec<u8>,
+    pub last: u8,
 }
 
-impl OctetStringSerializer {
+impl BitStringSerializer {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<'a> ser::Serializer for &'a mut OctetStringSerializer {
+impl<'a> ser::Serializer for &'a mut BitStringSerializer {
     type Ok = ();
 
     type Error = Error;
@@ -31,6 +32,7 @@ impl<'a> ser::Serializer for &'a mut OctetStringSerializer {
     type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
 
     fn serialize_u8(self, v: u8) -> Result<()> {
+        self.last = v;
         self.output.push(v);
         Ok(())
     }
@@ -65,3 +67,4 @@ impl<'a> ser::Serializer for &'a mut OctetStringSerializer {
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> { unreachable!() }
     fn serialize_struct_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize,) -> Result<Self::SerializeStructVariant> { unreachable!() }
 }
+

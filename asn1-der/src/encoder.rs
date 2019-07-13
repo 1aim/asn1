@@ -1,4 +1,5 @@
 mod object_identifier;
+mod bit_string;
 mod raw;
 
 use std::{collections::VecDeque, io::Write};
@@ -9,7 +10,11 @@ use serde::{ser, Serialize};
 use crate::error::{Error, Result};
 use core::identifier::Identifier;
 
-use self::{object_identifier::ObjectIdentifierSerializer, raw::RawSerializer};
+use self::{
+    bit_string::BitStringSerializer,
+    object_identifier::ObjectIdentifierSerializer,
+    raw::OctetStringSerializer
+};
 
 pub fn to_writer<W, T>(writer: W, value: &T) -> Result<()>
 where
@@ -325,20 +330,20 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
 pub struct Sequence<'a, W: Write> {
     ser: &'a mut Serializer<W>,
-    sink: SerializerKind<Vec<u8>>,
+    sink: SerializerKind,
 }
 
 impl<'a, W: Write> Sequence<'a, W> {
     fn new(ser: &'a mut Serializer<W>) -> Self {
         let sink = match ser.tag {
             Some(Identifier::OCTET_STRING) => {
-                SerializerKind::OctetString(RawSerializer::new(Vec::new()))
+                SerializerKind::OctetString(OctetStringSerializer::new())
             }
             Some(Identifier::OBJECT_IDENTIFIER) => {
-                SerializerKind::ObjectIdentifier(ObjectIdentifierSerializer::new(Vec::new()))
+                SerializerKind::ObjectIdentifier(ObjectIdentifierSerializer::new())
             }
             Some(Identifier::BIT_STRING) => {
-                SerializerKind::BitString(RawSerializer::new(Vec::new()))
+                SerializerKind::BitString(BitStringSerializer::new())
             }
             _ => SerializerKind::Normal(Serializer::new(Vec::new())),
         };
@@ -362,7 +367,7 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
         self.ser.tag = self.ser.tag.or(Some(Identifier::SEQUENCE));
         self.ser.constructed = false;
 
-        let contents = self.sink.output()?;
+        let contents = self.sink.output();
 
         self.ser.encode(&contents)
     }
@@ -508,14 +513,14 @@ pub fn encode_tag<W: Write>(tag: Identifier, buffer: &mut W) -> Result<()> {
     Ok(())
 }
 
-enum SerializerKind<W: Write> {
-    BitString(RawSerializer<W>),
-    Normal(Serializer<W>),
-    ObjectIdentifier(ObjectIdentifierSerializer<W>),
-    OctetString(RawSerializer<W>),
+enum SerializerKind {
+    BitString(BitStringSerializer),
+    Normal(Serializer<Vec<u8>>),
+    ObjectIdentifier(ObjectIdentifierSerializer),
+    OctetString(OctetStringSerializer),
 }
 
-impl<W: Write> SerializerKind<W> {
+impl SerializerKind {
     fn serialize<T: ser::Serialize + ?Sized>(&mut self, value: &T) -> Result<()> {
         match self {
             SerializerKind::BitString(ser) => value.serialize(ser),
@@ -525,12 +530,15 @@ impl<W: Write> SerializerKind<W> {
         }
     }
 
-    fn output(self) -> Result<W> {
+    fn output(self) -> Vec<u8> {
         match self {
-            SerializerKind::BitString(ser) => Ok(ser.output),
-            SerializerKind::Normal(ser) => Ok(ser.output),
-            SerializerKind::OctetString(ser) => Ok(ser.output),
-            SerializerKind::ObjectIdentifier(ser) => ser.output(),
+            SerializerKind::BitString(mut ser) => {
+                ser.output.insert(0, ser.last.trailing_zeros() as u8);
+                ser.output
+            },
+            SerializerKind::Normal(ser) => ser.output,
+            SerializerKind::OctetString(ser) => ser.output,
+            SerializerKind::ObjectIdentifier(ser) => ser.output,
         }
     }
 }
