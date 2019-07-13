@@ -172,87 +172,108 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     type SerializeStructVariant = Sequence<'a, W>;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
+        log::trace!("Serializing bool.");
         self.encode_bool(v)
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok> {
+        log::trace!("Serializing i8.");
         self.encode_integer(v)
     }
 
     fn serialize_i16(self, v: i16) -> Result<()> {
+        log::trace!("Serializing i16.");
         self.encode_integer(v)
     }
 
     fn serialize_i32(self, v: i32) -> Result<()> {
+        log::trace!("Serializing i32.");
         self.encode_integer(v)
     }
 
     fn serialize_i64(self, v: i64) -> Result<()> {
+        log::trace!("Serializing i64.");
         self.encode_integer(v)
     }
 
     fn serialize_i128(self, v: i128) -> Result<()> {
+        log::trace!("Serializing i128.");
         self.encode_integer(v)
     }
 
     fn serialize_u8(self, v: u8) -> Result<()> {
+        log::trace!("Serializing u8.");
         self.encode_integer(v)
     }
 
     fn serialize_u16(self, v: u16) -> Result<()> {
+        log::trace!("Serializing u16.");
         self.encode_integer(v)
     }
 
     fn serialize_u32(self, v: u32) -> Result<()> {
+        log::trace!("Serializing u32.");
         self.encode_integer(v)
     }
 
     fn serialize_u64(self, v: u64) -> Result<()> {
+        log::trace!("Serializing u64.");
         self.encode_integer(v)
     }
 
     fn serialize_u128(self, v: u128) -> Result<()> {
+        log::trace!("Serializing u128.");
         self.encode_integer(v)
     }
 
     fn serialize_f32(self, v: f32) -> Result<()> {
+        log::trace!("Serializing f32.");
         self.serialize_f64(f64::from(v))
     }
 
     fn serialize_f64(self, _v: f64) -> Result<()> {
+        log::trace!("Serializing f64.");
         unimplemented!()
     }
 
     fn serialize_char(self, v: char) -> Result<()> {
+        log::trace!("Serializing char.");
         self.serialize_str(&v.to_string())
     }
 
     fn serialize_str(self, v: &str) -> Result<()> {
+        log::trace!("Serializing str.");
         self.set_tag(Identifier::UNIVERSAL_STRING);
         self.encode(v.as_bytes())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
+        log::trace!("Serializing bytes.");
         self.set_tag(Identifier::OCTET_STRING);
         self.encode(v)
     }
 
     fn serialize_none(self) -> Result<()> {
-        self.serialize_unit()
+        log::trace!("Serializing none.");
+        Ok(())
     }
 
     fn serialize_some<T>(self, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
+        log::trace!("Serializing some.");
         value.serialize(self)
     }
 
     fn serialize_unit(self) -> Result<()> {
-        Ok(())
+        log::trace!("Serializing unit.");
+        self.set_tag(Identifier::NULL);
+        self.encode(&[])
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
+        log::trace!("Serializing unit struct.");
         self.serialize_unit()
     }
 
@@ -262,8 +283,14 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         variant_index: u32,
         _variant: &'static str,
     ) -> Result<()> {
-        self.set_tag(Identifier::from_context(self.constructed, variant_index));
-        self.encode(&[])
+        log::trace!("Serializing unit variant.");
+        if self.tag.map(|i| i == Identifier::ENUMERATED).unwrap_or(false) {
+            self.encode(&variant_index.to_bigint().unwrap().to_signed_bytes_be())
+        } else {
+            self.set_tag(Identifier::from_context(self.constructed, variant_index));
+            self.encode(&[])
+        }
+
     }
 
     fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<()>
@@ -272,18 +299,28 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     {
         match name {
             "ASN.1#OctetString" => {
+                log::trace!("Serializing OCTET STRING.");
                 self.set_tag(Identifier::OCTET_STRING);
             }
             "ASN.1#ObjectIdentifier" => {
+                log::trace!("Serializing OBJECT IDENTIFIER.");
                 self.set_tag(Identifier::OBJECT_IDENTIFIER);
             }
             "ASN.1#BitString" => {
+                log::trace!("Serializing BIT STRING.");
                 self.set_tag(Identifier::BIT_STRING);
             }
             "ASN.1#Integer" => {
+                log::trace!("Serializing INTEGER.");
                 self.set_tag(Identifier::INTEGER);
             }
-            _ => {}
+            "ASN.1#Enumerated" => {
+                log::trace!("Serializing ENUMERATED.");
+                self.set_tag(Identifier::ENUMERATED);
+            }
+            name => {
+                log::trace!("Serializing {}.", name);
+            }
         }
 
         value.serialize(self)
@@ -291,7 +328,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
     fn serialize_newtype_variant<T>(
         self,
-        _name: &'static str,
+        name: &'static str,
         variant_index: u32,
         _variant: &'static str,
         value: &T,
@@ -299,6 +336,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     where
         T: ?Sized + Serialize,
     {
+        log::trace!("Serializing {}.", name);
         let ser = Serializer::serialize_to_vec(value, true)?;
         let is_constructed = ser.tag.map(|t| t.is_constructed).unwrap_or(false);
         let variant_tag = Identifier::from_context(is_constructed, variant_index);
@@ -307,10 +345,12 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        log::trace!("Serializing seq");
         Ok(Sequence::new(self))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
+        log::trace!("Serializing tuple");
         self.serialize_seq(Some(len))
     }
 
@@ -319,26 +359,30 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         _name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
+        log::trace!("Serializing tuple struct");
         self.serialize_seq(Some(len))
     }
 
     fn serialize_tuple_variant(
         self,
-        _name: &'static str,
+        name: &'static str,
         variant_index: u32,
         _variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
+        log::trace!("Serializing {}", name);
         self.set_tag(Identifier::from_context(self.constructed, variant_index));
         self.serialize_seq(Some(len))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
+        log::trace!("Serializing map");
         self.set_constructed();
         self.serialize_seq(len)
     }
 
-    fn serialize_struct(self, _name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
+    fn serialize_struct(self, name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
+        log::trace!("Serializing {}", name);
         self.serialize_map(Some(len))
     }
 
@@ -349,6 +393,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
+        log::trace!("Serializing {}", name);
         self.set_constructed();
         self.serialize_tuple_variant(name, variant_index, variant, len)
     }
@@ -582,6 +627,27 @@ mod tests {
         let vec = vec![5; 0xffff];
         let preamble = vec![0x30u8, 0x83, 0x2, 0xFF, 0xFD];
         assert_eq!(&*preamble, &to_vec(&vec).unwrap()[..preamble.len()]);
+    }
+
+    #[test]
+    fn enumerated() {
+        use core::types::{Enumerable, Enumerated};
+        #[derive(Clone, Debug, Serialize, PartialEq)]
+        enum Foo {
+            Ein,
+            Zwei,
+            Drei,
+        }
+
+        impl Enumerable for Foo {}
+
+        let ein = Enumerated::new(Foo::Ein);
+        let zwei = Enumerated::new(Foo::Zwei);
+        let drei = Enumerated::new(Foo::Drei);
+
+        assert_eq!(&[0xA, 1, 0][..], &*to_vec(&ein).unwrap());
+        assert_eq!(&[0xA, 1, 1][..], &*to_vec(&zwei).unwrap());
+        assert_eq!(&[0xA, 1, 2][..], &*to_vec(&drei).unwrap());
     }
 
     #[test]

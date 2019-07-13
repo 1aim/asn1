@@ -229,7 +229,6 @@ mod tests {
 
     #[test]
     fn bit_string_full() {
-        env_logger::init();
         use core::types::BitString;
 
         let bits = BitString::from_bytes(&[0x0A, 0x3B, 0x5F, 0x29, 0x1C, 0xD0]);

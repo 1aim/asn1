@@ -53,8 +53,12 @@ impl<'de> Deserializer<'de> {
     }
 
     /// Looks for the next tag but doesn't advance the slice.
-    fn peek_at_identifier(&mut self) -> Result<Identifier> {
+    fn peek_at_identifier(&self) -> Result<Identifier> {
         Ok(parse_identifier_octet(self.input)?.1)
+    }
+
+    fn peek_value(&self) -> Result<Value<'de>> {
+        Ok(parse_value(self.input)?.1)
     }
 
     fn parse_value(&mut self) -> Result<Value<'de>> {
@@ -345,7 +349,16 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         );
         let tag = self.peek_at_identifier()?;
 
-        if let Some(variant) = variants.get(tag.tag) {
+        // If it is ENUMERATED, then the index is stored in the contents octets,
+        // otherwise it is the identifier's tag number for CHOICE types.
+        let tag_index = if tag == Identifier::ENUMERATED {
+            let value = self.peek_value()?;
+            BigInt::from_signed_bytes_be(&value.contents).to_usize().unwrap()
+        } else {
+            tag.tag
+        };
+
+        if let Some(variant) = variants.get(tag_index) {
             log::trace!("Attempting to deserialise to {}::{}", name, variant);
             visitor.visit_enum(Enum::new(variant, self))
         } else {
