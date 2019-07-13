@@ -5,6 +5,7 @@ mod structs;
 use std::{collections::HashSet, io::Write, mem};
 
 use failure::Fallible as Result;
+use heck::*;
 
 use self::{constant::Constant, imports::*, structs::*};
 use crate::{
@@ -42,7 +43,7 @@ impl Backend for Rust {
             // Unwrap currently needed as i haven't created the simplified AST without
             // `ComponentsOf` yet.
             let (ty, optional, default) = field.as_type().unwrap();
-            let field = FieldBuilder::new(&**ty.name.as_ref().unwrap(), &*self.generate_type(&ty)?)
+            let field = FieldBuilder::new(ty.name.as_ref().unwrap().to_snake_case(), self.generate_type(&ty)?)
                 .optional(*optional)
                 .default_value(default.clone().and_then(|v| self.generate_value(&v).ok()))
                 .build();
@@ -52,7 +53,7 @@ impl Backend for Rust {
 
         self.structs.push(generated_struct);
 
-        Ok(String::from(name))
+        Ok(name.to_camel_case())
     }
 
     fn generate_sequence_of(&mut self, name: &str, ty: &Type) -> Result<String> {
@@ -101,9 +102,19 @@ impl Backend for Rust {
                         .collect(),
                 ));
 
-                String::from("ObjectIdentifier")
+                String::from("OctetString")
             }
-            BuiltinType::Integer(_) => String::from("isize"),
+            BuiltinType::Integer(_) => {
+                self.prelude.insert(Import::new(
+                    Visibility::Private,
+                    ["asn1", "types", "Integer"]
+                        .into_iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                ));
+
+                String::from("Integer")
+            },
             ref builtin => {
                 warn!("UNKNOWN BUILTIN TYPE: {:?}", builtin);
                 String::from("UNIMPLEMENTED")

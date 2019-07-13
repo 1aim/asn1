@@ -80,16 +80,10 @@ impl<'de> Deserializer<'de> {
         }
     }
 
-    fn parse_integer<T: FromStrRadix>(&mut self) -> Result<T> {
+    fn parse_integer(&mut self) -> Result<BigInt> {
         let value = self.parse_value()?;
 
-        let mut radix_str = String::with_capacity(value.contents.len() * 8);
-
-        for byte in value.contents {
-            radix_str.push_str(&format!("{:08b}", byte));
-        }
-
-        Ok(T::from_str_radix(&radix_str, 2)?)
+        Ok(BigInt::from_signed_bytes_be(&value.contents, 2)?)
     }
 }
 
