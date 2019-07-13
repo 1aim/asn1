@@ -28,13 +28,15 @@ type ElementSet = Vec<Vec<Element>>;
 pub(crate) struct Parser<'a>(Peekable<FlatPairs<'a, Rule>>, &'a str);
 
 impl<'a> Parser<'a> {
-    /// Parse asn1 module into an Abstract Syntax Tree (AST) represented by the `Module` struct.
+    /// Parse asn1 module into an Abstract Syntax Tree (AST) represented by the
+    /// `Module` struct.
     pub fn parse(source: &'a str) -> Result<Module> {
         Self::new(Rule::ModuleDefinition, source)?.parse_module()
     }
 
-    /// Copies the lexer output and parses the module's identifying information into an Abstract
-    /// Syntax Tree (AST) represented by the `ModuleIdentifier` struct.
+    /// Copies the lexer output and parses the module's identifying information
+    /// into an Abstract Syntax Tree (AST) represented by the
+    /// `ModuleIdentifier` struct.
     pub fn parse_header(source: &'a str) -> Result<ModuleIdentifier> {
         let mut ast = Self::new(Rule::ModuleHeaderOnly, source)?;
         ast.take(Rule::ModuleHeaderOnly);
