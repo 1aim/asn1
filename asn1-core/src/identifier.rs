@@ -83,3 +83,24 @@ impl From<u8> for Class {
         }
     }
 }
+
+pub mod constant {
+    pub trait Class: Copy + Clone + Ord + PartialOrd + Eq + PartialEq + std::fmt::Debug {
+        const CLASS: super::Class;
+    }
+
+    macro_rules! classes {
+        ($($name:ident)+) => {
+            $(
+                #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+                pub struct $name;
+
+                impl Class for $name {
+                    const CLASS: super::Class = super::Class::$name;
+                }
+            )+
+        }
+    }
+
+    classes!(Universal Application Context Private);
+}

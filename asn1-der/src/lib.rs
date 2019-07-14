@@ -5,6 +5,7 @@
 //! encode. DER is used in frequently in cryptography (X.509 certificates,
 //! PKCS#12).
 #![deny(missing_docs)]
+
 mod decoder;
 mod encoder;
 pub mod error;
@@ -228,11 +229,33 @@ mod tests {
     }
 
     #[test]
-    fn bit_string_full() {
+    fn bit_string() {
         use core::types::BitString;
 
         let bits = BitString::from_bytes(&[0x0A, 0x3B, 0x5F, 0x29, 0x1C, 0xD0]);
 
         assert_eq!(bits, from_slice(&to_vec(&bits).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn implicit_prefix() {
+        use typenum::consts::*;
+        use core::identifier::constant::*;
+        type MyInteger = core::types::Implicit<Universal, U7, u64>;
+
+        let new_int = MyInteger::new(5);
+
+        assert_eq!(new_int, from_slice(&to_vec(&new_int).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn explicit_prefix() {
+        use typenum::consts::*;
+        use core::identifier::constant::*;
+        type MyInteger = core::types::Explicit<Universal, U7, u64>;
+
+        let new_int = MyInteger::new(5);
+
+        assert_eq!(new_int, from_slice(&to_vec(&new_int).unwrap()).unwrap());
     }
 }

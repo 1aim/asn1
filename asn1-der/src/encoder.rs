@@ -1,6 +1,7 @@
 mod object_identifier;
 mod bit_string;
 mod bytes;
+mod prefix;
 
 use std::io::Write;
 
@@ -14,7 +15,8 @@ use core::identifier::Identifier;
 use self::{
     bit_string::BitStringSerializer,
     object_identifier::ObjectIdentifierSerializer,
-    bytes::ByteSerializer
+    bytes::ByteSerializer,
+    prefix::PrefixSerializer
 };
 
 pub fn to_writer<W, T>(writer: W, value: &T) -> Result<()>
@@ -43,6 +45,8 @@ pub struct Serializer<W: Write> {
     tag: Option<Identifier>,
     implicit: bool,
     constructed: bool,
+    /// If present bool matches `implicit` state.
+    prefixed: Option<bool>,
 }
 
 impl Serializer<Vec<u8>> {
@@ -61,6 +65,7 @@ impl<W: Write> Serializer<W> {
             tag: None,
             implicit: false,
             constructed: false,
+            prefixed: None,
         }
     }
 
@@ -76,6 +81,7 @@ impl<W: Write> Serializer<W> {
         self.tag = None;
         self.constructed = false;
         self.implicit = false;
+        self.prefixed = None;
     }
 
     fn encode(&mut self, contents: &[u8]) -> Result<()> {
@@ -330,6 +336,14 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
                 log::trace!("Serializing ENUMERATED.");
                 self.set_tag(Identifier::ENUMERATED);
             }
+            "ASN.1#Implicit" => {
+                log::trace!("Serializing implicit prefix.");
+                self.prefixed = Some(true);
+            }
+            "ASN.1#Explicit" => {
+                log::trace!("Serializing explicit prefix.");
+                self.prefixed = Some(false);
+            }
             name => {
                 log::trace!("Serializing {}.", name);
             }
@@ -431,7 +445,12 @@ impl<'a, W: Write> Sequence<'a, W> {
             Some(Identifier::INTEGER) => {
                 SerializerKind::Integer(ByteSerializer::new())
             }
-            _ => SerializerKind::Normal(Serializer::new(Vec::new())),
+            _ => {
+                match ser.prefixed {
+                    Some(implicit) => SerializerKind::Prefix(PrefixSerializer::new(implicit)),
+                    _ => SerializerKind::Normal(Serializer::new(Vec::new())),
+                }
+            },
         };
 
         Self { ser, sink }
@@ -450,7 +469,13 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
     }
 
     fn end(self) -> Result<()> {
-        self.ser.tag = self.ser.tag.or(Some(Identifier::SEQUENCE));
+        self.ser.tag = match self.sink {
+            SerializerKind::Prefix(ref ser) => {
+                Some(Identifier::new(ser.class.unwrap(), ser.tag.unwrap()))
+            }
+            _ => self.ser.tag.or(Some(Identifier::SEQUENCE)),
+        };
+
         let contents = self.sink.output();
         self.ser.encode(&contents)
     }
@@ -566,6 +591,7 @@ enum SerializerKind {
     Normal(Serializer<Vec<u8>>),
     ObjectIdentifier(ObjectIdentifierSerializer),
     OctetString(ByteSerializer),
+    Prefix(PrefixSerializer),
 }
 
 impl SerializerKind {
@@ -576,6 +602,7 @@ impl SerializerKind {
             SerializerKind::Normal(ser) => value.serialize(ser),
             SerializerKind::ObjectIdentifier(ser) => value.serialize(ser),
             SerializerKind::OctetString(ser) => value.serialize(ser),
+            SerializerKind::Prefix(ser) => value.serialize(ser),
         }
     }
 
@@ -589,6 +616,7 @@ impl SerializerKind {
             SerializerKind::Integer(ser) => ser.output,
             SerializerKind::OctetString(ser) => ser.output,
             SerializerKind::ObjectIdentifier(ser) => ser.output,
+            SerializerKind::Prefix(ser) => ser.output.output,
         }
     }
 }
@@ -761,5 +789,27 @@ mod tests {
             &[0x3u8, 0x7, 0x04, 0x0A, 0x3B, 0x5F, 0x29, 0x1C, 0xD0][..],
             &*to_vec(&bitvec).unwrap()
         );
+    }
+
+    #[test]
+    fn implicit_prefix() {
+        use typenum::consts::*;
+        use core::identifier::constant::*;
+        type MyInteger = core::types::Implicit<Universal, U7, u64>;
+
+        let new_int = MyInteger::new(5);
+
+        assert_eq!(&[7, 1, 5], &*to_vec(&new_int).unwrap());
+    }
+
+    #[test]
+    fn explicit_prefix() {
+        use typenum::consts::*;
+        use core::identifier::constant::*;
+        type MyInteger = core::types::Explicit<Universal, U7, u64>;
+
+        let new_int = MyInteger::new(5);
+
+        assert_eq!(&[7, 3, 2, 1, 5], &*to_vec(&new_int).unwrap());
     }
 }
