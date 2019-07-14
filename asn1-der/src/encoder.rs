@@ -72,6 +72,12 @@ impl<W: Write> Serializer<W> {
         self.constructed = true;
     }
 
+    fn clear_state(&mut self) {
+        self.tag = None;
+        self.constructed = false;
+        self.implicit = false;
+    }
+
     fn encode(&mut self, contents: &[u8]) -> Result<()> {
         // TODO: Switch bool to operate on the true version of this expression.
         if !self.implicit {
@@ -106,6 +112,8 @@ impl<W: Write> Serializer<W> {
             self.output.write(&length_buffer)?;
         }
 
+        self.clear_state();
+
         Ok(())
     }
 
@@ -115,9 +123,13 @@ impl<W: Write> Serializer<W> {
 
         // Constructed is a single bit.
         tag_byte <<= 1;
-        if tag.is_constructed {
-            tag_byte |= 1;
-        }
+        tag_byte |= match tag {
+            Identifier::EXTERNAL |
+            Identifier::SEQUENCE |
+            Identifier::SET => 1,
+            _ if self.constructed => 1,
+            _ => 0,
+        };
 
         // Identifier number is five bits
         tag_byte <<= 5;
@@ -287,7 +299,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         if self.tag.map(|i| i == Identifier::ENUMERATED).unwrap_or(false) {
             self.encode(&variant_index.to_bigint().unwrap().to_signed_bytes_be())
         } else {
-            self.set_tag(Identifier::from_context(self.constructed, variant_index));
+            self.set_tag(Identifier::from_context(variant_index));
             self.encode(&[])
         }
 
@@ -338,8 +350,8 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     {
         log::trace!("Serializing {}.", name);
         let ser = Serializer::serialize_to_vec(value, true)?;
-        let is_constructed = ser.tag.map(|t| t.is_constructed).unwrap_or(false);
-        let variant_tag = Identifier::from_context(is_constructed, variant_index);
+        self.constructed = ser.constructed;
+        let variant_tag = Identifier::from_context(variant_index);
         self.set_tag(variant_tag);
         self.encode(&ser.output)
     }
@@ -371,7 +383,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
         log::trace!("Serializing {}", name);
-        self.set_tag(Identifier::from_context(self.constructed, variant_index));
+        self.set_tag(Identifier::from_context(variant_index));
         self.serialize_seq(Some(len))
     }
 
@@ -439,10 +451,7 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
 
     fn end(self) -> Result<()> {
         self.ser.tag = self.ser.tag.or(Some(Identifier::SEQUENCE));
-        self.ser.constructed = false;
-
         let contents = self.sink.output();
-
         self.ser.encode(&contents)
     }
 }

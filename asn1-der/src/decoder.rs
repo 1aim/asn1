@@ -5,7 +5,7 @@ pub(crate) mod parser;
 
 use std::{num, result};
 
-use core::identifier::Identifier;
+use core::identifier::{Class, Identifier};
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 use serde::{
@@ -30,15 +30,39 @@ where
     T::deserialize(&mut deserializer)
 }
 
+/// A wrapper around `core::Identifier` except it also contains whether the tag
+/// is using constructed or primitive encoding.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BerIdentifier {
+    identifier: Identifier,
+    is_constructed: bool,
+}
+
+impl BerIdentifier {
+    pub fn new(class: Class, is_constructed: bool, tag: usize) -> Self {
+        Self {
+            identifier: Identifier::new(class, tag),
+            is_constructed,
+        }
+    }
+
+    pub fn set_tag(self, tag: usize) -> Self {
+        Self {
+            identifier: self.identifier.set_tag(tag),
+            is_constructed: self.is_constructed
+        }
+    }
+}
+
 /// An untyped ASN.1 value.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Value<'a> {
-    tag: Identifier,
+    tag: BerIdentifier,
     contents: &'a [u8],
 }
 
 impl<'a> Value<'a> {
-    fn new(tag: Identifier, contents: &'a [u8]) -> Self {
+    fn new(tag: BerIdentifier, contents: &'a [u8]) -> Self {
         Self { tag, contents }
     }
 }
@@ -53,7 +77,7 @@ impl<'de> Deserializer<'de> {
     }
 
     /// Looks for the next tag but doesn't advance the slice.
-    fn peek_at_identifier(&self) -> Result<Identifier> {
+    fn peek_at_identifier(&self) -> Result<BerIdentifier> {
         Ok(parse_identifier_octet(self.input)?.1)
     }
 
@@ -97,7 +121,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = Error;
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self.peek_at_identifier()? {
+        match self.peek_at_identifier()?.identifier {
             Identifier::EOC => return Err(Error::Custom("Unexpected End Of contents.".into())),
             Identifier::BOOL => self.deserialize_bool(visitor),
             Identifier::INTEGER => self.deserialize_i64(visitor),
@@ -247,7 +271,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
         let is_none = if self
             .peek_at_identifier()
-            .map(|i| i == Identifier::NULL)
+            .map(|i| i.identifier == Identifier::NULL)
             .unwrap_or(false)
         {
             self.parse_value()?;
@@ -347,7 +371,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             name,
             variants
         );
-        let tag = self.peek_at_identifier()?;
+        let tag = self.peek_at_identifier()?.identifier;
 
         // If it is ENUMERATED, then the index is stored in the contents octets,
         // otherwise it is the identifier's tag number for CHOICE types.
@@ -523,15 +547,15 @@ mod tests {
 
     variant_tests! {
         parse_identifier_octet: {
-            universal_bool([0x1]) == Identifier::new(Class::Universal, false, 1);
-            private_primitive([0xC0]) == Identifier::new(Class::Private, false, 0);
-            context_constructed([0xA0]) == Identifier::new(Class::Context, true, 0);
+            universal_bool([0x1]) == BerIdentifier::new(Class::Universal, false, 1);
+            private_primitive([0xC0]) == BerIdentifier::new(Class::Private, false, 0);
+            context_constructed([0xA0]) == BerIdentifier::new(Class::Context, true, 0);
             private_long_constructed([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F])
-                == Identifier::new(Class::Private, true, 0x1FFFFFFFFFFFF);
+                == BerIdentifier::new(Class::Private, true, 0x1FFFFFFFFFFFF);
         }
 
         parse_value: {
-            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::new(Identifier::new(Class::Universal, false, 1), &[0xff]);
+            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::new(BerIdentifier::new(Class::Universal, false, 1), &[0xff]);
         }
     }
 

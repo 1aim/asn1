@@ -1,7 +1,7 @@
-use core::identifier::{Class, Identifier};
+use core::identifier::Class;
 use nom::IResult;
 
-use super::Value;
+use super::{BerIdentifier as Identifier, Value};
 
 pub(crate) fn parse_value(input: &[u8]) -> IResult<&[u8], Value> {
     let (input, identifier) = parse_identifier_octet(input)?;
@@ -13,10 +13,10 @@ pub(crate) fn parse_value(input: &[u8]) -> IResult<&[u8], Value> {
 pub(crate) fn parse_identifier_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
     let (input, identifier) = parse_initial_octet(input)?;
 
-    let (input, tag) = if identifier.tag >= 0x1f {
+    let (input, tag) = if identifier.identifier.tag >= 0x1f {
         parse_encoded_number(input)?
     } else {
-        (input, identifier.tag)
+        (input, identifier.identifier.tag)
     };
 
     Ok((input, identifier.set_tag(tag)))
