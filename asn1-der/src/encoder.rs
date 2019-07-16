@@ -273,7 +273,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
     fn serialize_none(self) -> Result<()> {
         log::trace!("Serializing none.");
-        Ok(())
+        self.serialize_unit()
     }
 
     fn serialize_some<T>(self, value: &T) -> Result<()>
@@ -776,7 +776,10 @@ mod tests {
             &[0x30, 3 * 2, 0x2, 0x1, 0x1, 0x2, 0x1, 0x2][..],
             &*to_vec(&some).unwrap()
         );
-        assert_eq!(&[0x30, 0x3, 0x2, 0x1, 0x1][..], &*to_vec(&none).unwrap());
+        assert_eq!(
+            &[0x30, 0x5, 0x2, 0x1, 0x1, 0x5, 0x0][..],
+            &*to_vec(&none).unwrap()
+        );
     }
 
     #[test]

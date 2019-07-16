@@ -190,6 +190,19 @@ mod tests {
     }
 
     #[test]
+    fn option() {
+        #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+        struct Struct {
+            a: Option<u8>,
+            b: Option<u8>,
+        }
+
+        let data = Struct { a: None, b: Some(100) };
+
+        assert_eq!(data, from_slice(&to_vec(&data).unwrap()).unwrap());
+    }
+
+    #[test]
     fn object_identifier() {
         use core::types::ObjectIdentifier;
 
