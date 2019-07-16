@@ -38,9 +38,9 @@ impl NotationCompiler {
         fixed_tree.build()?;
         let table = fixed_tree.table;
 
-        let mut output = Vec::new();
+        let output = Vec::new();
 
-        let mut codegen = CodeGenerator::<Vec<u8>, Rust>::new(table, output);
+        let codegen = CodeGenerator::<Vec<u8>, Rust>::new(table, output);
         let output = codegen.generate()?;
 
         Ok(String::from_utf8(output).unwrap())

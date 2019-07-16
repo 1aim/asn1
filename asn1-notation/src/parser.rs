@@ -647,7 +647,7 @@ impl<'a> Parser<'a> {
 
                         let class = self.look(Rule::Class).and_then(|r| r.as_str().parse().ok());
 
-                        let pair = self.take(Rule::ClassNumber).as_str().to_owned();
+                        let _pair = self.take(Rule::ClassNumber).as_str().to_owned();
                         let number = self.parse_number_or_defined_value();
                         let r#type = Box::new(self.parse_type());
 
@@ -1653,7 +1653,7 @@ pub enum Token {
 pub struct ParameterList(#[deref(mutable)] Vec<Parameter>);
 
 impl fmt::Display for ParameterList {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
         unimplemented!("fmt::Display for ParameterList")
     }
 }

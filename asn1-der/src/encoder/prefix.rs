@@ -1,6 +1,4 @@
-use std::io::Write;
-
-use core::identifier::{Class, Identifier};
+use core::identifier::Class;
 use serde::{
     ser,
     Serialize,
@@ -172,4 +170,3 @@ impl<'a> ser::Serializer for &'a mut PrefixSerializer {
         self.output.serialize_struct_variant(n, v_i, v, l)
     }
 }
-

@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeMap,
     fs,
-    iter::FromIterator,
     ops::{Deref, DerefMut},
     path::PathBuf,
 };
