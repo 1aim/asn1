@@ -20,15 +20,15 @@ impl<'de> SeqAccess<'de> for ObjectIdentifier<'de> {
         T: DeserializeSeed<'de>,
     {
         let (input, root_octets) = super::parser::parse_encoded_number(self.contents)?;
-        let second = (root_octets % 40) as u128;
-        let first = ((root_octets as u128 - second) / 40) as u128;
+        let second = (root_octets % 40) as u32;
+        let first = ((root_octets as u32 - second) / 40) as u32;
         let mut buffer = vec![first, second];
 
         let mut input = input;
         while !input.is_empty() {
             let (new_input, number) = super::parser::parse_encoded_number(input)?;
             input = new_input;
-            buffer.push(number as u128);
+            buffer.push(number as u32);
         }
 
         seed.deserialize(SeqDeserializer::new(buffer.into_iter()))

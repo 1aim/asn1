@@ -8,7 +8,7 @@ use serde::{
 #[derive(Default)]
 pub(crate) struct ObjectIdentifierSerializer {
     pub output: Vec<u8>,
-    first_component: Option<u128>,
+    first_component: Option<u32>,
     len: usize,
 }
 
@@ -18,7 +18,7 @@ impl ObjectIdentifierSerializer {
     }
 }
 
-fn encode_component(mut v: u128, writer: &mut Vec<u8>) -> Result<()> {
+fn encode_component(mut v: u32, writer: &mut Vec<u8>) -> Result<()> {
     let mut bytes: Vec<u8> = Vec::new();
 
     while v != 0 {
@@ -50,7 +50,7 @@ impl<'a> ser::Serializer for &'a mut ObjectIdentifierSerializer {
     type SerializeStruct = Impossible<Self::Ok, Self::Error>;
     type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
 
-    fn serialize_u128(self, v: u128) -> Result<()> {
+    fn serialize_u32(self, v: u32) -> Result<()> {
         match self.len {
             0 => self.first_component = Some(v),
             1 => {
@@ -73,8 +73,8 @@ impl<'a> ser::Serializer for &'a mut ObjectIdentifierSerializer {
     fn serialize_i128(self, _: i128) -> Result<()> { unreachable!() }
     fn serialize_u8(self, _: u8) -> Result<()> { unreachable!() }
     fn serialize_u16(self, _: u16) -> Result<()> { unreachable!() }
-    fn serialize_u32(self, _: u32) -> Result<()> { unreachable!() }
     fn serialize_u64(self, _: u64) -> Result<()> { unreachable!() }
+    fn serialize_u128(self, _: u128) -> Result<()> { unreachable!() }
     fn serialize_f32(self, _: f32) -> Result<()> { unreachable!() }
     fn serialize_f64(self, _v: f64) -> Result<()> { unreachable!() }
     fn serialize_char(self, _: char) -> Result<()> { unreachable!() }
