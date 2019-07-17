@@ -382,6 +382,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             tag.tag
         };
 
+
+        log::trace!("Using index: `{}`", tag_index);
+
         if let Some(variant) = variants.get(tag_index) {
             log::trace!("Attempting to deserialise to {}::{}", name, variant);
             visitor.visit_enum(Enum::new(variant, self))
