@@ -10,8 +10,7 @@ use heck::*;
 use self::{constant::Constant, imports::*, structs::*};
 use crate::{
     parser::*,
-    registry::{GlobalSymbolTable, SymbolTable},
-    semantics::SemanticChecker,
+    registry::GlobalSymbolTable,
 };
 
 pub trait Backend: Default {
