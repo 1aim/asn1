@@ -54,16 +54,24 @@ impl BerIdentifier {
     }
 }
 
+impl std::ops::Deref for BerIdentifier {
+    type Target = Identifier;
+
+    fn deref(&self) -> &Self::Target {
+        &self.identifier
+    }
+}
+
 /// An untyped ASN.1 value.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Value<'a> {
-    tag: BerIdentifier,
+    identifier: BerIdentifier,
     contents: &'a [u8],
 }
 
 impl<'a> Value<'a> {
-    fn new(tag: BerIdentifier, contents: &'a [u8]) -> Self {
-        Self { tag, contents }
+    fn new(identifier: BerIdentifier, contents: &'a [u8]) -> Self {
+        Self { identifier, contents }
     }
 }
 
@@ -347,8 +355,15 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor: V,
     ) -> Result<V::Value> {
         log::trace!("Deserialising struct {:?} with fields {:?}.", name, fields);
-        let value = self.parse_value()?;
-        visitor.visit_seq(Sequence::new(value.contents, fields.len()))
+        let contents = match name {
+            "ASN.1#Explicit" => self.input,
+            _ => {
+                let value = self.parse_value()?;
+                value.contents
+            }
+        };
+
+        visitor.visit_seq(Sequence::new(contents, fields.len()))
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -371,26 +386,24 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             name,
             variants
         );
-        let tag = self.peek_at_identifier()?.identifier;
+        let (variant, contents) = match *self.peek_at_identifier()? {
+            // If it is ENUMERATED, then the index is stored in the contents
+            // octets, otherwise it is the identifier's tag number for
+            // CHOICE types.
+            Identifier::ENUMERATED => {
+                let value = self.parse_value()?;
+                let tag = BigInt::from_signed_bytes_be(&value.contents).to_usize().unwrap();
+                (variants.get(tag).ok_or(Error::NoVariantFound(tag))?, &[][..])
+            }
+            _ => {
+                let value = self.parse_value()?;
 
-        // If it is ENUMERATED, then the index is stored in the contents octets,
-        // otherwise it is the identifier's tag number for CHOICE types.
-        let tag_index = if tag == Identifier::ENUMERATED {
-            let value = self.peek_value()?;
-            BigInt::from_signed_bytes_be(&value.contents).to_usize().unwrap()
-        } else {
-            tag.tag
+                (variants.get(value.identifier.tag).ok_or(Error::NoVariantFound(value.identifier.tag))?, value.contents)
+            }
         };
 
-
-        log::trace!("Using index: `{}`", tag_index);
-
-        if let Some(variant) = variants.get(tag_index) {
-            log::trace!("Attempting to deserialise to {}::{}", name, variant);
-            visitor.visit_enum(Enum::new(variant, self))
-        } else {
-            Err(Error::NoVariantFound(tag.tag))
-        }
+        log::trace!("Attempting to deserialise to {}::{}", name, variant);
+        visitor.visit_enum(Enum::new(variant, &mut Deserializer::from_slice(contents)))
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value>
@@ -481,7 +494,6 @@ impl<'a, 'de> VariantAccess<'de> for Enum<'a, 'de> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<()> {
-        self.de.parse_value()?;
         log::trace!("Deserialised as unit variant.");
         Ok(())
     }

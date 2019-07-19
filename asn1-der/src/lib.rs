@@ -17,8 +17,10 @@ pub use error::Result;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::types::OctetString;
+    use core::types::*;
     use serde_derive::{Deserialize, Serialize};
+    use typenum::consts::*;
+    use core::identifier::constant::*;
 
     #[test]
     fn bool() {
@@ -28,7 +30,6 @@ mod tests {
 
     #[test]
     fn octet_string() {
-        use core::types::OctetString;
         let a = OctetString::from(vec![1u8, 2, 3, 4, 5]);
         let b = OctetString::from(vec![5u8, 4, 3, 2, 1]);
 
@@ -252,8 +253,6 @@ mod tests {
 
     #[test]
     fn implicit_prefix() {
-        use typenum::consts::*;
-        use core::identifier::constant::*;
         type MyInteger = core::types::Implicit<Universal, U7, u64>;
 
         let new_int = MyInteger::new(5);
@@ -263,12 +262,34 @@ mod tests {
 
     #[test]
     fn explicit_prefix() {
-        use typenum::consts::*;
-        use core::identifier::constant::*;
         type MyInteger = core::types::Explicit<Universal, U7, u64>;
 
         let new_int = MyInteger::new(5);
 
         assert_eq!(new_int, from_slice(&to_vec(&new_int).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn nested_enum() {
+        #[derive(Serialize, Deserialize, Debug, PartialEq)]
+        enum Alpha {
+            A(Explicit<Context, U0, Charlie>),
+            B(Explicit<Context, U1, Charlie>),
+        }
+
+
+        #[derive(Serialize, Deserialize, Debug, PartialEq)]
+        enum Bravo {
+            A,
+            B,
+        }
+
+        impl Enumerable for Bravo {}
+
+        type Charlie = Enumerated<Bravo>;
+
+        let input = Alpha::A(Explicit::new(Enumerated::new(Bravo::B)));
+
+        assert_eq!(input, from_slice(&to_vec(&input).unwrap()).unwrap())
     }
 }

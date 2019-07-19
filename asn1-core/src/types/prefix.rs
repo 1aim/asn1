@@ -7,12 +7,12 @@ use serde::{
     Serializer,
 };
 use typenum::marker_traits::Unsigned;
-use typenum::UInt;
 
 use crate::identifier::Identifier;
 use crate::identifier::constant::*;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename = "ASN.1#Explicit")]
 pub struct Explicit<C: Class, N: Unsigned, T> {
     #[serde(skip)]
     phantom: std::marker::PhantomData<ConstIdentifier<C, N>>,

@@ -305,8 +305,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         if self.tag.map(|i| i == Identifier::ENUMERATED).unwrap_or(false) {
             self.encode(&variant_index.to_bigint().unwrap().to_signed_bytes_be())
         } else {
-            self.set_tag(Identifier::from_context(variant_index));
-            self.encode(&[])
+            unimplemented!()
         }
 
     }
@@ -342,6 +341,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
             }
             "ASN.1#Explicit" => {
                 log::trace!("Serializing explicit prefix.");
+                self.set_constructed();
                 self.prefixed = Some(false);
             }
             name => {
@@ -365,8 +365,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         log::trace!("Serializing {}.", name);
         let ser = Serializer::serialize_to_vec(value, true)?;
         self.constructed = ser.constructed;
-        let variant_tag = Identifier::from_context(variant_index);
-        self.set_tag(variant_tag);
+        self.set_tag(ser.tag.unwrap());
         self.encode(&ser.output)
     }
 
