@@ -1,10 +1,4 @@
-use serde::{
-    Deserialize,
-    Deserializer,
-    Serialize,
-    Serializer,
-};
-
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A representation of the `ENUMERATED` ASN.1 data type. `Enumerated` should be
 /// a wrapper around an `enum` with no inner data. Using `Enumerated` will
@@ -17,6 +11,11 @@ impl<E: Enumerable> Enumerated<E> {
     /// Instantiate a new instance of `Enumerated` with an `Enumerable` variant.
     pub fn new(enumerable: E) -> Self {
         Enumerated(enumerable)
+    }
+
+    /// Consumes self and returns the inner `Enumerable` variant from an instance of `Enumerated`.
+    pub fn into_inner(self) -> E {
+        self.0
     }
 }
 
@@ -42,4 +41,3 @@ impl<'de, E: Enumerable + Deserialize<'de>> Deserialize<'de> for Enumerated<E> {
         Ok(Enumerated(E::deserialize(deserializer)?))
     }
 }
-
