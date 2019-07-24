@@ -1,4 +1,8 @@
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::{fmt, marker::PhantomData};
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::{SeqAccess, Visitor}};
+
+const NAME: &str = "ASN.1#Enumerated";
 
 /// A representation of the `ENUMERATED` ASN.1 data type. `Enumerated` should be
 /// a wrapper around an `enum` with no inner data. Using `Enumerated` will
@@ -29,7 +33,7 @@ impl<E: Enumerable + Serialize> Serialize for Enumerated<E> {
     where
         S: Serializer,
     {
-        serializer.serialize_newtype_struct("ASN.1#Enumerated", &self.0)
+        serializer.serialize_newtype_struct(NAME, &self.0)
     }
 }
 
@@ -38,6 +42,31 @@ impl<'de, E: Enumerable + Deserialize<'de>> Deserialize<'de> for Enumerated<E> {
     where
         D: Deserializer<'de>,
     {
-        Ok(Enumerated(E::deserialize(deserializer)?))
+        let value = deserializer.deserialize_newtype_struct(NAME, EnumeratedVisitor::<E>::new())?;
+
+        Ok(Enumerated::new(value))
+
+    }
+}
+
+struct EnumeratedVisitor<T> {
+    phantom: PhantomData<T>,
+}
+
+impl<T> EnumeratedVisitor<T> {
+    fn new() -> Self {
+        Self { phantom: PhantomData }
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Visitor<'de> for EnumeratedVisitor<T> {
+    type Value = T;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a enumerable")
+    }
+
+    fn visit_newtype_struct<D: Deserializer<'de>>(self, de: D) -> Result<Self::Value, D::Error> {
+        T::deserialize(de)
     }
 }

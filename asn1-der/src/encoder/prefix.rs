@@ -41,7 +41,7 @@ impl<'a> ser::Serializer for &'a mut PrefixSerializer {
 
     fn serialize_u8(self, v: u8) -> Result<()> {
         if self.class.is_none() {
-            self.class = Some(Class::from(v));
+            self.class = Some(Class::from_u8(v));
             Ok(())
         } else {
             self.output.serialize_u8(v)

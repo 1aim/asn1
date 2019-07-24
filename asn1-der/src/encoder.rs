@@ -305,7 +305,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         if self.tag.map(|i| i == Identifier::ENUMERATED).unwrap_or(false) {
             self.encode(&variant_index.to_bigint().unwrap().to_signed_bytes_be())
         } else {
-            unimplemented!()
+           unreachable!("Shouldn't be possible.")
         }
 
     }
@@ -355,7 +355,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     fn serialize_newtype_variant<T>(
         self,
         name: &'static str,
-        variant_index: u32,
+        _variant_index: u32,
         _variant: &'static str,
         value: &T,
     ) -> Result<()>
@@ -470,6 +470,10 @@ impl<'a, W: Write> ser::SerializeSeq for Sequence<'a, W> {
     fn end(self) -> Result<()> {
         self.ser.tag = match self.sink {
             SerializerKind::Prefix(ref ser) => {
+                if ser.output.constructed {
+                    self.ser.set_constructed();
+                }
+
                 Some(Identifier::new(ser.class.unwrap(), ser.tag.unwrap()))
             }
             _ => self.ser.tag.or(Some(Identifier::SEQUENCE)),
@@ -622,8 +626,9 @@ impl SerializerKind {
 
 #[cfg(test)]
 mod tests {
-    use core::types::*;
+    use core::{identifier::constant::*, types::*};
     use serde_derive::{Deserialize, Serialize};
+    use typenum::consts::*;
 
     use super::*;
 
@@ -690,23 +695,23 @@ mod tests {
     fn choice() {
         #[derive(Clone, Debug, Serialize, PartialEq)]
         enum Foo {
-            Ein,
-            Zwei,
-            Drei,
+            Ein(Implicit<Context, U0, ()>),
+            Zwei(Implicit<Context, U1, ()>),
+            Drei((Implicit<Context, U2, ()>)),
         }
 
-        assert_eq!(&[0x80, 0][..], &*to_vec(&Foo::Ein).unwrap());
-        assert_eq!(&[0x81, 0][..], &*to_vec(&Foo::Zwei).unwrap());
-        assert_eq!(&[0x82, 0][..], &*to_vec(&Foo::Drei).unwrap());
+        assert_eq!(&[0x80, 0][..], &*to_vec(&Foo::Ein(Implicit::new(()))).unwrap());
+        assert_eq!(&[0x81, 0][..], &*to_vec(&Foo::Zwei(Implicit::new(()))).unwrap());
+        assert_eq!(&[0x82, 0][..], &*to_vec(&Foo::Drei(Implicit::new(()))).unwrap());
     }
 
     #[test]
     fn choice_newtype_variant() {
         #[derive(Clone, Debug, Serialize, PartialEq)]
         enum Foo {
-            Bar(bool),
-            Baz(OctetString),
-            Blah(Blah),
+            Bar(Implicit<Context, U0, bool>),
+            Baz(Implicit<Context, U1, OctetString>),
+            Blah(Implicit<Context, U2, Blah>),
         }
 
         #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -716,14 +721,14 @@ mod tests {
 
         let os = OctetString::from(vec![1, 2, 3, 4, 5]);
 
-        assert_eq!(&[0x80, 1, 0xff][..], &*to_vec(&Foo::Bar(true)).unwrap());
+        assert_eq!(&[0x80, 1, 0xff][..], &*to_vec(&Foo::Bar(Implicit::new(true))).unwrap());
         assert_eq!(
             &[0x81, 5, 1, 2, 3, 4, 5][..],
-            &*to_vec(&Foo::Baz(os.clone())).unwrap()
+            &*to_vec(&Foo::Baz(Implicit::new(os.clone()))).unwrap()
         );
         assert_eq!(
             &[0xA2, 7, 4, 5, 1, 2, 3, 4, 5][..],
-            &*to_vec(&Foo::Blah(Blah { data: os })).unwrap()
+            &*to_vec(&Foo::Blah(Implicit::new(Blah { data: os }))).unwrap()
         );
     }
 
@@ -808,10 +813,10 @@ mod tests {
     fn explicit_prefix() {
         use typenum::consts::*;
         use core::identifier::constant::*;
-        type MyInteger = core::types::Explicit<Universal, U7, u64>;
+        type MyInteger = core::types::Explicit<Context, U0, u64>;
 
         let new_int = MyInteger::new(5);
 
-        assert_eq!(&[7, 3, 2, 1, 5], &*to_vec(&new_int).unwrap());
+        assert_eq!(&[0xA0, 3, 2, 1, 5], &*to_vec(&new_int).unwrap());
     }
 }

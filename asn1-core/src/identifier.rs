@@ -6,6 +6,26 @@ pub enum Class {
     Private,
 }
 
+impl Class {
+    /// Instantiate a `Class` from a u8.
+    ///
+    /// # Panics
+    /// If `value` is greater than 3.
+    pub fn from_u8(value: u8) -> Self {
+        match value {
+            0 => Class::Universal,
+            1 => Class::Application,
+            2 => Class::Context,
+            3 => Class::Private,
+            num => panic!("'{}' is not a valid class of tag.", num),
+        }
+    }
+
+    pub fn is_universal(self) -> bool {
+        self == Class::Universal
+    }
+}
+
 /// An abstract representation of the identifier octets used in BER, CER, and
 /// DER to identify .
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -14,36 +34,46 @@ pub struct Identifier {
     pub tag: usize,
 }
 
+macro_rules! consts {
+    ($($name:ident = $value:expr),+) => {
+        $(
+            pub const $name: Identifier = Identifier::new(Class::Universal, $value);
+        )+
+    }
+}
+
 impl Identifier {
-    pub const EOC: Identifier = Identifier::new(Class::Universal, 0);
-    pub const BOOL: Identifier = Identifier::new(Class::Universal, 1);
-    pub const INTEGER: Identifier = Identifier::new(Class::Universal, 2);
-    pub const BIT_STRING: Identifier = Identifier::new(Class::Universal, 3);
-    pub const OCTET_STRING: Identifier = Identifier::new(Class::Universal, 4);
-    pub const NULL: Identifier = Identifier::new(Class::Universal, 5);
-    pub const OBJECT_IDENTIFIER: Identifier = Identifier::new(Class::Universal, 6);
-    pub const OBJECT_DESCRIPTOR: Identifier = Identifier::new(Class::Universal, 7);
-    pub const EXTERNAL: Identifier = Identifier::new(Class::Universal, 8);
-    pub const REAL: Identifier = Identifier::new(Class::Universal, 9);
-    pub const ENUMERATED: Identifier = Identifier::new(Class::Universal, 10);
-    pub const EMBEDDED_PDV: Identifier = Identifier::new(Class::Universal, 11);
-    pub const UTF8_STRING: Identifier = Identifier::new(Class::Universal, 12);
-    pub const RELATIVE_OID: Identifier = Identifier::new(Class::Universal, 13);
-    pub const SEQUENCE: Identifier = Identifier::new(Class::Universal, 16);
-    pub const SET: Identifier = Identifier::new(Class::Universal, 17);
-    pub const NUMERIC_STRING: Identifier = Identifier::new(Class::Universal, 18);
-    pub const PRINTABLE_STRING: Identifier = Identifier::new(Class::Universal, 19);
-    pub const TELETEX_STRING: Identifier = Identifier::new(Class::Universal, 20);
-    pub const VIDEOTEX_STRING: Identifier = Identifier::new(Class::Universal, 21);
-    pub const IA5_STRING: Identifier = Identifier::new(Class::Universal, 22);
-    pub const UTC_TIME: Identifier = Identifier::new(Class::Universal, 23);
-    pub const GENERALIZED_TIME: Identifier = Identifier::new(Class::Universal, 24);
-    pub const GRAPHIC_STRING: Identifier = Identifier::new(Class::Universal, 25);
-    pub const VISIBLE_STRING: Identifier = Identifier::new(Class::Universal, 26);
-    pub const GENERAL_STRING: Identifier = Identifier::new(Class::Universal, 27);
-    pub const UNIVERSAL_STRING: Identifier = Identifier::new(Class::Universal, 28);
-    pub const CHARACTER_STRING: Identifier = Identifier::new(Class::Universal, 29);
-    pub const BMP_STRING: Identifier = Identifier::new(Class::Universal, 30);
+    consts! {
+        EOC = 0,
+        BOOL = 1,
+        INTEGER = 2,
+        BIT_STRING = 3,
+        OCTET_STRING = 4,
+        NULL = 5,
+        OBJECT_IDENTIFIER = 6,
+        OBJECT_DESCRIPTOR = 7,
+        EXTERNAL = 8,
+        REAL = 9,
+        ENUMERATED = 10,
+        EMBEDDED_PDV = 11,
+        UTF8_STRING = 12,
+        RELATIVE_OID = 13,
+        SEQUENCE = 16,
+        SET = 17,
+        NUMERIC_STRING = 18,
+        PRINTABLE_STRING = 19,
+        TELETEX_STRING = 20,
+        VIDEOTEX_STRING = 21,
+        IA5_STRING = 22,
+        UTC_TIME = 23,
+        GENERALIZED_TIME = 24,
+        GRAPHIC_STRING = 25,
+        VISIBLE_STRING = 26,
+        GENERAL_STRING = 27,
+        UNIVERSAL_STRING = 28,
+        CHARACTER_STRING = 29,
+        BMP_STRING = 30
+    }
 
     pub const fn new(class: Class, tag: usize) -> Self {
         Self {
@@ -72,20 +102,12 @@ impl Identifier {
     }
 }
 
-impl From<u8> for Class {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => Class::Universal,
-            1 => Class::Application,
-            2 => Class::Context,
-            3 => Class::Private,
-            _ => panic!("Impossible Class"),
-        }
-    }
-}
-
 pub mod constant {
-    pub trait Class: Copy + Clone + Ord + PartialOrd + Eq + PartialEq + std::fmt::Debug {
+    pub trait Prefix: Copy + Clone + Ord + PartialOrd + Eq + PartialEq + std::fmt::Debug {
+        const NAME: &'static str;
+    }
+
+    pub trait ConstClass: Copy + Clone + Ord + PartialOrd + Eq + PartialEq + std::fmt::Debug {
         const CLASS: super::Class;
     }
 
@@ -95,7 +117,7 @@ pub mod constant {
                 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
                 pub struct $name;
 
-                impl Class for $name {
+                impl ConstClass for $name {
                     const CLASS: super::Class = super::Class::$name;
                 }
             )+
@@ -103,4 +125,23 @@ pub mod constant {
     }
 
     classes!(Universal Application Context Private);
+
+
+    macro_rules! prefixes {
+        ($($name:ident = $value:expr),+) => {
+            $(
+                #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+                pub struct $name;
+
+                impl Prefix for $name {
+                    const NAME: &'static str = $value;
+                }
+            )+
+        }
+    }
+
+    prefixes! {
+        ImplicitPrefix = "ASN.1#Implicit",
+        ExplicitPrefix = "ASN.1#Explicit"
+    }
 }

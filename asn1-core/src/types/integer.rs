@@ -16,6 +16,16 @@ use serde::{
 /// [`BigInt`]: https://docs.rs/num-bigint/0.2.2/num_bigint/struct.BigInt.html
 pub struct Integer(BigInt);
 
+impl Integer {
+    pub fn new(big: BigInt) -> Self {
+        Self(big)
+    }
+
+    pub fn into_inner(self) -> BigInt {
+        self.0
+    }
+}
+
 struct IntegerVisitor;
 
 impl Serialize for Integer {
@@ -32,7 +42,7 @@ impl<'de> Deserialize<'de> for Integer {
     where
         D: Deserializer<'de>,
     {
-        let bigint = deserializer.deserialize_newtype_struct("ASN.1#BitString", IntegerVisitor)?;
+        let bigint = deserializer.deserialize_newtype_struct("ASN.1#Integer", IntegerVisitor)?;
         Ok(Integer(bigint))
     }
 }
@@ -49,14 +59,13 @@ macro_rules! integers {
     }
 }
 
-integers!(i8 i16 i32 i64 isize u8 u16 u32 u64 usize);
-
+integers!(i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize);
 
 impl<'de> Visitor<'de> for IntegerVisitor {
     type Value = BigInt;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a bit string")
+        formatter.write_str("a integer")
     }
 
     fn visit_bytes<E: Error>(self, v: &[u8]) -> Result<Self::Value, E> {

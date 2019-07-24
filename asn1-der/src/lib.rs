@@ -8,6 +8,7 @@
 
 mod decoder;
 mod encoder;
+pub mod identifier;
 pub mod error;
 
 pub use decoder::from_slice;
@@ -107,21 +108,27 @@ mod tests {
             Drei,
         }
 
-        assert_eq!(Foo::Ein, from_slice(&to_vec(&Foo::Ein).unwrap()).unwrap());
-        assert_eq!(Foo::Zwei, from_slice(&to_vec(&Foo::Zwei).unwrap()).unwrap());
-        assert_eq!(Foo::Drei, from_slice(&to_vec(&Foo::Drei).unwrap()).unwrap());
+        impl Enumerable for Foo {}
+
+        let ein = Enumerated::new(Foo::Ein);
+        let zwei = Enumerated::new(Foo::Zwei);
+        let drei = Enumerated::new(Foo::Drei);
+
+        assert_eq!(ein, from_slice(&to_vec(&ein).unwrap()).unwrap());
+        assert_eq!(zwei, from_slice(&to_vec(&zwei).unwrap()).unwrap());
+        assert_eq!(drei, from_slice(&to_vec(&drei).unwrap()).unwrap());
     }
 
     #[test]
     fn choice_newtype_variant() {
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
         enum Foo {
-            Bar(bool),
-            Baz(OctetString),
+            Bar(Implicit<Context, U0, bool>),
+            Baz(Implicit<Context, U1, OctetString>),
         }
 
-        let bar = Foo::Bar(true);
-        let baz = Foo::Baz(OctetString::from(vec![1, 2, 3, 4, 5]));
+        let bar = Foo::Bar(Implicit::new(true));
+        let baz = Foo::Baz(Implicit::new(OctetString::from(vec![1, 2, 3, 4, 5])));
 
         assert_eq!(bar, from_slice(&to_vec(&bar).unwrap()).unwrap());
         assert_eq!(baz, from_slice(&to_vec(&baz).unwrap()).unwrap());
@@ -130,14 +137,8 @@ mod tests {
     #[test]
     fn sequence_in_sequence_in_choice() {
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-        enum FooInline {
-            Bar { data: OctetString },
-        }
-
-        // FooExtern should have the same encoding as FooInline.
-        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
         enum FooExtern {
-            Bar(BarData),
+            Bar(Implicit<Context, U0, BarData>),
         }
 
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -145,19 +146,11 @@ mod tests {
             data: OctetString,
         }
 
-        let bar = FooInline::Bar {
+        let bar_extern = FooExtern::Bar(Implicit::new(BarData {
             data: OctetString::from(vec![1, 2, 3, 4]),
-        };
-        let bar_extern = FooExtern::Bar(BarData {
-            data: OctetString::from(vec![1, 2, 3, 4]),
-        });
-        let inline_encoded = to_vec(&bar).unwrap();
+        }));
         let extern_encoded = to_vec(&bar_extern).unwrap();
 
-        assert_eq!(bar, from_slice(&inline_encoded).unwrap());
-        assert_eq!(bar_extern, from_slice(&inline_encoded).unwrap());
-
-        assert_eq!(bar, from_slice(&extern_encoded).unwrap());
         assert_eq!(bar_extern, from_slice(&extern_encoded).unwrap());
     }
 
@@ -171,8 +164,8 @@ mod tests {
 
         #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
         enum Status {
-            Success,
-            Error(u8),
+            Success(Implicit<Context, U0, ()>),
+            Error(Implicit<Context, U1, u8>),
         }
 
         #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -181,7 +174,7 @@ mod tests {
         }
 
         let response = Response {
-            status: Status::Success,
+            status: Status::Success(Implicit::new(())),
             body: Body {
                 data: OctetString::from(vec![1, 2, 3, 4, 5]),
             },
@@ -253,7 +246,7 @@ mod tests {
 
     #[test]
     fn implicit_prefix() {
-        type MyInteger = core::types::Implicit<Universal, U7, u64>;
+        type MyInteger = core::types::Implicit<Context, U0, u64>;
 
         let new_int = MyInteger::new(5);
 
@@ -262,7 +255,7 @@ mod tests {
 
     #[test]
     fn explicit_prefix() {
-        type MyInteger = core::types::Explicit<Universal, U7, u64>;
+        type MyInteger = core::types::Explicit<Context, U0, u64>;
 
         let new_int = MyInteger::new(5);
 
@@ -271,10 +264,11 @@ mod tests {
 
     #[test]
     fn nested_enum() {
+        env_logger::init();
         #[derive(Serialize, Deserialize, Debug, PartialEq)]
         enum Alpha {
-            A(Explicit<Context, U0, Charlie>),
-            B(Explicit<Context, U1, Charlie>),
+            A(Implicit<Context, U0, Charlie>),
+            B(Implicit<Context, U1, Charlie>),
         }
 
 
@@ -288,7 +282,7 @@ mod tests {
 
         type Charlie = Enumerated<Bravo>;
 
-        let input = Alpha::A(Explicit::new(Enumerated::new(Bravo::B)));
+        let input = Alpha::A(Implicit::new(Enumerated::new(Bravo::B)));
 
         assert_eq!(input, from_slice(&to_vec(&input).unwrap()).unwrap())
     }

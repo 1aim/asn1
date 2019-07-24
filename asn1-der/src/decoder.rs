@@ -1,11 +1,12 @@
 mod bit_string;
 mod object_identifier;
 mod octet_string;
+mod prefix;
 pub(crate) mod parser;
 
 use std::{num, result};
 
-use core::identifier::{Class, Identifier};
+use core::identifier::Identifier;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 use serde::{
@@ -13,11 +14,16 @@ use serde::{
     forward_to_deserialize_any,
 };
 
-use self::{
-    bit_string::BitString, object_identifier::ObjectIdentifier, octet_string::OctetString,
-    parser::*,
+use crate::{
+    error::{Error, Result},
+    identifier::BerIdentifier,
 };
-use crate::error::{Error, Result};
+use self::{
+    bit_string::BitString,
+    object_identifier::ObjectIdentifier,
+    octet_string::OctetString,
+    prefix::Prefix,
+};
 
 /// Deserialize an instance of `T` from bytes of ASN.1 DER.
 pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
@@ -30,38 +36,6 @@ where
     T::deserialize(&mut deserializer)
 }
 
-/// A wrapper around `core::Identifier` except it also contains whether the tag
-/// is using constructed or primitive encoding.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BerIdentifier {
-    identifier: Identifier,
-    is_constructed: bool,
-}
-
-impl BerIdentifier {
-    pub fn new(class: Class, is_constructed: bool, tag: usize) -> Self {
-        Self {
-            identifier: Identifier::new(class, tag),
-            is_constructed,
-        }
-    }
-
-    pub fn set_tag(self, tag: usize) -> Self {
-        Self {
-            identifier: self.identifier.set_tag(tag),
-            is_constructed: self.is_constructed
-        }
-    }
-}
-
-impl std::ops::Deref for BerIdentifier {
-    type Target = Identifier;
-
-    fn deref(&self) -> &Self::Target {
-        &self.identifier
-    }
-}
-
 /// An untyped ASN.1 value.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Value<'a> {
@@ -70,38 +44,42 @@ pub(crate) struct Value<'a> {
 }
 
 impl<'a> Value<'a> {
-    fn new(identifier: BerIdentifier, contents: &'a [u8]) -> Self {
-        Self { identifier, contents }
+    fn new<I: Into<BerIdentifier>>(identifier: I, contents: &'a [u8]) -> Self {
+        Self { identifier: identifier.into(), contents }
     }
 }
 
-struct Deserializer<'de> {
+pub(crate) struct Deserializer<'de> {
     input: &'de [u8],
+    enumerated: bool
 }
 
 impl<'de> Deserializer<'de> {
     fn from_slice(input: &'de [u8]) -> Self {
-        Self { input }
+        log::trace!("New Deserializer with input: {:?}", input);
+        Self { input, enumerated: false }
     }
 
     /// Looks for the next tag but doesn't advance the slice.
     fn peek_at_identifier(&self) -> Result<BerIdentifier> {
-        Ok(parse_identifier_octet(self.input)?.1)
+        let identifier = parser::parse_identifier_octet(self.input)?.1;
+        log::trace!("Peeking at: {:?}", identifier);
+        Ok(identifier)
     }
 
-    fn peek_value(&self) -> Result<Value<'de>> {
-        Ok(parse_value(self.input)?.1)
+    fn _peek_value(&self) -> Result<Value<'de>> {
+        Ok(parser::parse_value(self.input)?.1)
     }
 
     fn parse_value(&mut self) -> Result<Value<'de>> {
         log::trace!("Attempting to parse: {:?}", self.input);
-        let (slice, contents) = parse_value(self.input)?;
+        let (slice, value) = parser::parse_value(self.input)?;
         self.input = slice;
 
-        log::trace!("Value: {:?}", contents);
-        log::trace!("Remaining: {:?}", slice);
+        log::trace!("Value: {:?}", value);
+        log::trace!("Remaining: {:?}", self.input);
 
-        Ok(contents)
+        Ok(value)
     }
 
     fn parse_bool(&mut self) -> Result<bool> {
@@ -295,8 +273,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         }
     }
 
-    fn deserialize_unit_struct<V: Visitor<'de>>(self, _name: &str, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising unit struct.");
+    fn deserialize_unit_struct<V: Visitor<'de>>(self, name: &str, visitor: V) -> Result<V::Value> {
+        log::trace!("Deserialising unit struct {:?}.", name);
         self.deserialize_unit(visitor)
     }
 
@@ -321,8 +299,21 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                 let value = self.parse_value()?;
                 visitor.visit_seq(BitString::new(value.contents))
             }
+            "ASN.1#Implicit" => {
+                log::trace!("Using implicit deserialisation.");
+                visitor.visit_seq(Prefix::new(self, false)?)
+            }
+            "ASN.1#Explicit" => {
+                log::trace!("Using explicit deserialisation.");
+                visitor.visit_seq(Prefix::new(self, true)?)
+            }
             name => {
                 log::trace!("Deserialising newtype struct {:?}.", name);
+
+                if name == "ASN.1#Enumerated" {
+                    log::trace!("Enabled ENUMERATED decoding");
+                    self.enumerated = true;
+                }
                 visitor.visit_newtype_struct(self)
             }
         }
@@ -355,15 +346,8 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor: V,
     ) -> Result<V::Value> {
         log::trace!("Deserialising struct {:?} with fields {:?}.", name, fields);
-        let contents = match name {
-            "ASN.1#Explicit" => self.input,
-            _ => {
-                let value = self.parse_value()?;
-                value.contents
-            }
-        };
-
-        visitor.visit_seq(Sequence::new(contents, fields.len()))
+        let value = self.parse_value()?;
+        visitor.visit_seq(Sequence::new(value.contents, fields.len()))
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -386,24 +370,20 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             name,
             variants
         );
-        let (variant, contents) = match *self.peek_at_identifier()? {
-            // If it is ENUMERATED, then the index is stored in the contents
-            // octets, otherwise it is the identifier's tag number for
-            // CHOICE types.
-            Identifier::ENUMERATED => {
-                let value = self.parse_value()?;
-                let tag = BigInt::from_signed_bytes_be(&value.contents).to_usize().unwrap();
-                (variants.get(tag).ok_or(Error::NoVariantFound(tag))?, &[][..])
-            }
-            _ => {
-                let value = self.parse_value()?;
 
-                (variants.get(value.identifier.tag).ok_or(Error::NoVariantFound(value.identifier.tag))?, value.contents)
-            }
+        let variant_index = if self.enumerated {
+            self.enumerated = false;
+            self.parse_integer()?.to_usize().unwrap()
+        } else {
+            let identifier = self.peek_at_identifier()?;
+            identifier.tag
         };
 
+        let variant = variants.get(variant_index)
+                              .ok_or(Error::NoVariantFound(variant_index))?;
+
         log::trace!("Attempting to deserialise to {}::{}", name, variant);
-        visitor.visit_enum(Enum::new(variant, &mut Deserializer::from_slice(contents)))
+        visitor.visit_enum(Enum::new(variant, self))
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value>
@@ -540,70 +520,11 @@ integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use core::identifier::Class;
-    use core::types::OctetString;
+    use super::from_slice;
+    use core::types::*;
+    use core::identifier::constant::*;
+    use typenum::consts::*;
     use serde_derive::Deserialize;
-
-    macro_rules! variant_tests {
-        ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {
-            $(
-                $(
-                    #[test]
-                    fn $fn_name() {
-                        let (rest, result) = $test_fn((&$input[..]).into()).unwrap();
-                        eprintln!("REST {:?}", rest);
-                        assert_eq!($expected, result);
-                    }
-                )+
-            )+
-        }
-    }
-
-    variant_tests! {
-        parse_identifier_octet: {
-            universal_bool([0x1]) == BerIdentifier::new(Class::Universal, false, 1);
-            private_primitive([0xC0]) == BerIdentifier::new(Class::Private, false, 0);
-            context_constructed([0xA0]) == BerIdentifier::new(Class::Context, true, 0);
-            private_long_constructed([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F])
-                == BerIdentifier::new(Class::Private, true, 0x1FFFFFFFFFFFF);
-        }
-
-        parse_value: {
-            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::new(BerIdentifier::new(Class::Universal, false, 1), &[0xff]);
-        }
-    }
-
-    #[test]
-    fn value_long_length_form() {
-        let (_, value) = parse_value([0x1, 0x81, 0x2, 0xF0, 0xF0][..].into()).unwrap();
-
-        assert_eq!(value.contents, &[0xF0, 0xF0]);
-    }
-
-    #[test]
-    fn value_really_long_length_form() {
-        let full_buffer = [0xff; 0x100];
-
-        let mut value = vec![0x1, 0x82, 0x1, 0x0];
-        value.extend_from_slice(&full_buffer);
-
-        let (_, value) = parse_value((&*value).into()).unwrap();
-
-        assert_eq!(value.contents, &full_buffer[..]);
-    }
-
-    #[test]
-    fn value_indefinite_length_form() {
-        let (_, value) = parse_value([0x1, 0x80, 0xf0, 0xf0, 0xf0, 0xf0, 0, 0][..].into()).unwrap();
-
-        assert_eq!(value.contents, &[0xf0, 0xf0, 0xf0, 0xf0]);
-    }
-
-    #[test]
-    fn pkcs12_to_value() {
-        let _ = parse_value((&*std::fs::read("tests/data/test.p12").unwrap()).into()).unwrap();
-    }
 
     #[test]
     fn bool() {
@@ -639,14 +560,14 @@ mod tests {
     fn choice_newtype_variant() {
         #[derive(Clone, Debug, Deserialize, PartialEq)]
         enum Foo {
-            Bar(bool),
-            Baz(OctetString),
+            Bar(Implicit<Context, U0, bool>),
+            Baz(Implicit<Context, U1, OctetString>),
         }
 
         let os = OctetString::from(vec![1, 2, 3, 4, 5]);
 
-        assert_eq!(Foo::Bar(true), from_slice(&[0x80, 1, 0xff][..]).unwrap());
-        assert_eq!(os, from_slice(&[0x81, 5, 1, 2, 3, 4, 5][..]).unwrap());
+        assert_eq!(Foo::Bar(Implicit::new(true)), from_slice(&[0x80, 1, 0xff][..]).unwrap());
+        assert_eq!(Foo::Baz(Implicit::new(os)), from_slice(&[0x81, 5, 1, 2, 3, 4, 5][..]).unwrap());
     }
 
     /*

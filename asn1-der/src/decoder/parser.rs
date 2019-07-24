@@ -19,7 +19,7 @@ pub(crate) fn parse_identifier_octet(input: &[u8]) -> IResult<&[u8], Identifier>
         (input, identifier.identifier.tag)
     };
 
-    Ok((input, identifier.set_tag(tag)))
+    Ok((input, identifier.tag(tag)))
 }
 
 pub(crate) fn parse_encoded_number(input: &[u8]) -> IResult<&[u8], usize> {
@@ -34,7 +34,7 @@ fn parse_initial_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
     let initial_octet = octet[0];
 
     let class_bits = (initial_octet & 0xC0) >> 6;
-    let class = Class::from(class_bits);
+    let class = Class::from_u8(class_bits);
     let constructed = (initial_octet & 0x20) != 0;
     let tag = (initial_octet & 0x1f) as usize;
 
@@ -89,5 +89,66 @@ fn take_contents(input: &[u8], length: u8) -> IResult<&[u8], &[u8]> {
         Ok((input, &[]))
     } else {
         nom::bytes::streaming::take(length)(input)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identifier::BerIdentifier;
+
+    macro_rules! variant_tests {
+        ($($test_fn:ident : {$($fn_name:ident ($input:expr) == $expected:expr);+;})+) => {
+            $(
+                $(
+                    #[test]
+                    fn $fn_name() {
+                        let (rest, result) = $test_fn((&$input[..]).into()).unwrap();
+                        eprintln!("REST {:?}", rest);
+                        assert_eq!($expected, result);
+                    }
+                )+
+            )+
+        }
+    }
+
+    variant_tests! {
+        parse_identifier_octet: {
+            universal_bool([0x1]) == BerIdentifier::new(Class::Universal, false, 1);
+            private_primitive([0xC0]) == BerIdentifier::new(Class::Private, false, 0);
+            context_constructed([0xA0]) == BerIdentifier::new(Class::Context, true, 0);
+            private_long_constructed([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F])
+                == BerIdentifier::new(Class::Private, true, 0x1FFFFFFFFFFFF);
+        }
+
+        parse_value: {
+            primitive_bool(&[0x1, 0x1, 0xFF][..]) == Value::new(BerIdentifier::new(Class::Universal, false, 1), &[0xff]);
+        }
+    }
+
+    #[test]
+    fn value_long_length_form() {
+        let (_, value) = parse_value([0x1, 0x81, 0x2, 0xF0, 0xF0][..].into()).unwrap();
+
+        assert_eq!(value.contents, &[0xF0, 0xF0]);
+    }
+
+    #[test]
+    fn value_really_long_length_form() {
+        let full_buffer = [0xff; 0x100];
+
+        let mut value = vec![0x1, 0x82, 0x1, 0x0];
+        value.extend_from_slice(&full_buffer);
+
+        let (_, value) = parse_value((&*value).into()).unwrap();
+
+        assert_eq!(value.contents, &full_buffer[..]);
+    }
+
+    #[test]
+    fn value_indefinite_length_form() {
+        let (_, value) = parse_value([0x1, 0x80, 0xf0, 0xf0, 0xf0, 0xf0, 0, 0][..].into()).unwrap();
+
+        assert_eq!(value.contents, &[0xf0, 0xf0, 0xf0, 0xf0]);
     }
 }
