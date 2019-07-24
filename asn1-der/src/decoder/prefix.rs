@@ -39,9 +39,10 @@ impl<'a, 'de> SeqAccess<'de> for Prefix<'a, 'de> {
         } else {
             log::trace!("Deserialising inner value, explicit: {:?}", self.explicit);
             if self.explicit {
-                let value = self.de.parse_value()?;
+                let value = self.de.parse_value(None)?;
                 seed.deserialize(&mut Deserializer::from_slice(value.contents)).map(Some)
             } else {
+                self.de.type_check = false;
                 seed.deserialize(&mut *self.de).map(Some)
             }
         }

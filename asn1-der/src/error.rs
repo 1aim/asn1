@@ -4,6 +4,8 @@ use std::{error, fmt, io};
 use nom::Err;
 use serde::{de, ser};
 
+use core::identifier::Identifier;
+
 /// Alias for a `Result` with the error type `asn1_der::Error`.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -19,10 +21,17 @@ pub enum Error {
     Io(io::Error),
     /// No enum variant found matching the tag when deserialising.
     NoVariantFound(usize),
-    /// Couldn't cast big integer down to primitive numeric.
+    /// Couldn't cast a big integer down to primitive numeric.
     IntegerOverflow(String),
     /// Malformed ASN.1 DER.
     Parser(String),
+    /// Expected a tag other than what was provided.
+    IncorrectType {
+        /// Tag that was expected.
+        expected: Identifier,
+        /// Tag that was found.
+        actual: Identifier
+    },
 }
 
 impl de::Error for Error {
@@ -48,6 +57,7 @@ impl fmt::Display for Error {
             Error::NoVariantFound(index) => write!(f, "No variant found with index '{}'.", index),
             Error::Parser(msg) => write!(f, "Parsing: {}", msg),
             Error::IntegerOverflow(number) => write!(f, "Couldn't cast big int to {}", number),
+            Error::IncorrectType { expected, actual } => write!(f, "Found {:?}, expected: {:?}", actual, expected),
         }
     }
 }

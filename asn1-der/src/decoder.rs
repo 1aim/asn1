@@ -51,13 +51,14 @@ impl<'a> Value<'a> {
 
 pub(crate) struct Deserializer<'de> {
     input: &'de [u8],
-    enumerated: bool
+    enumerated: bool,
+    type_check: bool,
 }
 
 impl<'de> Deserializer<'de> {
     fn from_slice(input: &'de [u8]) -> Self {
         log::trace!("New Deserializer with input: {:?}", input);
-        Self { input, enumerated: false }
+        Self { input, enumerated: false, type_check: true, }
     }
 
     /// Looks for the next tag but doesn't advance the slice.
@@ -71,10 +72,21 @@ impl<'de> Deserializer<'de> {
         Ok(parser::parse_value(self.input)?.1)
     }
 
-    fn parse_value(&mut self) -> Result<Value<'de>> {
+    fn parse_value(&mut self, expected: Option<Identifier>) -> Result<Value<'de>> {
         log::trace!("Attempting to parse: {:?}", self.input);
         let (slice, value) = parser::parse_value(self.input)?;
         self.input = slice;
+
+        if self.type_check {
+            if let Some(expected) = expected {
+                let actual = *value.identifier;
+                if expected != actual {
+                    return Err(Error::IncorrectType { expected, actual })
+                }
+            }
+        } else {
+            self.type_check = true;
+        }
 
         log::trace!("Value: {:?}", value);
         log::trace!("Remaining: {:?}", self.input);
@@ -83,7 +95,7 @@ impl<'de> Deserializer<'de> {
     }
 
     fn parse_bool(&mut self) -> Result<bool> {
-        let value = self.parse_value()?;
+        let value = self.parse_value(Some(Identifier::BOOL))?;
 
         if value.contents.len() == 1 {
             // TODO: This logic changes for DER & CER.
@@ -96,8 +108,14 @@ impl<'de> Deserializer<'de> {
         }
     }
 
-    fn parse_integer(&mut self) -> Result<BigInt> {
-        let value = self.parse_value()?;
+    fn parse_integer(&mut self, check: bool) -> Result<BigInt> {
+        let expected = if check {
+            Some(Identifier::INTEGER)
+        } else {
+            None
+        };
+
+        let value = self.parse_value(expected)?;
 
         Ok(BigInt::from_signed_bytes_be(&value.contents))
     }
@@ -132,7 +150,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i8.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                        .to_i8()
                        .ok_or_else(|| Error::IntegerOverflow("i8".into()))?;
 
@@ -141,7 +159,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i16.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_i16()
                         .ok_or_else(|| Error::IntegerOverflow("i16".into()))?;
 
@@ -150,7 +168,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i32.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_i32()
                         .ok_or_else(|| Error::IntegerOverflow("i32".into()))?;
 
@@ -159,7 +177,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i64.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_i64()
                         .ok_or_else(|| Error::IntegerOverflow("i64".into()))?;
 
@@ -168,7 +186,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising i128.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_i128()
                         .ok_or_else(|| Error::IntegerOverflow("i128".into()))?;
 
@@ -177,7 +195,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u8.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_u8()
                         .ok_or_else(|| Error::IntegerOverflow("u8".into()))?;
 
@@ -186,7 +204,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u16.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_u16()
                         .ok_or_else(|| Error::IntegerOverflow("u16".into()))?;
 
@@ -195,7 +213,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u32.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_u32()
                         .ok_or_else(|| Error::IntegerOverflow("u32".into()))?;
 
@@ -204,7 +222,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u64.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_u64()
                         .ok_or_else(|| Error::IntegerOverflow("u64".into()))?;
 
@@ -213,7 +231,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u128.");
-        let value = self.parse_integer()?
+        let value = self.parse_integer(true)?
                         .to_u128()
                         .ok_or_else(|| Error::IntegerOverflow("u128".into()))?;
 
@@ -237,7 +255,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising str.");
-        let value = self.parse_value()?;
+        let value = self.parse_value(Some(Identifier::UNIVERSAL_STRING))?;
 
         visitor.visit_str(&*String::from_utf8_lossy(value.contents))
     }
@@ -260,7 +278,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             .map(|i| i.identifier == Identifier::NULL)
             .unwrap_or(false)
         {
-            self.parse_value()?;
+            self.parse_value(Some(Identifier::NULL))?;
             true
         } else {
             self.input.is_empty()
@@ -286,17 +304,17 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         match name {
             "ASN.1#OctetString" => {
                 log::trace!("Deserialising OCTET STRING.");
-                let value = self.parse_value()?;
+                let value = self.parse_value(Some(Identifier::OCTET_STRING))?;
                 visitor.visit_seq(OctetString::new(value.contents))
             }
             "ASN.1#ObjectIdentifier" => {
                 log::trace!("Deserialising OBJECT IDENTIFIER.");
-                let value = self.parse_value()?;
+                let value = self.parse_value(Some(Identifier::OBJECT_IDENTIFIER))?;
                 visitor.visit_seq(ObjectIdentifier::new(value.contents))
             }
             "ASN.1#BitString" => {
                 log::trace!("Deserialising BIT STRING.");
-                let value = self.parse_value()?;
+                let value = self.parse_value(Some(Identifier::BIT_STRING))?;
                 visitor.visit_seq(BitString::new(value.contents))
             }
             "ASN.1#Implicit" => {
@@ -346,13 +364,13 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor: V,
     ) -> Result<V::Value> {
         log::trace!("Deserialising struct {:?} with fields {:?}.", name, fields);
-        let value = self.parse_value()?;
+        let value = self.parse_value(Some(Identifier::SEQUENCE))?;
         visitor.visit_seq(Sequence::new(value.contents, fields.len()))
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising sequence.");
-        let value = self.parse_value()?;
+        let value = self.parse_value(Some(Identifier::SEQUENCE))?;
         visitor.visit_seq(Sequence::new(value.contents, None))
     }
 
@@ -373,7 +391,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
         let variant_index = if self.enumerated {
             self.enumerated = false;
-            self.parse_integer()?.to_usize().unwrap()
+            self.parse_integer(false)?.to_usize().unwrap()
         } else {
             let identifier = self.peek_at_identifier()?;
             identifier.tag
@@ -391,7 +409,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         log::trace!("Deserialising unit");
-        self.parse_value()?;
+        self.parse_value(Some(Identifier::NULL))?;
         visitor.visit_unit()
     }
 
@@ -400,7 +418,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         log::trace!("Deserialising bytes");
-        let value = self.parse_value()?;
+        let value = self.parse_value(Some(Identifier::OCTET_STRING))?;
         visitor.visit_seq(OctetString::new(value.contents))
     }
 
@@ -489,6 +507,7 @@ impl<'a, 'de> VariantAccess<'de> for Enum<'a, 'de> {
     where
         V: Visitor<'de>,
     {
+        self.de.type_check = false;
         de::Deserializer::deserialize_seq(self.de, visitor)
     }
 
@@ -496,6 +515,7 @@ impl<'a, 'de> VariantAccess<'de> for Enum<'a, 'de> {
     where
         V: Visitor<'de>,
     {
+        self.de.type_check = false;
         de::Deserializer::deserialize_seq(self.de, visitor)
     }
 }
