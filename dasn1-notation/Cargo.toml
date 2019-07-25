@@ -1,5 +1,5 @@
 [package]
-name = "asn1-notation"
+name = "dasn1-notation"
 version = "0.1.0"
 authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"
@@ -12,7 +12,7 @@ unwrap_to = "0.1.0"
 variation = "0.1.0"
 log = "0.4.6"
 env_logger = "0.6.1"
-asn1-pest = { version = "0.1", path = "../asn1-pest/" }
+asn1-pest = { version = "0.1", package="dasn1-pest", path = "../dasn1-pest/" }
 pest = "2.1.0"
 heck = "0.3.1"
 itertools = "0.8.0"

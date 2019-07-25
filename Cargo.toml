@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "asn1",
-    "asn1-der",
-    "asn1-notation",
-    "asn1-pest"
+    "dasn1",
+    "dasn1-der",
+    "dasn1-notation",
+    "dasn1-pest"
 ]

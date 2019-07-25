@@ -1,5 +1,5 @@
 [package]
-name = "asn1-pest"
+name = "dasn1-pest"
 version = "0.1.0"
 authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"

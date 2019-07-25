@@ -1,7 +1,7 @@
 use clap::{clap_app, crate_description, crate_version};
 use log::{debug, LevelFilter};
 
-use asn1_notation::NotationCompiler;
+use dasn1_notation::NotationCompiler;
 
 fn main() {
     let matches = clap_app!(casn1 =>

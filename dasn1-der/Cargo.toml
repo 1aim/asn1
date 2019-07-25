@@ -1,11 +1,11 @@
 [package]
-name = "asn1-der"
+name = "dasn1-der"
 version = "0.1.0"
 authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"
 
 [dependencies]
-core  = { version = "0.1", package = "asn1-core", path = "../asn1-core" }
+core  = { version = "0.1", package = "dasn1-core", path = "../dasn1-core" }
 failure = "0.1.5"
 hex = "0.3.2"
 log = "0.4.6"
