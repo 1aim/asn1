@@ -3,8 +3,15 @@ name = "dasn1"
 version = "0.1.1"
 authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"
-description = "A general purpose ASN.1 library"
+description = "An implementation of the ASN.1 X.680–X.699 standards"
 license = "MIT/Apache-2.0"
+repository = "https://github.com/dac-gmbh/asn1"
+keywords = ["asn1", "der", "ber", "protocol", "notation"]
+categories = ["command-line-utilities", "encoding", "parser-implementations"]
+
+[badges]
+travis-ci = { repository = "https://travis-ci.org/dac-gmbh/asn1" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 core = { version = "0.1.1",  path = "../dasn1-core", package = "dasn1-core" }

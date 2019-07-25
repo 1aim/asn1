@@ -1,10 +1,17 @@
 [package]
-name = "dasn1-notation"
-version = "0.1.1"
 authors = ["Erin Power <e.power@dac.eu>"]
+categories = ["command-line-utilities", "encoding", "parser-implementations"]
+description = "An ASN.1 notation compiler"
 edition = "2018"
-description = "A compiler for the ASN.1 notation language"
+keywords = ["protocol", "asn1", "der", "notation", "compiler"]
 license = "MIT/Apache-2.0"
+name = "dasn1-notation"
+repository = "https://github.com/dac-gmbh/asn1"
+version = "0.1.1"
+
+[badges]
+travis-ci = { repository = "https://travis-ci.org/dac-gmbh/asn1" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 failure = "0.1.5"

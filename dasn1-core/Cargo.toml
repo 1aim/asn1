@@ -5,6 +5,14 @@ authors = ["Erin Power <e.power@dac.eu>"]
 license = "MIT/Apache-2.0"
 description = "A library of ASN.1 data types."
 edition = "2018"
+description = "Implementations of ASN.1 data types."
+repository = "https://github.com/dac-gmbh/asn1"
+keywords = ["per", "asn1", "der", "ber", "protocol"]
+categories = ["data-structures", "encoding", "parser-implementations"]
+
+[badges]
+travis-ci = { repository = "https://travis-ci.org/dac-gmbh/asn1" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

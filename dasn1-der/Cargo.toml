@@ -1,10 +1,17 @@
 [package]
-name = "dasn1-der"
-version = "0.1.1"
 authors = ["Erin Power <e.power@dac.eu>"]
+categories = ["data-structures", "encoding", "parser-implementations"]
+description = "A ASN.1 DER encoder & decoder"
 edition = "2018"
-description = "A serde implementation of ASN.1 DER encoding/decoding"
+keywords = ["serialisation", "asn1", "der", "ber", "serde"]
 license = "MIT/Apache-2.0"
+name = "dasn1-der"
+repository = "https://github.com/dac-gmbh/asn1"
+version = "0.1.1"
+
+[badges]
+travis-ci = { repository = "https://travis-ci.org/dac-gmbh/asn1" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 core  = { version = "0.1", package = "dasn1-core", path = "../dasn1-core" }

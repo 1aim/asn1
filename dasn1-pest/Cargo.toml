@@ -1,11 +1,17 @@
 [package]
-name = "dasn1-pest"
-version = "0.1.1"
 authors = ["Erin Power <e.power@dac.eu>"]
-edition = "2018"
+categories = ["data-structures", "encoding", "parser-implementations"]
 description = "A pest grammar for the ASN.1 notation language."
+edition = "2018"
+keywords = ["pest", "asn1", "der", "ber", "protocol"]
 license = "MIT/Apache-2.0"
+name = "dasn1-pest"
+repository = "https://github.com/dac-gmbh/asn1"
+version = "0.1.1"
 
+[badges]
+travis-ci = { repository = "https://travis-ci.org/dac-gmbh/asn1" }
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 pest = "2"
