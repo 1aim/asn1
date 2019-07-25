@@ -20,7 +20,7 @@ pub enum Error {
     /// Failure to read or write bytes to an IO stream.
     Io(io::Error),
     /// No enum variant found matching the tag when deserialising.
-    NoVariantFound(usize),
+    NoVariantFound(u32),
     /// Couldn't cast a big integer down to primitive numeric.
     IntegerOverflow(String),
     /// Malformed ASN.1 DER.

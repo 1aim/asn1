@@ -1,5 +1,7 @@
 use core::identifier::Class;
 use nom::IResult;
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 
 use super::{BerIdentifier as Identifier, Value};
 
@@ -14,7 +16,9 @@ pub(crate) fn parse_identifier_octet(input: &[u8]) -> IResult<&[u8], Identifier>
     let (input, identifier) = parse_initial_octet(input)?;
 
     let (input, tag) = if identifier.identifier.tag >= 0x1f {
-        parse_encoded_number(input)?
+        let (input, tag) = parse_encoded_number(input)?;
+
+        (input, tag.to_u32().expect("Tag was larger than `u32`."))
     } else {
         (input, identifier.identifier.tag)
     };
@@ -22,7 +26,7 @@ pub(crate) fn parse_identifier_octet(input: &[u8]) -> IResult<&[u8], Identifier>
     Ok((input, identifier.tag(tag)))
 }
 
-pub(crate) fn parse_encoded_number(input: &[u8]) -> IResult<&[u8], usize> {
+pub(crate) fn parse_encoded_number(input: &[u8]) -> IResult<&[u8], BigInt> {
     let (input, body) = nom::bytes::streaming::take_while(|i| i & 0x80 != 0)(input)?;
     let (input, end) = nom::bytes::streaming::take(1usize)(input)?;
 
@@ -36,7 +40,7 @@ fn parse_initial_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
     let class_bits = (initial_octet & 0xC0) >> 6;
     let class = Class::from_u8(class_bits);
     let constructed = (initial_octet & 0x20) != 0;
-    let tag = (initial_octet & 0x1f) as usize;
+    let tag = (initial_octet & 0x1f) as u32;
 
     Ok((input, Identifier::new(class, constructed, tag)))
 }
@@ -46,20 +50,20 @@ fn parse_contents(input: &[u8]) -> IResult<&[u8], &[u8]> {
     take_contents(input, length[0])
 }
 
-fn concat_number(body: &[u8], end: u8) -> usize {
-    let mut tag = 0;
+fn concat_number(body: &[u8], end: u8) -> BigInt {
+    let mut number = BigInt::new(num_bigint::Sign::NoSign, Vec::new());
 
     for byte in body {
-        tag <<= 7;
-        tag |= (byte & 0x7F) as usize;
+        number <<= 7usize;
+        number |= BigInt::from(byte & 0x7F);
     }
 
-    tag <<= 7;
     // end doesn't need to be bitmasked as we know the MSB is `0`
     // (X.690 8.1.2.4.2.a).
-    tag |= end as usize;
+    number <<= 7usize;
+    number |= BigInt::from(end);
 
-    tag
+    number
 }
 
 fn concat_bits(body: &[u8], width: u8) -> usize {
@@ -117,8 +121,8 @@ mod tests {
             universal_bool([0x1]) == BerIdentifier::new(Class::Universal, false, 1);
             private_primitive([0xC0]) == BerIdentifier::new(Class::Private, false, 0);
             context_constructed([0xA0]) == BerIdentifier::new(Class::Context, true, 0);
-            private_long_constructed([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F])
-                == BerIdentifier::new(Class::Private, true, 0x1FFFFFFFFFFFF);
+            private_long_constructed([0xFF, 0x8F, 0xFF, 0xFF, 0xFF, 0x7F])
+                == BerIdentifier::new(Class::Private, true, 0xFF_FF_FF_FF);
         }
 
         parse_value: {

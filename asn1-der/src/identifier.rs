@@ -14,7 +14,7 @@ pub struct BerIdentifier {
 
 impl BerIdentifier {
     /// Instantiates a new instance of `BerIdentifier` from its components.
-    pub fn new(class: Class, is_constructed: bool, tag: usize) -> Self {
+    pub fn new(class: Class, is_constructed: bool, tag: u32) -> Self {
         Self {
             identifier: Identifier::new(class, tag),
             is_constructed,
@@ -22,7 +22,7 @@ impl BerIdentifier {
     }
 
     /// Instantiates a new tag from `self` with `tag` overwritten.
-    pub fn tag(self, tag: usize) -> Self {
+    pub fn tag(self, tag: u32) -> Self {
         Self {
             identifier: self.identifier.set_tag(tag),
             is_constructed: self.is_constructed

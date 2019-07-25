@@ -23,7 +23,7 @@ pub struct Prefixed<P: Prefix, C: ConstClass, N: Unsigned, T> {
 }
 
 impl<P: Prefix, C: ConstClass, N: Unsigned, T> Prefixed<P, C, N, T> {
-    const IDENTIFIER: Identifier = Identifier::new(C::CLASS, N::USIZE);
+    const IDENTIFIER: Identifier = Identifier::new(C::CLASS, N::U32);
     const NAME: &'static str = P::NAME;
 
     pub fn new(value: T) -> Self {
@@ -88,9 +88,9 @@ impl<'de, T: Deserialize<'de>> Visitor<'de> for PrefixVisitor<T> {
 
     fn visit_seq<S: SeqAccess<'de>>(self, mut visitor: S) -> Result<Self::Value, S::Error> {
         let class: u8 = visitor.next_element()?.unwrap();
-        let tag: u64 = visitor.next_element()?.unwrap();
+        let tag: u32 = visitor.next_element()?.unwrap();
 
-        assert_eq!(self.identifier, Identifier::new(Class::from_u8(class), tag as usize));
+        assert_eq!(self.identifier, Identifier::new(Class::from_u8(class), tag));
 
         Ok(visitor.next_element()?.expect("Couldn't deserialize to inner type"))
     }

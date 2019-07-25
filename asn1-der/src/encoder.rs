@@ -391,12 +391,12 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     fn serialize_tuple_variant(
         self,
         name: &'static str,
-        variant_index: u32,
+        _variant_index: u32,
         _variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
         log::trace!("Serializing {}", name);
-        self.set_tag(Identifier::from_context(variant_index));
+        self.set_constructed();
         self.serialize_seq(Some(len))
     }
 
@@ -743,7 +743,7 @@ mod tests {
             data: OctetString::from(vec![1, 2, 3, 4]),
         };
 
-        let raw = &[0xA0, 6, 0x4, 4, 1, 2, 3, 4][..];
+        let raw = &[0x30, 6, 0x4, 4, 1, 2, 3, 4][..];
 
         let result = to_vec(&bar).unwrap();
 

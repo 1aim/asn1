@@ -11,7 +11,7 @@ use super::Serializer;
 pub(crate) struct PrefixSerializer {
     pub output: Serializer<Vec<u8>>,
     pub class: Option<Class>,
-    pub tag: Option<usize>,
+    pub tag: Option<u32>,
 }
 
 impl PrefixSerializer {
@@ -81,16 +81,16 @@ impl<'a> ser::Serializer for &'a mut PrefixSerializer {
     }
 
     fn serialize_u32(self, v: u32) -> Result<()> {
-        self.output.serialize_u32(v)
+        if self.tag.is_none() {
+            self.tag = Some(v);
+            Ok(())
+        } else {
+            self.output.serialize_u32(v)
+        }
     }
 
     fn serialize_u64(self, v: u64) -> Result<()> {
-        if self.tag.is_none() {
-            self.tag = Some(v as usize);
-            Ok(())
-        } else {
-            self.output.serialize_u64(v)
-        }
+        self.output.serialize_u64(v)
     }
 
     fn serialize_f32(self, v: f32) -> Result<()> {

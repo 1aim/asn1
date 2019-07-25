@@ -31,7 +31,7 @@ impl Class {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Identifier {
     pub class: Class,
-    pub tag: usize,
+    pub tag: u32,
 }
 
 macro_rules! consts {
@@ -75,27 +75,28 @@ impl Identifier {
         BMP_STRING = 30
     }
 
-    pub const fn new(class: Class, tag: usize) -> Self {
+    pub const fn new(class: Class, tag: u32) -> Self {
         Self {
             class,
             tag,
         }
     }
 
-    pub fn from_context<I: Into<u64>>(tag: I) -> Self {
-        // TODO: This is bad as it will implicitly truncate larger tags.
-        // This will be fixed when tag is moved to BigInt.
-        Self::new(Class::Context, tag.into() as usize)
-    }
-
-    pub fn set_tag(mut self, tag: usize) -> Self {
+    pub fn set_tag(mut self, tag: u32) -> Self {
         self.tag = tag;
         self
     }
 
     pub fn len(&self) -> usize {
         if self.tag > 0x1f {
-            2
+            let mut len = 1;
+            let mut tag = self.tag;
+            while tag != 0 {
+                len += 1;
+                tag >>= 7;
+            }
+
+            len
         } else {
             1
         }

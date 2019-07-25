@@ -391,13 +391,13 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
         let variant_index = if self.enumerated {
             self.enumerated = false;
-            self.parse_integer(false)?.to_usize().unwrap()
+            self.parse_integer(false)?.to_u32().unwrap()
         } else {
             let identifier = self.peek_at_identifier()?;
             identifier.tag
         };
 
-        let variant = variants.get(variant_index)
+        let variant = variants.get(variant_index as usize)
                               .ok_or(Error::NoVariantFound(variant_index))?;
 
         log::trace!("Attempting to deserialise to {}::{}", name, variant);
