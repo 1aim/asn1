@@ -8,7 +8,7 @@ const NAME: &str = "ASN.1#Enumerated";
 /// a wrapper around an `enum` with no inner data. Using `Enumerated` will
 /// produce the `ENUMERATED` encoding where as using `enum`s directly will
 /// produce the `CHOICE` encoding.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Enumerated<E: Enumerable>(E);
 
 impl<E: Enumerable> Enumerated<E> {
