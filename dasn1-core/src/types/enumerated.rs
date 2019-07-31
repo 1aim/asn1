@@ -8,7 +8,7 @@ const NAME: &str = "ASN.1#Enumerated";
 /// a wrapper around an `enum` with no inner data. Using `Enumerated` will
 /// produce the `ENUMERATED` encoding where as using `enum`s directly will
 /// produce the `CHOICE` encoding.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Enumerated<E: Enumerable>(E);
 
 impl<E: Enumerable> Enumerated<E> {
@@ -20,6 +20,18 @@ impl<E: Enumerable> Enumerated<E> {
     /// Consumes self and returns the inner `Enumerable` variant from an instance of `Enumerated`.
     pub fn into_inner(self) -> E {
         self.0
+    }
+}
+
+impl<E: Enumerable> AsRef<E> for Enumerated<E> {
+    fn as_ref(&self) -> &E {
+        &self.0
+    }
+}
+
+impl<E: Enumerable> AsMut<E> for Enumerated<E> {
+    fn as_mut(&mut self) -> &mut E {
+        &mut self.0
     }
 }
 
