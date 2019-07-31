@@ -23,6 +23,18 @@ impl<E: Enumerable> Enumerated<E> {
     }
 }
 
+impl<E: Enumerable> AsRef<E> for Enumerated<E> {
+    fn as_ref(&self) -> &E {
+        &self.0
+    }
+}
+
+impl<E: Enumerable> AsMut<E> for Enumerated<E> {
+    fn as_mut(&mut self) -> &mut E {
+        &mut self.0
+    }
+}
+
 /// A marker trait signifying that a type is an `enum` with no data in the
 /// variants. Implementing this trait on `enum`s with data or on `struct`s, and
 /// using the `Enumerated` struct will produce malformed encodings.
