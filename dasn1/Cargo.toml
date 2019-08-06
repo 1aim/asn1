@@ -1,13 +1,15 @@
 [package]
 name = "dasn1"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"
+description = "A general purpose ASN.1 library"
+license = "MIT/Apache-2.0"
 
 [dependencies]
-core = { path = "../dasn1-core", package = "dasn1-core" }
-der = { path = "../dasn1-der", package = "dasn1-der", optional = true }
-notation = { path = "../dasn1-notation", package = "dasn1-notation", optional = true }
+core = { version = "0.1.1",  path = "../dasn1-core", package = "dasn1-core" }
+der = { version = "0.1.1",  path = "../dasn1-der", package = "dasn1-der", optional = true }
+notation = { version = "0.1.1", path = "../dasn1-notation", package = "dasn1-notation", optional = true }
 
 [[example]]
 name = "print"
