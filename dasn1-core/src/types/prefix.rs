@@ -16,7 +16,7 @@ use crate::identifier::{Class, Identifier};
 pub type Implicit<C, N, T> = Prefixed<ImplicitPrefix, C, N, T>;
 pub type Explicit<C, N, T> = Prefixed<ExplicitPrefix, C, N, T>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Prefixed<P: Prefix, C: ConstClass, N: Unsigned, T> {
     phantom: std::marker::PhantomData<ConstIdentifier<P, C, N>>,
     value: T,
@@ -37,6 +37,18 @@ impl<P: Prefix, C: ConstClass, N: Unsigned, T> Prefixed<P, C, N, T> {
         self.value
     }
 }
+
+impl<P: Prefix, C: ConstClass, N: Unsigned, T: PartialEq> PartialEq for Prefixed<P, C, N, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.eq(&other.value)
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        self.value.ne(&other.value)
+    }
+}
+
+impl<P: Prefix, C: ConstClass, N: Unsigned, T: Eq> Eq for Prefixed<P, C, N, T> {}
 
 struct ConstIdentifier<P: Prefix, C: ConstClass, N: Unsigned> {
     prefix: PhantomData<P>,
