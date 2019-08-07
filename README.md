@@ -4,7 +4,7 @@
 
 This repository is a work in progress implementation of ITU-T X.680–X.699 (08/2015) specifications, also known as ASN.1 in Rust. The current goal of the project is to build enough of the specification to be able to generate a correct PKCS#12 ASN.1 parser in Rust.
 
-## Currently supported standards
+## Currently (partially) supported standards
 * **X.680** — [Specification of basic notation](https://www.itu.int/rec/T-REC-X/recommendation.asp?lang=en&parent=T-REC-X.680)
 * **X.681** — [Information object specification](https://www.itu.int/rec/T-REC-X/recommendation.asp?lang=en&parent=T-REC-X.681)
 * **X.682** — [Constraint specification](https://www.itu.int/rec/T-REC-X/recommendation.asp?lang=en&parent=T-REC-X.682)
