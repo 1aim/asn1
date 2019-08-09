@@ -273,7 +273,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
     fn serialize_none(self) -> Result<()> {
         log::trace!("Serializing none.");
-        self.serialize_unit()
+        Ok(())
     }
 
     fn serialize_some<T>(self, value: &T) -> Result<()>
@@ -769,19 +769,19 @@ mod tests {
     fn sequence_with_option() {
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
         struct Foo {
-            a: u8,
-            b: Option<u8>,
+            a: Implicit<Context, U0, u8>,
+            b: Option<Implicit<Context, U1, u8>>,
         }
 
-        let some = Foo { a: 1, b: Some(2) };
-        let none = Foo { a: 1, b: None };
+        let some = Foo { a: 1.into(), b: Some(2.into()) };
+        let none = Foo { a: 1.into(), b: None.into() };
 
         assert_eq!(
-            &[0x30, 3 * 2, 0x2, 0x1, 0x1, 0x2, 0x1, 0x2][..],
+            &[0x30, 3 * 2, 0x80, 0x1, 0x1, 0x81, 0x1, 0x2][..],
             &*to_vec(&some).unwrap()
         );
         assert_eq!(
-            &[0x30, 0x5, 0x2, 0x1, 0x1, 0x5, 0x0][..],
+            &[0x30, 0x3, 0x80, 0x1, 0x1][..],
             &*to_vec(&none).unwrap()
         );
     }

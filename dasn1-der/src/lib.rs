@@ -184,16 +184,20 @@ mod tests {
     }
 
     #[test]
-    fn option() {
+    fn optional() {
+        env_logger::init();
         #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
         struct Struct {
-            a: Option<u8>,
-            b: Option<u8>,
+            a: Optional<u8>,
         }
 
-        let data = Struct { a: None, b: Some(100) };
+        let none = Struct { a: None.into() };
+        let raw = to_vec(&none).unwrap();
+        assert_eq!(&[0x30, 0][..], &*raw);
+        assert_eq!(none, from_slice(&raw).unwrap());
 
-        assert_eq!(data, from_slice(&to_vec(&data).unwrap()).unwrap());
+        let some = Struct { a: Some(100).into() };
+        assert_eq!(some, from_slice(&to_vec(&some).unwrap()).unwrap());
     }
 
     #[test]
@@ -225,11 +229,11 @@ mod tests {
         #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
         struct Foo {
             a: u8,
-            b: Option<u8>,
+            b: Optional<u8>,
         }
 
-        let some = Foo { a: 1, b: Some(2) };
-        let none = Foo { a: 1, b: None };
+        let some = Foo { a: 1, b: Some(2).into() };
+        let none = Foo { a: 1, b: None.into() };
 
         assert_eq!(some, from_slice(&to_vec(&some).unwrap()).unwrap());
         assert_eq!(none, from_slice(&to_vec(&none).unwrap()).unwrap());
@@ -264,7 +268,6 @@ mod tests {
 
     #[test]
     fn nested_enum() {
-        env_logger::init();
         #[derive(Serialize, Deserialize, Debug, PartialEq)]
         enum Alpha {
             A(Implicit<Context, U0, Charlie>),

@@ -1,10 +1,11 @@
 mod bit_string;
 mod object_identifier;
 mod octet_string;
+mod option;
 mod prefix;
 pub(crate) mod parser;
 
-use std::{num, result};
+use std::{fmt, num, result};
 
 use core::identifier::Identifier;
 use num_bigint::BigInt;
@@ -21,6 +22,7 @@ use crate::{
 use self::{
     bit_string::BitString,
     object_identifier::ObjectIdentifier,
+    option::IdentifierDeserializer,
     octet_string::OctetString,
     prefix::Prefix,
 };
@@ -218,7 +220,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
                         .ok_or_else(|| Error::IntegerOverflow("u32".into()))?;
 
         visitor.visit_u32(value)
-}
+    }
 
     fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising u64.");
@@ -273,6 +275,12 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         log::trace!("Deserialising option.");
 
+        let ident = self.peek_at_identifier().map(|i| i.identifier).ok();
+        let mut identifier_de = IdentifierDeserializer::new(ident, self);
+        let result = visitor.visit_some(&mut identifier_de);
+
+        result
+        /*
         let is_none = if self
             .peek_at_identifier()
             .map(|i| i.identifier == Identifier::NULL)
@@ -289,6 +297,7 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         } else {
             visitor.visit_some(self)
         }
+        */
     }
 
     fn deserialize_unit_struct<V: Visitor<'de>>(self, name: &str, visitor: V) -> Result<V::Value> {
@@ -537,6 +546,26 @@ macro_rules! integers {
 }
 
 integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
+
+struct Inspector<T> {
+    marker: std::marker::PhantomData<T>,
+}
+
+impl<'de, T> Visitor<'de> for Inspector<T> {
+    type Value = BerIdentifier;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a integer")
+    }
+
+    fn visit_seq<S: SeqAccess<'de>>(self, mut visitor: S) -> result::Result<Self::Value, S::Error> {
+        let class: u8 = visitor.next_element()?.unwrap();
+        let is_constructed: bool = visitor.next_element()?.unwrap();
+        let tag: u32 = visitor.next_element()?.unwrap();
+
+        Ok(BerIdentifier::new(core::identifier::Class::from_u8(class), is_constructed, tag))
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -1,14 +1,13 @@
 [package]
-name    = "dasn1-core"
-version = "0.1.1"
 authors = ["Erin Power <e.power@dac.eu>"]
-license = "MIT/Apache-2.0"
+categories = ["data-structures", "encoding", "parser-implementations"]
 description = "A library of ASN.1 data types."
 edition = "2018"
-description = "Implementations of ASN.1 data types."
-repository = "https://github.com/dac-gmbh/asn1"
 keywords = ["per", "asn1", "der", "ber", "protocol"]
-categories = ["data-structures", "encoding", "parser-implementations"]
+license = "MIT/Apache-2.0"
+name = "dasn1-core"
+repository = "https://github.com/dac-gmbh/asn1"
+version = "0.1.1"
 
 [badges]
 travis-ci = { repository = "https://travis-ci.org/dac-gmbh/asn1" }

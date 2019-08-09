@@ -103,6 +103,45 @@ impl Identifier {
     }
 }
 
+// BIT_STRING = 3,
+// OCTET_STRING = 4,
+// OBJECT_IDENTIFIER = 6,
+// ENUMERATED = 10,
+// SEQUENCE = 16,
+// UNIVERSAL_STRING = 28,
+
+pub trait TypeIdentifier {
+    const IDENTIFIER: Identifier;
+}
+
+impl TypeIdentifier for String {
+    const IDENTIFIER: Identifier = Identifier::UNIVERSAL_STRING;
+}
+
+impl TypeIdentifier for bool {
+    const IDENTIFIER: Identifier = Identifier::BOOL;
+}
+
+impl TypeIdentifier for () {
+    const IDENTIFIER: Identifier = Identifier::NULL;
+}
+
+impl<T: TypeIdentifier> TypeIdentifier for Option<T> {
+    const IDENTIFIER: Identifier = T::IDENTIFIER;
+}
+
+macro_rules! impl_integers {
+    ($($num:ty)+) => {
+        $(
+            impl TypeIdentifier for $num {
+                const IDENTIFIER: Identifier = Identifier::INTEGER;
+            }
+        )+
+    }
+}
+
+impl_integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
+
 pub mod constant {
     pub trait Prefix: Copy + Clone + Ord + PartialOrd + Eq + PartialEq + std::fmt::Debug {
         const NAME: &'static str;

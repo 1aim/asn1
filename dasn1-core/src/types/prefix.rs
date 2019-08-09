@@ -5,24 +5,46 @@ use serde::{
     Deserializer,
     Serialize,
     Serializer,
-    de::{SeqAccess, Visitor},
+    de::{self, SeqAccess, Visitor},
 };
 
 use typenum::marker_traits::Unsigned;
 
-use crate::identifier::constant::*;
-use crate::identifier::{Class, Identifier};
+use crate::{
+    identifier::{
+        Class,
+        Identifier,
+        TypeIdentifier,
+        constant::*,
+    }
+};
 
-pub type Implicit<C, N, T> = Prefixed<ImplicitPrefix, C, N, T>;
-pub type Explicit<C, N, T> = Prefixed<ExplicitPrefix, C, N, T>;
+pub type Implicit<C, N, T> = ConstPrefixed<ImplicitPrefix, C, N, T>;
+pub type Explicit<C, N, T> = ConstPrefixed<ExplicitPrefix, C, N, T>;
 
-#[derive(Debug, Clone)]
-pub struct Prefixed<P: Prefix, C: ConstClass, N: Unsigned, T> {
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstPrefixed<P: Prefix, C: ConstClass, N: Unsigned, T> {
     phantom: std::marker::PhantomData<ConstIdentifier<P, C, N>>,
+    value: Prefixed<ConstIdentifier<P, C, N>, T>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Prefixed<I: TypeIdentifier, T> {
+    prefix: I,
     value: T,
 }
 
-impl<P: Prefix, C: ConstClass, N: Unsigned, T> Prefixed<P, C, N, T> {
+struct ConstIdentifier<P: Prefix, C: ConstClass, N: Unsigned> {
+    prefix: PhantomData<P>,
+    class: PhantomData<C>,
+    tag: PhantomData<N>,
+}
+
+impl<P: Prefix, C: ConstClass, N: Unsigned> TypeIdentifier for ConstIdentifier<P, C, N> {
+    const IDENTIFIER: Identifier = Identifier::new(C::CLASS, N::U32);
+}
+
+impl<P: Prefix, C: ConstClass, N: Unsigned, T> ConstPrefixed<P, C, N, T> {
     const IDENTIFIER: Identifier = Identifier::new(C::CLASS, N::U32);
     const NAME: &'static str = P::NAME;
 
@@ -37,18 +59,6 @@ impl<P: Prefix, C: ConstClass, N: Unsigned, T> Prefixed<P, C, N, T> {
         self.value
     }
 }
-
-impl<P: Prefix, C: ConstClass, N: Unsigned, T: PartialEq> PartialEq for Prefixed<P, C, N, T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.value.eq(&other.value)
-    }
-
-    fn ne(&self, other: &Self) -> bool {
-        self.value.ne(&other.value)
-    }
-}
-
-impl<P: Prefix, C: ConstClass, N: Unsigned, T: Eq> Eq for Prefixed<P, C, N, T> {}
 
 struct ConstIdentifier<P: Prefix, C: ConstClass, N: Unsigned> {
     prefix: PhantomData<P>,
@@ -101,8 +111,11 @@ impl<'de, T: Deserialize<'de>> Visitor<'de> for PrefixVisitor<T> {
     fn visit_seq<S: SeqAccess<'de>>(self, mut visitor: S) -> Result<Self::Value, S::Error> {
         let class: u8 = visitor.next_element()?.unwrap();
         let tag: u32 = visitor.next_element()?.unwrap();
+        let actual_identifier = Identifier::new(Class::from_u8(class), tag);
 
-        assert_eq!(self.identifier, Identifier::new(Class::from_u8(class), tag));
+        if self.identifier != actual_identifier {
+            return Err(de::Error::custom(format!("{:?} != {:?}", self.identifier, actual_identifier)))
+        }
 
         Ok(visitor.next_element()?.expect("Couldn't deserialize to inner type"))
     }
