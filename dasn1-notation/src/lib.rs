@@ -36,12 +36,11 @@ impl NotationCompiler {
 
         let mut fixed_tree = SemanticChecker::new(ast);
         fixed_tree.build()?;
-        let table = fixed_tree.table;
 
-        let output = Vec::new();
+        let mut output = Vec::new();
 
-        let codegen = CodeGenerator::<Vec<u8>, Rust>::new(table, output);
-        let output = codegen.generate()?;
+        CodeGenerator::<Vec<u8>, Rust>::new(fixed_tree, &mut output)
+            .generate()?;
 
         Ok(String::from_utf8(output).unwrap())
     }

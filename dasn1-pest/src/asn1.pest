@@ -205,22 +205,16 @@ SequenceType = {
 ExtensionAndException = { "..." ~ ExceptionSpec? }
 OptionalExtensionMarker = { "," ~ "..." }
 ComponentTypeLists = {
+    ComponentTypeExtension |
+    (ComponentTypeList ~ ("," ~ ComponentTypeExtension)?)
+}
+
+ComponentTypeExtension = {
+    ExtensionAndException ~
+    ExtensionAdditions? ~
     (
-       ComponentTypeList ~
-        (
-            "," ~
-            ExtensionAndException ~
-            ExtensionAdditions? ~
-            (
-                (ExtensionEndMarker ~ "," ~ ComponentTypeList) |
-                OptionalExtensionMarker?
-            )
-        )?
-    ) |
-    (
-        ExtensionAndException ~
-        ExtensionAdditions? ~
-        ((ExtensionEndMarker ~ "," ~ ComponentTypeList) | OptionalExtensionMarker?)
+        (ExtensionEndMarker ~ "," ~ ComponentTypeList) |
+        OptionalExtensionMarker?
     )
 }
 
@@ -228,9 +222,9 @@ ExtensionEndMarker = { "," ~ "..." }
 ExtensionAdditions = { "," ~ ExtensionAdditionList }
 ExtensionAdditionList = { (ExtensionAddition ~ ",")* ~ ExtensionAddition }
 ExtensionAddition = { ComponentType | ExtensionAdditionGroup }
-ExtensionAdditionGroup = { "[[" ~ VersionNumber? ~ ComponentTypeList  ~ "]]" }
+ExtensionAdditionGroup = { "[[" ~ (VersionNumber ~ ":")? ~ ComponentTypeList  ~ "]]" }
 ComponentTypeList = { (ComponentType ~ ",")* ~ ComponentType }
-VersionNumber = @{ number ~ ":" }
+VersionNumber = @{ number }
 ComponentType = {
     (NamedType ~ ("OPTIONAL" | ("DEFAULT" ~ Value))?) |
     "COMPONENTS" ~ "OF" ~ Type
@@ -281,7 +275,8 @@ PrefixedType = { TaggedType | EncodingPrefixedType }
 EncodingPrefixedType = { EncodingPrefix ~ Type }
 EncodingPrefix = { "[" ~ EncodingReference? ~ EncodingInstruction? ~ "]" }
 EncodingInstruction = { ANY+ }
-TaggedType = { Tag ~ ("IMPLICIT" | "EXPLICIT")? ~ Type }
+TaggedType = { Tag ~ TagKind? ~ Type }
+TagKind = { "IMPLICIT" | "EXPLICIT" }
 Tag = { "[" ~ EncodingReference? ~ Class? ~ ClassNumber ~ "]" }
 EncodingReference = { encodingreference ~ ":" }
 ClassNumber = ${ NumberOrDefinedValue }

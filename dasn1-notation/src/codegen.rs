@@ -2,7 +2,7 @@ mod constant;
 mod imports;
 mod structs;
 
-use std::{collections::HashSet, io::Write, mem};
+use std::{collections::HashSet, fmt, io::Write, mem};
 
 use failure::Fallible as Result;
 use heck::*;
@@ -10,14 +10,40 @@ use heck::*;
 use self::{constant::Constant, imports::*, structs::*};
 use crate::{
     parser::*,
-    registry::GlobalSymbolTable,
+    semantics::SemanticChecker,
 };
 
+#[derive(Clone, Copy, Debug)]
+pub enum TagEnvironment {
+    Implicit,
+    Explicit,
+    Automatic,
+}
+
+impl fmt::Display for TagEnvironment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match self {
+            TagEnvironment::Implicit => "Implicit",
+            TagEnvironment::Explicit => "Explicit",
+            TagEnvironment::Automatic => "AUTOMATIC",
+        };
+
+        f.write_str(s)
+    }
+}
+
+impl Default for TagEnvironment {
+    fn default() -> Self {
+        TagEnvironment::Automatic
+    }
+}
+
 pub trait Backend: Default {
+    fn tag_environment(&mut self, environment: TagEnvironment);
     fn generate_type(&mut self, ty: &Type) -> Result<String>;
     fn generate_value(&mut self, value: &Value) -> Result<String>;
     fn generate_value_assignment(&mut self, name: String, ty: Type, value: Value) -> Result<()>;
-    fn generate_sequence(&mut self, name: &str, fields: &[ComponentType]) -> Result<String>;
+    fn generate_sequence(&mut self, name: &str, fields: &ComponentTypeList) -> Result<String>;
     fn generate_sequence_of(&mut self, name: &str, ty: &Type) -> Result<String>;
     fn generate_builtin(&mut self, builtin: &BuiltinType) -> Result<String>;
     fn write_prelude<W: Write>(&mut self, writer: &mut W) -> Result<()>;
@@ -26,19 +52,23 @@ pub trait Backend: Default {
 
 #[derive(Default)]
 pub struct Rust {
+    environment: TagEnvironment,
     consts: HashSet<Constant>,
     structs: Vec<Struct>,
     prelude: HashSet<Import>,
 }
 
 impl Backend for Rust {
+    fn tag_environment(&mut self, environment: TagEnvironment) {
+        self.environment = environment;
+    }
     /// As Rust doesn't allow you to have anonymous structs,
     /// `generate_sequence` returns the name of the struct and
     /// stores the definition seperately.
-    fn generate_sequence(&mut self, name: &str, fields: &[ComponentType]) -> Result<String> {
+    fn generate_sequence(&mut self, name: &str, components: &ComponentTypeList) -> Result<String> {
         let mut generated_struct = Struct::new(name);
 
-        for field in fields {
+        for field in components.components.as_ref().unwrap() {
             // Unwrap currently needed as i haven't created the simplified AST without
             // `ComponentsOf` yet.
             let (ty, optional, default) = field.as_type().unwrap();
@@ -114,6 +144,32 @@ impl Backend for Rust {
 
                 String::from("Integer")
             },
+            BuiltinType::Prefixed(prefix, ty) => {
+
+                let kind = match prefix.kind {
+                    TagKind::Implicit => TagEnvironment::Implicit,
+                    TagKind::Explicit => TagEnvironment::Explicit,
+                    TagKind::Environment => self.environment
+                };
+
+                self.prelude.insert(Import::new(
+                    Visibility::Private,
+                    ["asn1", "types", &*kind.to_string()]
+                        .into_iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                ));
+
+                let generated_ty = self.generate_type(&ty)?;
+
+                format!(
+                    "{kind}<{class}, {number}, {ty}>",
+                    kind = kind,
+                    class = prefix.class.unwrap_or(Class::Context),
+                    number = prefix.number,
+                    ty = generated_ty
+                )
+            }
             ref builtin => {
                 warn!("UNKNOWN BUILTIN TYPE: {:?}", builtin);
                 String::from("UNIMPLEMENTED")
@@ -161,23 +217,23 @@ impl Backend for Rust {
     }
 }
 
-pub struct CodeGenerator<W: Write, B: Backend> {
+pub struct CodeGenerator<'a, W: Write, B: Backend> {
     backend: B,
-    table: GlobalSymbolTable,
-    writer: W,
+    semantic_tree: SemanticChecker,
+    writer: &'a mut W,
 }
 
-impl<W: Write, B: Backend> CodeGenerator<W, B> {
-    pub fn new(table: GlobalSymbolTable, writer: W) -> Self {
+impl<'a, W: Write, B: Backend> CodeGenerator<'a, W, B> {
+    pub fn new(semantic_tree: SemanticChecker, writer: &'a mut W) -> Self {
         Self {
             backend: B::default(),
-            table,
+            semantic_tree,
             writer,
         }
     }
 
-    pub fn generate(mut self) -> Result<W> {
-        let table = self.table;
+    pub fn generate(mut self) -> Result<()> {
+        let table = self.semantic_tree.table;
 
         for (name, (ty, value)) in table.values.clone().into_iter() {
             self.backend.generate_value_assignment(name, ty, value)?;
@@ -186,9 +242,16 @@ impl<W: Write, B: Backend> CodeGenerator<W, B> {
         for (name, ty) in table.types.iter() {
             match &ty.raw_type {
                 RawType::Builtin(BuiltinType::Sequence(components)) => {
-                    self.backend.generate_sequence(&name, &components)?;
+                    self.backend.generate_sequence(&name, components)?;
                 }
                 RawType::Builtin(BuiltinType::SequenceOf(ty)) => {
+                    write!(
+                        self.writer,
+                        "{}\n",
+                        self.backend.generate_sequence_of(&name, &ty)?
+                    )?;
+                }
+                RawType::Builtin(BuiltinType::Prefixed(prefix, ty)) => {
                     write!(
                         self.writer,
                         "{}\n",
@@ -199,10 +262,10 @@ impl<W: Write, B: Backend> CodeGenerator<W, B> {
             }
         }
 
-        self.backend.write_prelude(&mut self.writer)?;
+        self.backend.write_prelude(self.writer)?;
         write!(self.writer, "\n\n")?;
-        self.backend.write_footer(&mut self.writer)?;
+        self.backend.write_footer(self.writer)?;
 
-        Ok(self.writer)
+        Ok(())
     }
 }

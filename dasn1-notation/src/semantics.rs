@@ -66,15 +66,15 @@ impl SemanticChecker {
                     self.table.insert_value_set(assignment.name, ty, elements);
                 }
                 AssignmentType::Object(..) => {
-                    unimplemented!()
+                    // unimplemented!()
                     //self.objects.insert(assignment.name, (class, object));
                 }
                 AssignmentType::ObjectClass(..) => {
-                    unimplemented!()
+                    // unimplemented!()
                     //self.classes.insert(assignment.name, class);
                 }
                 AssignmentType::ObjectSet(..) => {
-                    unimplemented!()
+                    // unimplemented!()
                     //self.object_sets.insert(assignment.name, class);
                 }
             }

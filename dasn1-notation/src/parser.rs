@@ -649,10 +649,15 @@ impl<'a> Parser<'a> {
 
                         let _pair = self.take(Rule::ClassNumber).as_str().to_owned();
                         let number = self.parse_number_or_defined_value();
+                        let kind = match self.look(Rule::TagKind).map(|r| r.as_str()) {
+                            Some("IMPLICIT") => TagKind::Implicit,
+                            Some("EXPLICIT") => TagKind::Explicit,
+                            _ => TagKind::Environment,
+                        };
                         let r#type = Box::new(self.parse_type());
 
                         RawType::Builtin(BuiltinType::Prefixed(
-                            Prefix::new(encoding, class, number),
+                            Prefix::new(encoding, kind, class, number),
                             r#type,
                         ))
                     } else {
@@ -683,7 +688,7 @@ impl<'a> Parser<'a> {
                             self.parse_component_type_lists(),
                         )))
                     } else {
-                        RawType::Builtin(BuiltinType::Set(Set::Concrete(Vec::new())))
+                        RawType::Builtin(BuiltinType::Set(Set::Concrete(ComponentTypeList::new())))
                     }
                 }
                 Rule::SetOfType => {
@@ -962,10 +967,38 @@ impl<'a> Parser<'a> {
         self.take(Rule::Literal).as_str().to_owned()
     }
 
-    fn parse_component_type_lists(&mut self) -> Vec<ComponentType> {
+    fn parse_component_type_lists(&mut self) -> ComponentTypeList {
         self.take(Rule::ComponentTypeLists);
 
-        self.parse_component_type_list()
+        let mut component_list = ComponentTypeList {
+            components: None,
+            extension: None,
+        };
+
+        if self.peek(Rule::ComponentTypeList) {
+            component_list.components = Some(self.parse_component_type_list());
+        }
+
+        if self.look(Rule::ComponentTypeExtension).is_some() {
+            let exception = match self.parse_extension_and_exception().unwrap() {
+                ExtensionAndException::Extension => None,
+                ExtensionAndException::Exception(id) => Some(id),
+            };
+            let additions = self.parse_extension_additions();
+            let marker = if self.look(Rule::ExtensionEndMarker).is_some() {
+                ExtensionMarker::End(self.parse_component_type_list())
+            } else {
+                ExtensionMarker::Extensible
+            };
+
+            component_list.extension = Some(Extension {
+                exception,
+                additions,
+                marker
+            });
+        }
+
+        component_list
     }
 
     fn parse_component_type_list(&mut self) -> Vec<ComponentType> {
@@ -1481,8 +1514,32 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Returns just whether or not the extension marker was present, while consuming it's pair if
-    /// it was present.
+    fn parse_extension_additions(&mut self) -> Vec<ExtensionAddition> {
+        self.take(Rule::ExtensionAdditions);
+        self.take(Rule::ExtensionAdditionList);
+        let mut additions = Vec::new();
+
+        while self.look(Rule::ExtensionAddition).is_some() {
+            if self.peek(Rule::ComponentType) {
+                additions.push(ExtensionAddition::Component(self.parse_component_type()))
+            } else {
+                let version = if self.peek(Rule::VersionNumber) {
+                    Some(self.parse_number())
+                } else {
+                    None
+                };
+
+                let components = self.parse_component_type_list();
+
+                additions.push(ExtensionAddition::Group(version, components));
+            }
+        }
+
+        additions
+    }
+
+    /// Returns just whether or not the extension marker was present, while
+    /// consuming its pair if it was present.
     fn parse_optional_extension_marker(&mut self) -> bool {
         self.look(Rule::OptionalExtensionMarker).is_some()
     }

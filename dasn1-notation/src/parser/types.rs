@@ -1,4 +1,7 @@
+mod prefix;
+
 use crate::parser::*;
+pub use prefix::*;
 
 #[derive(Clone, Debug, Derefable, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Type {
@@ -55,7 +58,7 @@ pub enum BuiltinType {
     ObjectIdentifier,
     OctetString,
     Prefixed(Prefix, Box<Type>),
-    Sequence(Vec<ComponentType>),
+    Sequence(ComponentTypeList),
     SequenceOf(Box<Type>),
     Set(Set),
     SetOf(Box<Type>),
@@ -130,20 +133,15 @@ pub enum DefinedObjectClass {
     TypeIdentifier,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct Prefix {
-    encoding: Option<String>,
-    class: Option<Class>,
-    number: Number,
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct ComponentTypeList {
+    pub components: Option<Vec<ComponentType>>,
+    pub extension: Option<Extension>,
 }
 
-impl Prefix {
-    pub fn new(encoding: Option<String>, class: Option<Class>, number: Number) -> Self {
-        Self {
-            encoding,
-            class,
-            number,
-        }
+impl ComponentTypeList {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -173,5 +171,24 @@ impl ComponentType {
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Set {
     Extensible(ExtensionAndException, bool),
-    Concrete(Vec<ComponentType>),
+    Concrete(ComponentTypeList),
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct Extension {
+    pub exception: Option<ExceptionIdentification>,
+    pub additions: Vec<ExtensionAddition>,
+    pub marker: ExtensionMarker,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
+pub enum ExtensionAddition {
+    Component(ComponentType),
+    Group(Option<i64>, Vec<ComponentType>),
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
+pub enum ExtensionMarker {
+    Extensible,
+    End(Vec<ComponentType>),
 }

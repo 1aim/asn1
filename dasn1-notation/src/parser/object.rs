@@ -61,11 +61,18 @@ pub enum FieldType {
     ObjectSet,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Variation)]
 pub enum Class {
     Universal,
     Application,
+    Context,
     Private,
+}
+
+impl fmt::Display for Class {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
 }
 
 impl FromStr for Class {
@@ -73,9 +80,10 @@ impl FromStr for Class {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
-            "UNIVERSAL" => Ok(Class::Universal),
             "APPLICATION" => Ok(Class::Application),
+            "CONTEXT" => Ok(Class::Context),
             "PRIVATE" => Ok(Class::Private),
+            "UNIVERSAL" => Ok(Class::Universal),
             _ => Err(()),
         }
     }
