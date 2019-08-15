@@ -5,12 +5,12 @@ use serde::{
     ser::Serializer,
 };
 
-use crate::identifier::TypeIdentifier;
+use crate::identifier::AsnType;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Optional<T: TypeIdentifier>(Option<Option<T>>);
+pub struct Optional<T: AsnType>(Option<Option<T>>);
 
-impl<T: Serialize + TypeIdentifier> Serialize for Optional<T> {
+impl<T: Serialize + AsnType> Serialize for Optional<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -20,7 +20,7 @@ impl<T: Serialize + TypeIdentifier> Serialize for Optional<T> {
 }
 
 
-impl<'de, T: Deserialize<'de> + TypeIdentifier> Deserialize<'de> for Optional<T> {
+impl<'de, T: Deserialize<'de> + AsnType> Deserialize<'de> for Optional<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -31,7 +31,7 @@ impl<'de, T: Deserialize<'de> + TypeIdentifier> Deserialize<'de> for Optional<T>
     }
 }
 
-impl<T: TypeIdentifier> From<Option<T>> for Optional<T> {
+impl<T: AsnType> From<Option<T>> for Optional<T> {
     fn from(option: Option<T>) -> Self {
         let option = if option.is_none() {
             None

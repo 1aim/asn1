@@ -1,0 +1,16 @@
+[package]
+name = "dasn1-derive"
+version = "0.1.0"
+authors = ["Erin Power <e.power@dac.eu>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.1", features = ["default", "extra-traits"] }
+quote = "1.0.0"
+
+[dev-dependencies]
+compiletest_rs = { version = "0.3.22", features = ["stable"] }
+dasn1 = { version = "0.1.0", path = "../dasn1" }

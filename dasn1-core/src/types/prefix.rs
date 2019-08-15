@@ -14,7 +14,7 @@ use crate::{
     identifier::{
         Class,
         Identifier,
-        TypeIdentifier,
+        AsnType,
         constant::*,
     }
 };
@@ -25,23 +25,26 @@ pub type Explicit<C, N, T> = ConstPrefixed<ExplicitPrefix, C, N, T>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConstPrefixed<P: Prefix, C: ConstClass, N: Unsigned, T> {
     phantom: std::marker::PhantomData<ConstIdentifier<P, C, N>>,
-    value: Prefixed<ConstIdentifier<P, C, N>, T>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Prefixed<I: TypeIdentifier, T> {
-    prefix: I,
     value: T,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Prefixed<T> {
+    prefix: Identifier,
+    value: T,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct ConstIdentifier<P: Prefix, C: ConstClass, N: Unsigned> {
     prefix: PhantomData<P>,
     class: PhantomData<C>,
     tag: PhantomData<N>,
 }
 
-impl<P: Prefix, C: ConstClass, N: Unsigned> TypeIdentifier for ConstIdentifier<P, C, N> {
-    const IDENTIFIER: Identifier = Identifier::new(C::CLASS, N::U32);
+impl<P: Prefix, C: ConstClass, N: Unsigned> AsnType for ConstIdentifier<P, C, N> {
+    fn identifier(&self) -> Identifier {
+        Identifier::new(C::CLASS, N::U32)
+    }
 }
 
 impl<P: Prefix, C: ConstClass, N: Unsigned, T> ConstPrefixed<P, C, N, T> {
@@ -66,18 +69,18 @@ struct ConstIdentifier<P: Prefix, C: ConstClass, N: Unsigned> {
     tag: PhantomData<N>,
 }
 
-impl<'de, P: Prefix, C: ConstClass, N: Unsigned, T: Deserialize<'de>> Deserialize<'de> for Prefixed<P, C, N, T> {
+impl<'de, P: Prefix, C: ConstClass, N: Unsigned, T: Deserialize<'de>> Deserialize<'de> for ConstPrefixed<P, C, N, T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let value = deserializer.deserialize_newtype_struct(Self::NAME, PrefixVisitor::<T>::new(Self::IDENTIFIER))?;
 
-        Ok(Prefixed::new(value))
+        Ok(Self::new(value))
     }
 }
 
-impl<P: Prefix, C: ConstClass, N: Unsigned, T: Serialize> Serialize for Prefixed<P, C, N, T> {
+impl<P: Prefix, C: ConstClass, N: Unsigned, T: Serialize> Serialize for ConstPrefixed<P, C, N, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
