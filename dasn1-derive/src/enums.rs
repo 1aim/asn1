@@ -6,7 +6,7 @@ pub enum EnumKind {
 }
 
 impl EnumKind {
-    pub fn from_variants<'a>(mut variants: impl Iterator<Item=&'a Variant>) -> Self {
+    pub fn from_variants<'a>(mut variants: impl Iterator<Item = &'a Variant>) -> Self {
         if variants.all(|v| v.fields == Fields::Unit) {
             EnumKind::Enumerable
         } else {

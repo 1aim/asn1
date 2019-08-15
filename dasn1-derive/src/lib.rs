@@ -24,20 +24,21 @@ pub fn my_macro(input: TokenStream) -> TokenStream {
             Fields::Unit => quote!(dasn1::identifier::Identifier::NULL),
             _ => quote!(dasn1::identifier::Identifier::SEQUENCE),
         },
-        Data::Enum(enum_data) => {
-            match EnumKind::from_variants(enum_data.variants.iter()) {
-                EnumKind::Enumerable => quote!(dasn1::identifier::Identifier::ENUMERATED),
-                EnumKind::Choice => {
-                    let variants = enum_data.variants.iter().enumerate().map(|(i, v)| quote!(#name::#v => Identifier::new(Class::Context, #i as u32)));
+        Data::Enum(enum_data) => match EnumKind::from_variants(enum_data.variants.iter()) {
+            EnumKind::Enumerable => quote!(dasn1::identifier::Identifier::ENUMERATED),
+            EnumKind::Choice => {
+                let variants =
+                    enum_data.variants.iter().enumerate().map(
+                        |(i, v)| quote!(#name::#v => Identifier::new(Class::Context, #i as u32)),
+                    );
 
-                    quote! {
-                        match self {
-                            #(#variants),*
-                        }
+                quote! {
+                    match self {
+                        #(#variants),*
                     }
-                },
+                }
             }
-        }
+        },
         _ => unimplemented!(),
     };
 

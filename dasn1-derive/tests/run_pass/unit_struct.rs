@@ -1,11 +1,11 @@
-use dasn1::identifier::{AsnType, Identifier};
-use dasn1_derive::AsnType;
+use dasn1::identifier::*;
+use dasn1_derive::*;
 
 #[derive(AsnType)]
-struct Foo;
+struct Null;
 
 
 #[test]
-fn uses_sequence_identifier() {
-    assert_eq!(Foo.identifier(), Identifier::NULL);
+fn unit_struct_identifier_is_null() {
+    assert_eq!(Null.identifier(), Identifier::NULL);
 }

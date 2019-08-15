@@ -103,8 +103,17 @@ impl Identifier {
     }
 }
 
+pub enum TagEncoding {
+    Implicit,
+    Explicit,
+    Untagged,
+}
+
 pub trait AsnType {
     fn identifier(&self) -> Identifier;
+    fn tag_encoding(&self) -> TagEncoding {
+        TagEncoding::Untagged
+    }
 }
 
 impl AsnType for String {
@@ -128,6 +137,13 @@ impl AsnType for () {
 impl<T: AsnType> AsnType for Option<T> {
     fn identifier(&self) -> Identifier {
         Identifier::UNIVERSAL_STRING
+    }
+
+    fn tag_encoding(&self) -> TagEncoding {
+        match self {
+            Some(inner) => inner.tag_encoding(),
+            None => TagEncoding::Untagged,
+        }
     }
 }
 

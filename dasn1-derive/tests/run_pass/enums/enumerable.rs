@@ -1,5 +1,5 @@
-use dasn1::identifier::{AsnType, Identifier};
-use dasn1_derive::AsnType;
+use dasn1::identifier::*;
+use dasn1_derive::*;
 
 #[derive(AsnType)]
 enum Enum {
@@ -9,7 +9,7 @@ enum Enum {
 }
 
 #[test]
-fn uses_enumerable_identifier() {
+fn unit_only_enum_identifier_is_enumerated() {
     for variant in &[Enum::Foo, Enum::Bar, Enum::Baz] {
         assert_eq!(variant.identifier(), Identifier::ENUMERATED);
     }
