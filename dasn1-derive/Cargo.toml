@@ -11,6 +11,7 @@ proc-macro = true
 [dependencies]
 syn = { version = "1.0.1", features = ["default", "extra-traits"] }
 quote = "1.0.0"
+proc-macro2 = "1.0.0"
 
 [dev-dependencies]
 dasn1 = { version = "0.1.0", path = "../dasn1" }
