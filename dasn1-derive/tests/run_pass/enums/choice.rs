@@ -15,3 +15,14 @@ fn adt_enum_identifier_is_automatic_context() {
     }
 }
 
+
+#[derive(AsnType)]
+enum Nested {
+    Inner(Choice),
+}
+
+
+#[test]
+fn correct_choice_tag_encoding() {
+    assert_eq!(Nested::Inner(Choice::Foo(0)).tag_encoding(), TagEncoding::Explicit);
+}

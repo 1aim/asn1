@@ -136,7 +136,10 @@ impl AsnType for () {
 
 impl<T: AsnType> AsnType for Option<T> {
     fn identifier(&self) -> Identifier {
-        Identifier::UNIVERSAL_STRING
+        match self {
+            Some(inner) => inner.identifier(),
+            None => Identifier::NULL,
+        }
     }
 
     fn tag_encoding(&self) -> TagEncoding {

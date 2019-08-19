@@ -1,11 +1,11 @@
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Fields, Generics, Ident};
-use proc_macro2::TokenStream;
 
 pub struct Struct {
     ident: Ident,
     generics: Generics,
-    fields: Fields
+    fields: Fields,
 }
 
 impl Struct {
@@ -13,7 +13,7 @@ impl Struct {
         Self {
             ident,
             generics,
-            fields
+            fields,
         }
     }
 }
