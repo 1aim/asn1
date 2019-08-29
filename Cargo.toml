@@ -3,5 +3,6 @@ members = [
     "dasn1",
     "dasn1-der",
     "dasn1-notation",
+    "dasn1-per",
     "dasn1-pest"
 ]
