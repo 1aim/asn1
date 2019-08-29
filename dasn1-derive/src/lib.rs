@@ -10,7 +10,7 @@ use syn::{parse_macro_input, Data, DeriveInput, Generics, Ident};
 use enums::Enum;
 use structs::Struct;
 
-#[proc_macro_derive(AsnType)]
+#[proc_macro_derive(AsnType, attributes(asn))]
 pub fn my_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
@@ -38,18 +38,35 @@ trait AsnTypeGenerator: Sized {
         quote!()
     }
 
+    fn generate_per_impl(&self) -> TokenStream {
+        quote!()
+    }
+
     fn into_trait_impl(self) -> proc_macro2::TokenStream {
         let name = self.name();
         let generics = self.generics();
         let identifier = self.generate_identifier_impl();
         let tag_encoding = self.generate_tag_encoding_impl();
 
+        let per_encoding = if cfg!(feature = "per") {
+            let per_impl = self.generate_per_impl();
+            quote! {
+                impl #generics dasn1::per::PerEncodable for #name #generics {
+                    fn encode(&self) -> dasn1::per::ser::Buffer {
+                        #per_impl
+                    }
+                }
+            }
+        } else {
+            quote!()
+        };
+
         let tag_encoding = if tag_encoding.is_empty() {
             tag_encoding
         } else {
             quote! {
-                fn tag_encoding() -> dasn1::identifier::TagEncoding {
-                    #tag_encoding
+                fn tag_encoding(&self) -> dasn1::identifier::TagEncoding {
+                     #tag_encoding
                 }
             }
         };
@@ -59,9 +76,12 @@ trait AsnTypeGenerator: Sized {
                 fn identifier(&self) -> dasn1::identifier::Identifier {
                     #identifier
                 }
+
+                #tag_encoding
             }
 
-            #tag_encoding
+
+            #per_encoding
         }
     }
 }

@@ -52,14 +52,7 @@ impl super::AsnTypeGenerator for Enum {
     fn generate_tag_encoding_impl(&self) -> TokenStream {
         match self.kind {
             EnumKind::Enumerable => quote!(),
-            EnumKind::Choice => self.create_pattern_match(format_ident!("self"), |_, fields| {
-                if fields.is_empty() {
-                    quote!()
-                } else {
-                    let field = &fields[0];
-                    quote!(#field.tag_encoding())
-                }
-            })
+            EnumKind::Choice => quote!(), //self.create_pattern_match(format_ident!("self"), |_, fields| {})
         }
     }
 }

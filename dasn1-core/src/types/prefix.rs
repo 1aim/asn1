@@ -28,6 +28,15 @@ pub struct ConstPrefixed<P: Prefix, C: ConstClass, N: Unsigned, T> {
     value: T,
 }
 
+impl<P: Prefix, C: ConstClass, N: Unsigned, T> From<T> for ConstPrefixed<P, C, N, T> {
+    fn from(value: T) -> Self {
+        Self {
+            phantom: std::marker::PhantomData,
+            value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Prefixed<T> {
     prefix: Identifier,
@@ -61,12 +70,6 @@ impl<P: Prefix, C: ConstClass, N: Unsigned, T> ConstPrefixed<P, C, N, T> {
     pub fn into_inner(self) -> T {
         self.value
     }
-}
-
-struct ConstIdentifier<P: Prefix, C: ConstClass, N: Unsigned> {
-    prefix: PhantomData<P>,
-    class: PhantomData<C>,
-    tag: PhantomData<N>,
 }
 
 impl<'de, P: Prefix, C: ConstClass, N: Unsigned, T: Deserialize<'de>> Deserialize<'de> for ConstPrefixed<P, C, N, T> {

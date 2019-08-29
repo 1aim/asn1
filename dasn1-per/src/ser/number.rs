@@ -1,18 +1,27 @@
 use std::ops::{self, RangeInclusive};
 
 use bit_vec::BitVec;
-use num_traits::{Num, PrimInt, Unsigned};
+use num_traits::{PrimInt, Unsigned};
 
-pub(crate) fn encode_normally_small_whole_number<N: PrimInt + ops::AddAssign<N> + Unsigned>(n: N) -> BitVec {
+use super::Buffer;
+
+pub(crate) fn encode_normally_small_whole_number<N>(n: N)
+    -> Buffer
+    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32> + Unsigned
+{
+    let mut buffer = Buffer::from_elem(1, false);
     let boundary = N::from(63).unwrap();
     if n <= boundary {
-        encode_constrained_whole_number(n, N::zero()..=boundary)
+        buffer.push_field_list(encode_constrained_whole_number(n, N::zero()..=boundary));
+        buffer
     } else {
         unimplemented!()
     }
 }
 
-pub(crate) fn encode_constrained_whole_number<N: PrimInt + ops::AddAssign<N>>(n: N, range: RangeInclusive<N>) -> BitVec
+pub fn encode_constrained_whole_number<N>(n: N, range: RangeInclusive<N>)
+    -> Buffer
+    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32> + Unsigned
 {
     assert!(range.contains(&n));
     // calculate the mininum number of bits required to encode the number.
@@ -22,28 +31,22 @@ pub(crate) fn encode_constrained_whole_number<N: PrimInt + ops::AddAssign<N>>(n:
         type_width - max_difference.leading_zeros()
     };
 
-    let mut buffer = BitVec::from_elem(width as usize, false);
-
     // We only encode the difference between the lower bound and the value
     // we're enocding.
-    let mut bits = n - *range.start();
-    // We always encode the number in big endian format.
-    let mut index = buffer.len();
-    while bits != N::zero() {
-        index -= 1;
-        buffer.set(index, bits & N::one() == N::one());
-        bits = bits.unsigned_shr(1);
-    }
+    let bits = n - *range.start();
 
-    buffer
+    encode_non_negative_binary_integer(bits, width as usize)
 }
 
 pub(crate) fn encode_semi_constrained_whole_number<N: PrimInt>(n: N, lb: N) -> BitVec {
     unimplemented!()
 }
 
-fn encode_non_negative_binary_integer<N: Num>(mut n: N, width: usize) {
-    let mut buffer = BitVec::from_elem(width, false);
+fn encode_non_negative_binary_integer<N>(mut n: N, width: usize)
+    -> Buffer
+    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32> + Unsigned
+{
+    let mut buffer = Buffer::from_elem(width, false);
 
     // We always encode the number in big endian format.
     let mut index = buffer.len();
@@ -52,5 +55,6 @@ fn encode_non_negative_binary_integer<N: Num>(mut n: N, width: usize) {
         buffer.set(index, (n & N::one()) == N::one());
         n >>= 1;
     }
-}
 
+    buffer
+}

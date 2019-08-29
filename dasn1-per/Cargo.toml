@@ -1,6 +1,6 @@
 [package]
 name = "dasn1-per"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Erin Power <xampprocky@gmail.com>"]
 edition = "2018"
 
@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 bit-vec = "0.6.1"
-num-traits = "0.2.8"
+num-traits = { version = "0.2.8", features = ["i128"] }

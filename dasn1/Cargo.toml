@@ -16,7 +16,11 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 core = { version = "0.1.1",  path = "../dasn1-core", package = "dasn1-core" }
 der = { version = "0.1.1",  path = "../dasn1-der", package = "dasn1-der", optional = true }
+derive = { version = "0.1.1",  path = "../dasn1-derive", package = "dasn1-derive", optional = true }
 notation = { version = "0.1.1", path = "../dasn1-notation", package = "dasn1-notation", optional = true }
+per = { version = "0.1.1",  path = "../dasn1-per", package = "dasn1-per", optional = true }
+
+[features]
 
 [[example]]
 name = "print"

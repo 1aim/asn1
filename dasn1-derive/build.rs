@@ -19,7 +19,7 @@ const TESTS_FILE: &str = "tests.rs";
 /// single module as currently you're required to use wildcard imports to ensure
 /// you have your dependency and that it doesn't conflict with another test's
 /// imports.
-fn main() -> Result<(), Box<std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join(TESTS_FILE);
     let mut tests_file = File::create(&dest_path).unwrap();

@@ -1,6 +1,6 @@
 [package]
 name = "dasn1-derive"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Erin Power <e.power@dac.eu>"]
 edition = "2018"
 build = "build.rs"
@@ -14,7 +14,11 @@ quote = "1.0.0"
 proc-macro2 = "1.0.0"
 
 [dev-dependencies]
-dasn1 = { version = "0.1.0", path = "../dasn1" }
+dasn1 = { version = "0.1.0", path = "../dasn1", features = ["per"] }
 
 [build-dependencies]
 walkdir = "2.2.9"
+
+[features]
+default = ["per"]
+per = []

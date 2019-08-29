@@ -40,8 +40,7 @@
 
 pub use core::{self, *};
 
-#[cfg(feature = "der")]
-pub use der;
-
-#[cfg(feature = "notation")]
-pub use notation;
+#[cfg(feature = "der")] pub use der;
+#[cfg(feature = "derive")] pub use derive::*;
+#[cfg(feature = "notation")] pub use notation;
+#[cfg(feature = "per")] pub use per;

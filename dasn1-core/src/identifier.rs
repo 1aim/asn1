@@ -103,6 +103,7 @@ impl Identifier {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TagEncoding {
     Implicit,
     Explicit,
