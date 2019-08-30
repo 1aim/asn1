@@ -13,7 +13,13 @@ impl Buffer {
     }
 
     pub fn push_field_list(&mut self, mut target: Self) {
-        self.0.append(&mut target.0);
+        for bit in target.into_inner() {
+            self.0.push(bit);
+        }
+    }
+
+    fn into_inner(self) -> BitVec {
+        self.0
     }
 }
 
@@ -28,5 +34,20 @@ impl std::ops::Deref for Buffer {
 impl std::ops::DerefMut for Buffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn push_to_field_list() {
+        let mut a = Buffer::from_elem(3, false);
+        let mut b = Buffer::from_elem(4, false);
+
+        a.append(&mut b);
+
+        assert_eq!(7, a.len());
     }
 }

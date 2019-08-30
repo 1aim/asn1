@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote};
 use syn::{DataEnum, Fields, Generics, Ident, Variant};
 
 pub enum EnumKind {
