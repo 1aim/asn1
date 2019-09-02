@@ -92,9 +92,9 @@ impl super::AsnTypeGenerator for Struct {
 
             #(#optional_fields_iter)*
 
-            #(buffer.push_field_list(#fields_iter);)*
+            #(#buf.push_field_list(#fields_iter);)*
 
-            buffer
+            #buf
         }
     }
 }
