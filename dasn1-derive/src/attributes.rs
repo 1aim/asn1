@@ -1,12 +1,13 @@
 use syn::{Attribute, Lit, Meta, MetaList, NestedMeta};
 
+/// Generic attributes common to all container types.
 #[derive(Default)]
-pub struct StructAttributes {
+pub struct ContainerAttributes {
     /// If true don't encode extensibility bit.
     pub fixed: bool,
 }
 
-impl StructAttributes {
+impl ContainerAttributes {
     pub fn from_syn(syn_attrs: &[Attribute]) -> Self {
         let mut attributes = Self::default();
 
@@ -19,6 +20,35 @@ impl StructAttributes {
         }
 
         attributes
+    }
+}
+
+
+/// Enum specific attributes.
+#[derive(Default)]
+pub struct EnumAttributes {
+    pub container: ContainerAttributes,
+}
+
+impl EnumAttributes {
+    pub fn from_syn(attrs: &[Attribute]) -> Self {
+        Self {
+            container: ContainerAttributes::from_syn(attrs),
+        }
+    }
+}
+
+/// Struct specific attributes.
+#[derive(Default)]
+pub struct StructAttributes {
+    pub container: ContainerAttributes,
+}
+
+impl StructAttributes {
+    pub fn from_syn(attrs: &[Attribute]) -> Self {
+        Self {
+            container: ContainerAttributes::from_syn(attrs),
+        }
     }
 }
 

@@ -2,6 +2,8 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{DataEnum, Fields, Generics, Ident, Variant};
 
+use crate::attributes::EnumAttributes;
+
 pub enum EnumKind {
     Choice,
     Enumerable,
@@ -18,6 +20,7 @@ impl EnumKind {
 }
 
 pub struct Enum {
+    pub attributes: EnumAttributes,
     pub kind: EnumKind,
     pub ident: Ident,
     pub generics: Generics,
@@ -55,13 +58,21 @@ impl super::AsnTypeGenerator for Enum {
             EnumKind::Choice => quote!(), //self.create_pattern_match(format_ident!("self"), |_, fields| {})
         }
     }
+
+    fn generate_per_impl(&self) -> TokenStream {
+        match self.kind {
+            EnumKind::Enumerable => self.generate_enumerable_per(),
+            EnumKind::Choice => self.generate_choice_per(),
+        }
+    }
 }
 
 impl Enum {
-    pub fn new(ident: Ident, generics: Generics, data: DataEnum) -> Self {
+    pub fn new(ident: Ident, generics: Generics, attrs: &[syn::Attribute], data: DataEnum) -> Self {
         let variants = data.variants.into_iter().collect::<Vec<_>>();
 
         Self {
+            attributes: EnumAttributes::from_syn(attrs),
             kind: EnumKind::from_variants(variants.iter()),
             ident,
             generics,
@@ -74,10 +85,10 @@ impl Enum {
     /// the function with the index of each variant as well as list of `Ident`s
     /// for that variant's fields. An empty list is equivalvent to a
     /// unit variant.
-    pub fn create_pattern_match(
+    pub fn create_pattern_match<F: Fn(usize, &[Ident]) -> TokenStream>(
         &self,
         match_ident: Ident,
-        variant_arm_generator: fn(usize, &[Ident]) -> TokenStream,
+        variant_arm_generator: F,
     ) -> TokenStream {
         let variants = self.variants.iter().enumerate().map(|(i, v)| {
             let enum_name = &self.ident;
@@ -96,9 +107,42 @@ impl Enum {
 
             let arm = (variant_arm_generator)(i, &field_names);
 
-            quote!(#enum_name::#variant_name #fields_pat => #arm)
+            quote!(#enum_name::#variant_name #fields_pat => { #arm })
         });
 
         quote!(match #match_ident { #(#variants),*})
+    }
+
+    pub fn generate_choice_per(&self) -> TokenStream {
+        let buf = format_ident!("buffer");
+        let max_index = self.variants.iter().count();
+
+        let encode_extensibility = if !self.attributes.container.fixed {
+            quote!(#buf.push(false);)
+        } else {
+            quote!()
+        };
+
+        let encode_choice = self.create_pattern_match(format_ident!("self"), |index, fields| {
+            let fields = fields.iter();
+            quote! {
+                #buf.push_field_list(#index.encode_with_constraint(0..#max_index));
+
+                #(#buf.push_field_list(#fields.encode());)*
+
+                #buf
+            }
+        });
+
+        quote! {
+            let mut #buf = dasn1::per::Buffer::new();
+            #encode_extensibility
+
+            #encode_choice
+        }
+    }
+
+    pub fn generate_enumerable_per(&self) -> TokenStream {
+        unimplemented!()
     }
 }

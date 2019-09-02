@@ -1,5 +1,6 @@
 extern crate proc_macro;
 
+mod attributes;
 mod enums;
 mod structs;
 
@@ -23,7 +24,7 @@ pub fn my_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         Data::Struct(struct_data) => {
             Struct::new(name, generics, &input.attrs, struct_data.fields).into_trait_impl()
         }
-        Data::Enum(enum_data) => Enum::new(name, generics, enum_data).into_trait_impl(),
+        Data::Enum(enum_data) => Enum::new(name, generics, &input.attrs, enum_data).into_trait_impl(),
         _ => unimplemented!(),
     };
 

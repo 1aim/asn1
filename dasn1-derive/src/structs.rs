@@ -1,10 +1,9 @@
-mod attributes;
-
-pub use self::attributes::{FieldAttributes, StructAttributes, Size};
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Fields, Generics, Ident, Type};
+
+pub use crate::attributes::{FieldAttributes, StructAttributes, Size};
 
 pub struct Struct {
     ident: Ident,
@@ -80,7 +79,7 @@ impl super::AsnTypeGenerator for Struct {
                 }
             });
 
-        let encode_extensibility = if !self.attributes.fixed {
+        let encode_extensibility = if !self.attributes.container.fixed {
             quote!(#buf.push(false);)
         } else {
             quote!()

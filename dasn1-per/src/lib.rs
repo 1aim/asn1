@@ -1,4 +1,4 @@
-use std::ops::RangeBounds;
+use std::ops::{Bound, RangeBounds};
 
 pub mod ser;
 
@@ -54,7 +54,7 @@ macro_rules! integers {
     }
 }
 
-integers!(u8 u16 u32 u64 u128);
+integers!(u8 u16 u32 u64 u128 usize);
 
 pub trait ConstrainedValue: PerEncodable {
     type RangeBound;
@@ -70,6 +70,37 @@ impl<T: ConstrainedValue> ConstrainedValue for Option<T> {
             Some(val) => val.encode_with_constraint(range),
             None => Buffer::new(),
         }
+    }
+}
+
+impl<T: PerEncodable> PerEncodable for Vec<T> {
+    fn encode(&self) -> Buffer {
+        self.encode_with_constraint(0..)
+    }
+}
+
+impl<T: PerEncodable> ConstrainedValue for Vec<T> {
+    type RangeBound = usize;
+
+    fn encode_with_constraint<R: RangeBounds<Self::RangeBound>>(&self, range: R) -> Buffer {
+        let mut buffer = Buffer::new();
+
+        // Assert that we have the minimnum number of elements required to
+        // encode.
+        match range.start_bound() {
+            Bound::Included(&start) => assert!(self.len() >= start),
+            Bound::Excluded(&start) => assert!(self.len() > start),
+            // Unbounded is equivalvent to `0` in this case.
+            Bound::Unbounded => {}
+        }
+
+        buffer.push_field_list(ser::number::encode_length(self.len(), range));
+
+        for item in self {
+            buffer.push_field_list(item.encode());
+        }
+
+        buffer
     }
 }
 
