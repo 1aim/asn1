@@ -104,6 +104,36 @@ impl<T: PerEncodable> ConstrainedValue for Vec<T> {
     }
 }
 
+impl<T: PerEncodable> PerEncodable for [T; 0] {
+    fn encode(&self) -> Buffer {
+        Buffer::new()
+    }
+}
+
+macro_rules! arrays {
+    ($($num:tt)+) => {
+
+        $(
+            impl<T: PerEncodable> PerEncodable for [T; $num] {
+                fn encode(&self) -> Buffer {
+                    let mut buffer = Buffer::new();
+
+                    for item in self {
+                        buffer.push_field_list(item.encode());
+                    }
+
+                    buffer
+                }
+            }
+        )+
+    }
+}
+
+arrays! {
+    1 2 3 4 5 6 7 8 9 10
+    11 12 13 14 15 16 17 18 19 20
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,6 +145,13 @@ mod tests {
         assert_eq!(32, 0u32.encode().len());
         assert_eq!(64, 0u64.encode().len());
         assert_eq!(128, 0u128.encode().len());
+    }
+
+    #[test]
+    fn fixed_width_arrays() {
+        let array = [1u8, 2, 3, 4, 5, 6, 7];
+
+        assert_eq!(array.len(), array.encode().len() / 8)
     }
 
     #[test]
