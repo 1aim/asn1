@@ -60,9 +60,24 @@ impl super::AsnTypeGenerator for Enum {
     }
 
     fn generate_per_impl(&self) -> TokenStream {
-        match self.kind {
-            EnumKind::Enumerable => self.generate_enumerable_per(),
-            EnumKind::Choice => self.generate_choice_per(),
+        let buf = format_ident!("buffer");
+
+        let encode_extensibility = if !self.attributes.container.fixed {
+            quote!(#buf.push(false);)
+        } else {
+            quote!()
+        };
+
+        let encode_enum = match self.kind {
+            EnumKind::Enumerable => self.generate_enumerable_per(&buf),
+            EnumKind::Choice => self.generate_choice_per(&buf),
+        };
+
+        quote! {
+            let mut #buf = dasn1::per::Buffer::new();
+            #encode_extensibility
+
+            #encode_enum
         }
     }
 }
@@ -113,15 +128,8 @@ impl Enum {
         quote!(match #match_ident { #(#variants),*})
     }
 
-    pub fn generate_choice_per(&self) -> TokenStream {
-        let buf = format_ident!("buffer");
+    pub fn generate_choice_per(&self, buf: &Ident) -> TokenStream {
         let max_index = self.variants.iter().count();
-
-        let encode_extensibility = if !self.attributes.container.fixed {
-            quote!(#buf.push(false);)
-        } else {
-            quote!()
-        };
 
         let encode_choice = self.create_pattern_match(format_ident!("self"), |index, fields| {
             let fields = fields.iter();
@@ -135,14 +143,11 @@ impl Enum {
         });
 
         quote! {
-            let mut #buf = dasn1::per::Buffer::new();
-            #encode_extensibility
-
             #encode_choice
         }
     }
 
-    pub fn generate_enumerable_per(&self) -> TokenStream {
+    pub fn generate_enumerable_per(&self, buf: &Ident) -> TokenStream {
         unimplemented!()
     }
 }
