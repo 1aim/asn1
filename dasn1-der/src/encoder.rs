@@ -2,6 +2,10 @@ mod object_identifier;
 mod bit_string;
 mod bytes;
 mod prefix;
+mod new_trait;
+
+pub use self::new_trait::DerEncodable;
+pub use self::new_trait::encode_length;
 
 use std::io::Write;
 
@@ -30,10 +34,10 @@ where
 }
 
 /// Serialize an instance of `T` as a ASN.1 DER byte vector.
-pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
-    let mut vec = Vec::new();
+pub fn to_vec<T: DerEncodable>(value: &T) -> Result<Vec<u8>> {
+    let vec = value.encode_der();
 
-    to_writer(&mut vec, value)?;
+    // to_writer(&mut vec, value)?;
 
     debug!("HEX Debug representation: {:?}", hex::encode(&vec));
 
@@ -621,202 +625,5 @@ impl SerializerKind {
             SerializerKind::ObjectIdentifier(ser) => ser.output,
             SerializerKind::Prefix(ser) => ser.output.output,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use core::{identifier::constant::*, types::*};
-    use serde_derive::{Deserialize, Serialize};
-    use typenum::consts::*;
-
-    use super::*;
-
-    #[test]
-    fn bool() {
-        assert_eq!(&[1, 1, 255][..], &*to_vec(&true).unwrap());
-        assert_eq!(&[1, 1, 0][..], &*to_vec(&false).unwrap());
-    }
-
-    #[test]
-    fn integer() {
-        let small_integer = Integer::from(5);
-        let multi_byte_integer = Integer::from(0xffff);
-        assert_eq!(&[2, 1, 5][..], &*to_vec(&small_integer).unwrap());
-        assert_eq!(&[2, 3, 0, 0xff, 0xff][..], &*to_vec(&multi_byte_integer).unwrap());
-    }
-
-    #[test]
-    fn universal_string() {
-        assert_eq!(
-            &[28, 5, 0x4A, 0x6F, 0x6E, 0x65, 0x73][..],
-            &*to_vec(&"Jones").unwrap()
-        );
-    }
-
-    #[test]
-    fn fixed_array_as_sequence() {
-        let array = [8u8; 4];
-        assert_eq!(
-            &[48, 4 * 3, 2, 1, 8, 2, 1, 8, 2, 1, 8, 2, 1, 8][..],
-            &*to_vec(&array).unwrap()
-        );
-    }
-
-    #[test]
-    fn encode_long_sequence() {
-        let vec = vec![5; 0xffff];
-        let preamble = vec![0x30u8, 0x83, 0x2, 0xFF, 0xFD];
-        assert_eq!(&*preamble, &to_vec(&vec).unwrap()[..preamble.len()]);
-    }
-
-    #[test]
-    fn enumerated() {
-        use core::types::{Enumerable, Enumerated};
-        #[derive(Clone, Debug, Serialize, PartialEq)]
-        enum Foo {
-            Ein,
-            Zwei,
-            Drei,
-        }
-
-        impl Enumerable for Foo {}
-
-        let ein = Enumerated::new(Foo::Ein);
-        let zwei = Enumerated::new(Foo::Zwei);
-        let drei = Enumerated::new(Foo::Drei);
-
-        assert_eq!(&[0xA, 1, 0][..], &*to_vec(&ein).unwrap());
-        assert_eq!(&[0xA, 1, 1][..], &*to_vec(&zwei).unwrap());
-        assert_eq!(&[0xA, 1, 2][..], &*to_vec(&drei).unwrap());
-    }
-
-    #[test]
-    fn choice() {
-        #[derive(Clone, Debug, Serialize, PartialEq)]
-        enum Foo {
-            Ein(Implicit<Context, U0, ()>),
-            Zwei(Implicit<Context, U1, ()>),
-            Drei((Implicit<Context, U2, ()>)),
-        }
-
-        assert_eq!(&[0x80, 0][..], &*to_vec(&Foo::Ein(Implicit::new(()))).unwrap());
-        assert_eq!(&[0x81, 0][..], &*to_vec(&Foo::Zwei(Implicit::new(()))).unwrap());
-        assert_eq!(&[0x82, 0][..], &*to_vec(&Foo::Drei(Implicit::new(()))).unwrap());
-    }
-
-    #[test]
-    fn choice_newtype_variant() {
-        #[derive(Clone, Debug, Serialize, PartialEq)]
-        enum Foo {
-            Bar(Implicit<Context, U0, bool>),
-            Baz(Implicit<Context, U1, OctetString>),
-            Blah(Implicit<Context, U2, Blah>),
-        }
-
-        #[derive(Clone, Debug, Serialize, PartialEq)]
-        struct Blah {
-            data: OctetString,
-        }
-
-        let os = OctetString::from(vec![1, 2, 3, 4, 5]);
-
-        assert_eq!(&[0x80, 1, 0xff][..], &*to_vec(&Foo::Bar(Implicit::new(true))).unwrap());
-        assert_eq!(
-            &[0x81, 5, 1, 2, 3, 4, 5][..],
-            &*to_vec(&Foo::Baz(Implicit::new(os.clone()))).unwrap()
-        );
-        assert_eq!(
-            &[0xA2, 7, 4, 5, 1, 2, 3, 4, 5][..],
-            &*to_vec(&Foo::Blah(Implicit::new(Blah { data: os }))).unwrap()
-        );
-    }
-
-    #[test]
-    fn sequence_in_sequence_in_choice() {
-        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-        enum Foo {
-            Bar { data: OctetString },
-        }
-
-        let bar = Foo::Bar {
-            data: OctetString::from(vec![1, 2, 3, 4]),
-        };
-
-        let raw = &[0x30, 6, 0x4, 4, 1, 2, 3, 4][..];
-
-        let result = to_vec(&bar).unwrap();
-
-        assert_eq!(raw, &*result);
-        assert_eq!(raw, &*result);
-    }
-
-    #[test]
-    fn object_identifier() {
-        use core::types::ObjectIdentifier;
-
-        let just_root: Vec<u8> = to_vec(&ObjectIdentifier::new(vec![1, 2]).unwrap()).unwrap();
-        let itu: Vec<u8> = to_vec(&ObjectIdentifier::new(vec![2, 999, 3]).unwrap()).unwrap();
-        let rsa: Vec<u8> =
-            to_vec(&ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap()).unwrap();
-
-        assert_eq!(&[0x6, 0x1, 0x2a][..], &*just_root);
-        assert_eq!(&[0x6, 0x3, 0x88, 0x37, 0x03][..], &*itu);
-        assert_eq!(&[0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..], &*rsa);
-    }
-
-    #[test]
-    fn sequence_with_option() {
-        #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-        struct Foo {
-            a: Implicit<Context, U0, u8>,
-            b: Option<Implicit<Context, U1, u8>>,
-        }
-
-        let some = Foo { a: 1.into(), b: Some(2.into()) };
-        let none = Foo { a: 1.into(), b: None.into() };
-
-        assert_eq!(
-            &[0x30, 3 * 2, 0x80, 0x1, 0x1, 0x81, 0x1, 0x2][..],
-            &*to_vec(&some).unwrap()
-        );
-        assert_eq!(
-            &[0x30, 0x3, 0x80, 0x1, 0x1][..],
-            &*to_vec(&none).unwrap()
-        );
-    }
-
-    #[test]
-    fn bit_string() {
-        use core::types::BitString;
-
-        let bitvec = BitString::from_bytes(&[0x0A, 0x3B, 0x5F, 0x29, 0x1C, 0xD0]);
-
-        assert_eq!(
-            &[0x3u8, 0x7, 0x04, 0x0A, 0x3B, 0x5F, 0x29, 0x1C, 0xD0][..],
-            &*to_vec(&bitvec).unwrap()
-        );
-    }
-
-    #[test]
-    fn implicit_prefix() {
-        use typenum::consts::*;
-        use core::identifier::constant::*;
-        type MyInteger = core::types::Implicit<Universal, U7, u64>;
-
-        let new_int = MyInteger::new(5);
-
-        assert_eq!(&[7, 1, 5], &*to_vec(&new_int).unwrap());
-    }
-
-    #[test]
-    fn explicit_prefix() {
-        use typenum::consts::*;
-        use core::identifier::constant::*;
-        type MyInteger = core::types::Explicit<Context, U0, u64>;
-
-        let new_int = MyInteger::new(5);
-
-        assert_eq!(&[0xA0, 3, 2, 1, 5], &*to_vec(&new_int).unwrap());
     }
 }

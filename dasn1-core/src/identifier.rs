@@ -110,61 +110,6 @@ pub enum TagEncoding {
     Untagged,
 }
 
-pub trait AsnType {
-    fn identifier(&self) -> Identifier;
-    fn tag_encoding(&self) -> TagEncoding {
-        TagEncoding::Untagged
-    }
-}
-
-impl AsnType for String {
-    fn identifier(&self) -> Identifier {
-        Identifier::UNIVERSAL_STRING
-    }
-}
-
-impl AsnType for bool {
-    fn identifier(&self) -> Identifier {
-        Identifier::BOOL
-    }
-}
-
-impl AsnType for () {
-    fn identifier(&self) -> Identifier {
-        Identifier::NULL
-    }
-}
-
-impl<T: AsnType> AsnType for Option<T> {
-    fn identifier(&self) -> Identifier {
-        match self {
-            Some(inner) => inner.identifier(),
-            None => Identifier::NULL,
-        }
-    }
-
-    fn tag_encoding(&self) -> TagEncoding {
-        match self {
-            Some(inner) => inner.tag_encoding(),
-            None => TagEncoding::Untagged,
-        }
-    }
-}
-
-macro_rules! impl_integers {
-    ($($num:ty)+) => {
-        $(
-            impl AsnType for $num {
-                fn identifier(&self) -> Identifier {
-                    Identifier::INTEGER
-                }
-            }
-        )+
-    }
-}
-
-impl_integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
-
 pub mod constant {
     pub trait Prefix: Copy + Clone + Ord + PartialOrd + Eq + PartialEq + std::fmt::Debug {
         const NAME: &'static str;

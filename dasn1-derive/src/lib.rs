@@ -39,6 +39,10 @@ trait AsnTypeGenerator: Sized {
         quote!()
     }
 
+    fn generate_der_impl(&self) -> TokenStream {
+        quote!()
+    }
+
     fn generate_per_impl(&self) -> TokenStream {
         quote!()
     }
@@ -48,6 +52,19 @@ trait AsnTypeGenerator: Sized {
         let generics = self.generics();
         let identifier = self.generate_identifier_impl();
         let tag_encoding = self.generate_tag_encoding_impl();
+
+        let der_encoding = if cfg!(feature = "der") {
+            let der_impl = self.generate_der_impl();
+            quote! {
+                impl #generics dasn1::der::DerEncodable for #name #generics {
+                    fn encode_value(&self) -> Vec<u8> {
+                        #der_impl
+                    }
+                }
+            }
+        } else {
+            quote!()
+        };
 
         let per_encoding = if cfg!(feature = "per") {
             let per_impl = self.generate_per_impl();
@@ -75,7 +92,7 @@ trait AsnTypeGenerator: Sized {
         };
 
         quote! {
-            impl #generics dasn1::identifier::AsnType for #name #generics {
+            impl #generics dasn1::AsnType for #name #generics {
                 fn identifier(&self) -> dasn1::identifier::Identifier {
                     #identifier
                 }
@@ -83,8 +100,8 @@ trait AsnTypeGenerator: Sized {
                 #tag_encoding
             }
 
-
             #per_encoding
+            #der_encoding
         }
     }
 }

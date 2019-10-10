@@ -8,4 +8,6 @@ edition = "2018"
 
 [dependencies]
 bit-vec = "0.6.1"
-num-traits = { version = "0.2.8", features = ["i128"] }
+num-traits = { version = "0.2", features = ["i128"] }
+num-bigint = { version = "0.2", features = ["i128"] }
+core = { version = "0.1.1", path = "../dasn1-core", package = "dasn1-core" }

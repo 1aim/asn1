@@ -5,7 +5,7 @@ use num_traits::{PrimInt, Unsigned};
 use super::Buffer;
 
 pub fn encode_integer<N, R>(n: N, range: R) -> Buffer
-    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32> + Unsigned,
+    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32>,
           R: ops::RangeBounds<N>
 {
     match (range.start_bound(), range.end_bound()) {
@@ -56,7 +56,7 @@ pub fn encode_unconstrained_length(len: usize) -> Buffer
 
 pub fn encode_constrained_whole_number<N>(n: N, range: ops::RangeInclusive<N>)
     -> Buffer
-    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32> + Unsigned,
+    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32>,
 {
     assert!(range.contains(&n));
     // We only encode the difference between the lower bound and the value
@@ -82,14 +82,14 @@ pub(crate) fn _encode_normally_small_whole_number<N>(n: N)
 }
 
 pub(crate) fn encode_semi_constrained_whole_number<N>(n: N, lb: N) -> Buffer
-    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32> + Unsigned
+    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32>
 {
     encode_non_negative_binary_integer(n - lb, bit_width(n - lb))
 }
 
 fn encode_non_negative_binary_integer<N>(mut n: N, width: usize)
     -> Buffer
-    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32> + Unsigned
+    where N: PrimInt + ops::BitAnd<Output=N> + Copy + ops::ShrAssign<u32>
 {
     // calculate the mininum number of bits required to encode the number.
 

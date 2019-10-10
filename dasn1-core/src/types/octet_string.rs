@@ -1,10 +1,17 @@
 use std::ops::{Deref, DerefMut};
 
+use crate::{AsnType, Identifier};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename = "ASN.1#OctetString")]
 pub struct OctetString(Vec<u8>);
+
+impl AsnType for OctetString {
+    fn identifier(&self) -> Identifier {
+        Identifier::OCTET_STRING
+    }
+}
 
 impl OctetString {
     pub fn new() -> Self {

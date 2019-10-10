@@ -4,3 +4,98 @@
 #![cfg_attr(test, deny(missing_docs))]
 pub mod identifier;
 pub mod types;
+
+pub use identifier::Identifier;
+
+use self::identifier::TagEncoding;
+
+pub trait AsnType {
+    fn identifier(&self) -> Identifier;
+    fn tag_encoding(&self) -> TagEncoding {
+        TagEncoding::Untagged
+    }
+}
+
+impl AsnType for &str {
+    fn identifier(&self) -> Identifier {
+        Identifier::UNIVERSAL_STRING
+    }
+}
+
+impl AsnType for String {
+    fn identifier(&self) -> Identifier {
+        self.as_str().identifier()
+    }
+}
+
+impl AsnType for bool {
+    fn identifier(&self) -> Identifier {
+        Identifier::BOOL
+    }
+}
+
+impl AsnType for () {
+    fn identifier(&self) -> Identifier {
+        Identifier::NULL
+    }
+}
+
+impl<T: AsnType> AsnType for Option<T> {
+    fn identifier(&self) -> Identifier {
+        match self {
+            Some(inner) => inner.identifier(),
+            None => Identifier::NULL,
+        }
+    }
+
+    fn tag_encoding(&self) -> TagEncoding {
+        match self {
+            Some(inner) => inner.tag_encoding(),
+            None => TagEncoding::Untagged,
+        }
+    }
+}
+
+macro_rules! integers {
+    ($($num:ty)+) => {
+        $(
+            impl AsnType for $num {
+                fn identifier(&self) -> Identifier {
+                    Identifier::INTEGER
+                }
+            }
+        )+
+    }
+}
+
+integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
+
+impl AsnType for Identifier {
+    fn identifier(&self) -> Identifier {
+        *self
+    }
+}
+
+impl<T> AsnType for Vec<T> {
+    fn identifier(&self) -> Identifier {
+        Identifier::SEQUENCE
+    }
+}
+
+macro_rules! arrays {
+    ($($num:tt)+) => {
+        $(
+            impl<T> AsnType for [T; $num] {
+                fn identifier(&self) -> Identifier {
+                    Identifier::SEQUENCE
+                }
+            }
+        )+
+    }
+}
+
+arrays! {
+    0 1 2 3 4 5 6 7 8 9 10
+    11 12 13 14 15 16 17 18 19 20
+}
+

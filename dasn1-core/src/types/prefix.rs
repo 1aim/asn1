@@ -11,10 +11,10 @@ use serde::{
 use typenum::marker_traits::Unsigned;
 
 use crate::{
+    AsnType,
     identifier::{
         Class,
         Identifier,
-        AsnType,
         constant::*,
     }
 };

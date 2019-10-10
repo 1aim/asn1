@@ -14,7 +14,7 @@ quote = "1.0.0"
 proc-macro2 = "1.0.0"
 
 [dev-dependencies]
-dasn1 = { version = "0.1.0", path = "../dasn1", features = ["per"] }
+dasn1 = { version = "0.1.0", path = "../dasn1", features = ["per", "der"] }
 
 [build-dependencies]
 walkdir = "2.2.9"
@@ -22,3 +22,4 @@ walkdir = "2.2.9"
 [features]
 default = ["per"]
 per = []
+der = []

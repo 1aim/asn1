@@ -5,7 +5,7 @@ use serde::{
     ser::Serializer,
 };
 
-use crate::identifier::AsnType;
+use crate::AsnType;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Optional<T: AsnType>(Option<Option<T>>);

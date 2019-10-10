@@ -39,6 +39,35 @@ impl super::AsnTypeGenerator for Struct {
         }
     }
 
+    fn generate_der_impl(&self) -> TokenStream {
+        let buf = format_ident!("buffer");
+
+        let fields_iter = self.fields.iter()
+            .enumerate()
+            .map(|(i, f)| {
+            let ident = f.ident
+                .clone()
+                .unwrap_or_else(|| format_ident!("{}", i));
+
+            quote!(
+                self.#ident.encode_implicit(
+                    dasn1::identifier::Identifier::new(
+                        dasn1::identifier::Class::Context,
+                        #i as u32
+                    )
+                )
+            )
+        });
+
+        quote! {
+            let mut #buf = Vec::new();
+
+            #(#buf.append(&mut #fields_iter);)*
+
+            #buf
+        }
+    }
+
     fn generate_per_impl(&self) -> TokenStream {
         let buf = format_ident!("buffer");
 
@@ -86,7 +115,7 @@ impl super::AsnTypeGenerator for Struct {
         };
 
         quote! {
-            let mut buffer = dasn1::per::Buffer::new();
+            let mut #buf = dasn1::per::Buffer::new();
             #encode_extensibility
 
             #(#optional_fields_iter)*
