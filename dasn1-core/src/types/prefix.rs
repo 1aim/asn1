@@ -51,7 +51,7 @@ struct ConstIdentifier<P: Prefix, C: ConstClass, N: Unsigned> {
 }
 
 impl<P: Prefix, C: ConstClass, N: Unsigned> AsnType for ConstIdentifier<P, C, N> {
-    fn identifier(&self) -> Identifier {
+    fn identifier() -> Identifier {
         Identifier::new(C::CLASS, N::U32)
     }
 }

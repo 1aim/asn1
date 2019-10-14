@@ -41,8 +41,8 @@ where
 /// An untyped ASN.1 value.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Value<'a> {
-    identifier: BerIdentifier,
-    contents: &'a [u8],
+    pub identifier: BerIdentifier,
+    pub contents: &'a [u8],
 }
 
 impl<'a> Value<'a> {
@@ -95,6 +95,8 @@ impl<'de> Deserializer<'de> {
 
         Ok(value)
     }
+
+    fn parse_decodable(&mut self, slice: &[u8])
 
     fn parse_bool(&mut self) -> Result<bool> {
         let value = self.parse_value(Some(Identifier::BOOL))?;

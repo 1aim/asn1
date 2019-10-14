@@ -50,6 +50,8 @@ fn parse_contents(input: &[u8]) -> IResult<&[u8], &[u8]> {
     take_contents(input, length[0])
 }
 
+/// Concatenates a series of 7 bit numbers delimited by `1`'s and
+/// ended by a `0` in the 8th bit.
 fn concat_number(body: &[u8], end: u8) -> BigInt {
     let mut number = BigInt::new(num_bigint::Sign::NoSign, Vec::new());
 

@@ -37,7 +37,7 @@ pub trait DerEncodable: AsnType {
     fn encode_value(&self) -> Vec<u8>;
 
     fn encode_der(&self) -> Vec<u8> {
-        self.encode_implicit(self.identifier())
+        self.encode_implicit(Self::identifier())
     }
 }
 
@@ -47,7 +47,7 @@ impl DerEncodable for bool {
     }
 }
 
-impl<'a> DerEncodable for &'a str {
+impl DerEncodable for str {
     fn encode_value(&self) -> Vec<u8> {
         Serializer::serialize_to_vec(self, true).unwrap().output
     }
@@ -119,56 +119,62 @@ arrays! {
     11 12 13 14 15 16 17 18 19 20
 }
 
+fn encode_identifier(ident: Identifier) -> Vec<u8> {
+    let mut output = Vec::with_capacity(1);
 
+    let mut tag_byte = ident.class as u8;
+    let mut tag_number = ident.tag;
+
+    // Constructed is a single bit.
+    tag_byte <<= 1;
+    tag_byte |= match ident {
+        Identifier::EXTERNAL |
+        Identifier::SEQUENCE |
+        Identifier::SET      => 1,
+        _ => 0,
+    };
+
+    // Identifier number is five bits
+    tag_byte <<= 5;
+
+    if tag_number >= 0x1f {
+        tag_byte |= 0x1f;
+        output.push(tag_byte);
+
+        while tag_number != 0 {
+            let mut encoded_number: u8 = (tag_number & 0x7f) as u8;
+            tag_number >>= 7;
+
+            // Fill the last bit unless we're at the last bit.
+            if tag_number != 0 {
+                encoded_number |= 0x80;
+            }
+
+            output.push(encoded_number);
+        }
+    } else {
+        tag_byte |= tag_number as u8;
+        output.push(tag_byte);
+    }
+
+    output
+}
+
+
+/*
 impl DerEncodable for core::Identifier {
     fn encode_der(&self) -> Vec<u8> {
         self.encode_value()
     }
 
     fn encode_value(&self) -> Vec<u8> {
-        let mut output = Vec::with_capacity(1);
-
-        let mut tag_byte = self.class as u8;
-        let mut tag_number = self.tag;
-
-        // Constructed is a single bit.
-        tag_byte <<= 1;
-        tag_byte |= match *self {
-            Self::EXTERNAL |
-            Self::SEQUENCE |
-            Self::SET      => 1,
-            _ => 0,
-        };
-
-        // Identifier number is five bits
-        tag_byte <<= 5;
-
-        if tag_number >= 0x1f {
-            tag_byte |= 0x1f;
-            output.push(tag_byte);
-
-            while tag_number != 0 {
-                let mut encoded_number: u8 = (tag_number & 0x7f) as u8;
-                tag_number >>= 7;
-
-                // Fill the last bit unless we're at the last bit.
-                if tag_number != 0 {
-                    encoded_number |= 0x80;
-                }
-
-                output.push(encoded_number);
-            }
-        } else {
-            tag_byte |= tag_number as u8;
-            output.push(tag_byte);
-        }
-
-        output
     }
 }
+*/
 
 impl DerEncodable for types::OctetString {
     fn encode_value(&self) -> Vec<u8> {
         (**self).clone()
     }
 }
+

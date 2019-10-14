@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct OctetString(Vec<u8>);
 
 impl AsnType for OctetString {
-    fn identifier(&self) -> Identifier {
+    fn identifier() -> Identifier {
         Identifier::OCTET_STRING
     }
 }

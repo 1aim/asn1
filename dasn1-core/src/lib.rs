@@ -10,42 +10,39 @@ pub use identifier::Identifier;
 use self::identifier::TagEncoding;
 
 pub trait AsnType {
-    fn identifier(&self) -> Identifier;
+    fn identifier() -> Identifier;
     fn tag_encoding(&self) -> TagEncoding {
         TagEncoding::Untagged
     }
 }
 
-impl AsnType for &str {
-    fn identifier(&self) -> Identifier {
+impl AsnType for str {
+    fn identifier() -> Identifier {
         Identifier::UNIVERSAL_STRING
     }
 }
 
 impl AsnType for String {
-    fn identifier(&self) -> Identifier {
-        self.as_str().identifier()
+    fn identifier() -> Identifier {
+        <str as AsnType>::identifier()
     }
 }
 
 impl AsnType for bool {
-    fn identifier(&self) -> Identifier {
+    fn identifier() -> Identifier {
         Identifier::BOOL
     }
 }
 
 impl AsnType for () {
-    fn identifier(&self) -> Identifier {
+    fn identifier() -> Identifier {
         Identifier::NULL
     }
 }
 
 impl<T: AsnType> AsnType for Option<T> {
-    fn identifier(&self) -> Identifier {
-        match self {
-            Some(inner) => inner.identifier(),
-            None => Identifier::NULL,
-        }
+    fn identifier() -> Identifier {
+        T::identifier()
     }
 
     fn tag_encoding(&self) -> TagEncoding {
@@ -60,7 +57,7 @@ macro_rules! integers {
     ($($num:ty)+) => {
         $(
             impl AsnType for $num {
-                fn identifier(&self) -> Identifier {
+                fn identifier() -> Identifier {
                     Identifier::INTEGER
                 }
             }
@@ -70,14 +67,8 @@ macro_rules! integers {
 
 integers!(u8 u16 u32 u64 u128 i8 i16 i32 i64 i128);
 
-impl AsnType for Identifier {
-    fn identifier(&self) -> Identifier {
-        *self
-    }
-}
-
 impl<T> AsnType for Vec<T> {
-    fn identifier(&self) -> Identifier {
+    fn identifier() -> Identifier {
         Identifier::SEQUENCE
     }
 }
@@ -86,7 +77,7 @@ macro_rules! arrays {
     ($($num:tt)+) => {
         $(
             impl<T> AsnType for [T; $num] {
-                fn identifier(&self) -> Identifier {
+                fn identifier() -> Identifier {
                     Identifier::SEQUENCE
                 }
             }
