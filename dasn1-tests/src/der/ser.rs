@@ -1,4 +1,4 @@
-use dasn1::{AsnType, der::to_vec, identifier::constant::*, types::*};
+use dasn1::{der::to_vec, identifier::constant::*, types::*, AsnType};
 
 #[test]
 fn bool() {
@@ -10,7 +10,7 @@ fn bool() {
 fn universal_string() {
     assert_eq!(
         &[28, 5, 0x4A, 0x6F, 0x6E, 0x65, 0x73][..],
-        &*to_vec(&"Jones").unwrap()
+        &*to_vec(&"Jones".to_owned()).unwrap()
     );
 }
 
@@ -45,12 +45,8 @@ fn sequence_with_option() {
         &[0x30, 3 * 2, 0x80, 0x1, 0x1, 0x81, 0x1, 0x2][..],
         &*to_vec(&some).unwrap()
     );
-    assert_eq!(
-        &[0x30, 0x3, 0x80, 0x1, 0x1][..],
-        &*to_vec(&none).unwrap()
-    );
+    assert_eq!(&[0x30, 0x3, 0x80, 0x1, 0x1][..], &*to_vec(&none).unwrap());
 }
-
 
 #[test]
 fn enumerated() {
@@ -88,7 +84,6 @@ fn choice() {
     assert_eq!(&[0x82, 1, 2][..], &*to_vec(&drei).unwrap());
 }
 
-
 #[test]
 fn choice_newtype_variant() {
     #[derive(Clone, Debug, AsnType, PartialEq)]
@@ -96,9 +91,7 @@ fn choice_newtype_variant() {
         Bar(bool),
         Baz(OctetString),
         Blah(Blah),
-        Lah {
-            os: OctetString,
-        }
+        Lah { os: OctetString },
     }
 
     #[derive(Clone, Debug, AsnType, PartialEq)]
@@ -114,10 +107,15 @@ fn choice_newtype_variant() {
 
     assert_eq!(&[0x80, 1, 0xff][..], &*to_vec(&bar).unwrap());
     assert_eq!(&[0x81, 5, 1, 2, 3, 4, 5][..], &*to_vec(&baz).unwrap());
-    assert_eq!(&[0x82, 7, 0x80, 5, 1, 2, 3, 4, 5][..], &*to_vec(&blah).unwrap());
-    assert_eq!(&[0x83, 7, 0x80, 5, 1, 2, 3, 4, 5][..], &*to_vec(&lah).unwrap());
+    assert_eq!(
+        &[0x82, 7, 0x80, 5, 1, 2, 3, 4, 5][..],
+        &*to_vec(&blah).unwrap()
+    );
+    assert_eq!(
+        &[0x83, 7, 0x80, 5, 1, 2, 3, 4, 5][..],
+        &*to_vec(&lah).unwrap()
+    );
 }
-
 
 /*
    #[test]
@@ -177,4 +175,3 @@ let new_int = MyInteger::new(5);
 assert_eq!(&[0xA0, 3, 2, 1, 5], &*to_vec(&new_int).unwrap());
 }
 */
-

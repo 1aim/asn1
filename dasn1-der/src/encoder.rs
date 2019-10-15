@@ -1,11 +1,11 @@
-mod object_identifier;
 mod bit_string;
 mod bytes;
-mod prefix;
 mod new_trait;
+mod object_identifier;
+mod prefix;
 
-pub use self::new_trait::DerEncodable;
 pub use self::new_trait::encode_length;
+pub use self::new_trait::DerEncodable;
 
 use std::io::Write;
 
@@ -17,10 +17,8 @@ use crate::error::{Error, Result};
 use core::identifier::Identifier;
 
 use self::{
-    bit_string::BitStringSerializer,
-    object_identifier::ObjectIdentifierSerializer,
-    bytes::ByteSerializer,
-    prefix::PrefixSerializer
+    bit_string::BitStringSerializer, bytes::ByteSerializer,
+    object_identifier::ObjectIdentifierSerializer, prefix::PrefixSerializer,
 };
 
 pub fn to_writer<W, T>(writer: W, value: &T) -> Result<()>
@@ -134,9 +132,7 @@ impl<W: Write> Serializer<W> {
         // Constructed is a single bit.
         tag_byte <<= 1;
         tag_byte |= match tag {
-            Identifier::EXTERNAL |
-            Identifier::SEQUENCE |
-            Identifier::SET => 1,
+            Identifier::EXTERNAL | Identifier::SEQUENCE | Identifier::SET => 1,
             _ if self.constructed => 1,
             _ => 0,
         };
@@ -306,12 +302,15 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         _variant: &'static str,
     ) -> Result<()> {
         log::trace!("Serializing unit variant.");
-        if self.tag.map(|i| i == Identifier::ENUMERATED).unwrap_or(false) {
+        if self
+            .tag
+            .map(|i| i == Identifier::ENUMERATED)
+            .unwrap_or(false)
+        {
             self.encode(&variant_index.to_bigint().unwrap().to_signed_bytes_be())
         } else {
-           unreachable!("Shouldn't be possible.")
+            unreachable!("Shouldn't be possible.")
         }
-
     }
 
     fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<()>
@@ -436,23 +435,15 @@ pub struct Sequence<'a, W: Write> {
 impl<'a, W: Write> Sequence<'a, W> {
     fn new(ser: &'a mut Serializer<W>) -> Self {
         let sink = match ser.tag {
-            Some(Identifier::OCTET_STRING) => {
-                SerializerKind::OctetString(ByteSerializer::new())
-            }
+            Some(Identifier::OCTET_STRING) => SerializerKind::OctetString(ByteSerializer::new()),
             Some(Identifier::OBJECT_IDENTIFIER) => {
                 SerializerKind::ObjectIdentifier(ObjectIdentifierSerializer::new())
             }
-            Some(Identifier::BIT_STRING) => {
-                SerializerKind::BitString(BitStringSerializer::new())
-            }
-            Some(Identifier::INTEGER) => {
-                SerializerKind::Integer(ByteSerializer::new())
-            }
-            _ => {
-                match ser.prefixed {
-                    Some(implicit) => SerializerKind::Prefix(PrefixSerializer::new(implicit)),
-                    _ => SerializerKind::Normal(Serializer::new(Vec::new())),
-                }
+            Some(Identifier::BIT_STRING) => SerializerKind::BitString(BitStringSerializer::new()),
+            Some(Identifier::INTEGER) => SerializerKind::Integer(ByteSerializer::new()),
+            _ => match ser.prefixed {
+                Some(implicit) => SerializerKind::Prefix(PrefixSerializer::new(implicit)),
+                _ => SerializerKind::Normal(Serializer::new(Vec::new())),
             },
         };
 
@@ -618,7 +609,7 @@ impl SerializerKind {
             SerializerKind::BitString(mut ser) => {
                 ser.output.insert(0, ser.last.trailing_zeros() as u8);
                 ser.output
-            },
+            }
             SerializerKind::Normal(ser) => ser.output,
             SerializerKind::Integer(ser) => ser.output,
             SerializerKind::OctetString(ser) => ser.output,

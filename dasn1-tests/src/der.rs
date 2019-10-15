@@ -1,8 +1,12 @@
-mod ser;
 mod de;
+mod ser;
 
-use dasn1::{AsnType, der::{from_slice, to_vec}, identifier::constant::*, types::*};
-
+use dasn1::{
+    der::{from_slice, to_vec},
+    identifier::constant::*,
+    types::*,
+    AsnType,
+};
 
 #[test]
 fn bool() {
@@ -24,7 +28,7 @@ fn octet_string() {
 
 #[test]
 fn universal_string() {
-    let name = "Jones";
+    let name = String::from("Jones");
     assert_eq!(
         name,
         from_slice::<String>(&*to_vec(&name).unwrap()).unwrap()
@@ -89,11 +93,9 @@ fn choice() {
         Drei,
     }
 
-    impl Enumerable for Foo {}
-
-    let ein = Enumerated::new(Foo::Ein);
-    let zwei = Enumerated::new(Foo::Zwei);
-    let drei = Enumerated::new(Foo::Drei);
+    let ein = Foo::Ein;
+    let zwei = Foo::Zwei;
+    let drei = Foo::Drei;
 
     assert_eq!(ein, from_slice(&to_vec(&ein).unwrap()).unwrap());
     assert_eq!(zwei, from_slice(&to_vec(&zwei).unwrap()).unwrap());
@@ -104,12 +106,12 @@ fn choice() {
 fn choice_newtype_variant() {
     #[derive(Clone, Debug, AsnType, PartialEq)]
     enum Foo {
-        Bar(Implicit<Context, U0, bool>),
-        Baz(Implicit<Context, U1, OctetString>),
+        Bar(bool),
+        Baz(OctetString),
     }
 
-    let bar = Foo::Bar(Implicit::new(true));
-    let baz = Foo::Baz(Implicit::new(OctetString::from(vec![1, 2, 3, 4, 5])));
+    let bar = Foo::Bar(true);
+    let baz = Foo::Baz(OctetString::from(vec![1, 2, 3, 4, 5]));
 
     assert_eq!(bar, from_slice(&to_vec(&bar).unwrap()).unwrap());
     assert_eq!(baz, from_slice(&to_vec(&baz).unwrap()).unwrap());
@@ -119,7 +121,7 @@ fn choice_newtype_variant() {
 fn sequence_in_sequence_in_choice() {
     #[derive(Clone, Debug, AsnType, PartialEq)]
     enum FooExtern {
-        Bar(Implicit<Context, U0, BarData>),
+        Bar(BarData),
     }
 
     #[derive(Clone, Debug, AsnType, PartialEq)]
@@ -127,9 +129,10 @@ fn sequence_in_sequence_in_choice() {
         data: OctetString,
     }
 
-    let bar_extern = FooExtern::Bar(Implicit::new(BarData {
+    let bar_extern = FooExtern::Bar(BarData {
         data: OctetString::from(vec![1, 2, 3, 4]),
-    }));
+    });
+
     let extern_encoded = to_vec(&bar_extern).unwrap();
 
     assert_eq!(bar_extern, from_slice(&extern_encoded).unwrap());
@@ -145,8 +148,8 @@ fn response() {
 
     #[derive(Clone, Debug, AsnType, PartialEq)]
     enum Status {
-        Success(Implicit<Context, U0, ()>),
-        Error(Implicit<Context, U1, u8>),
+        Success,
+        Error(u8),
     }
 
     #[derive(Clone, Debug, AsnType, PartialEq)]
@@ -155,7 +158,7 @@ fn response() {
     }
 
     let response = Response {
-        status: Status::Success(Implicit::new(())),
+        status: Status::Success,
         body: Body {
             data: OctetString::from(vec![1, 2, 3, 4, 5]),
         },
@@ -252,14 +255,13 @@ fn explicit_prefix() {
 
 #[test]
 fn nested_enum() {
-    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    #[derive(AsnType, Debug, PartialEq)]
     enum Alpha {
         A(Bravo),
         B(Bravo),
     }
 
-
-    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    #[derive(AsnType, Debug, PartialEq)]
     enum Bravo {
         A,
         B,

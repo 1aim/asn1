@@ -1,9 +1,17 @@
+pub mod new_trait;
+pub(crate) mod parser;
+/*
 mod bit_string;
 mod object_identifier;
 mod octet_string;
 mod option;
 mod prefix;
-pub(crate) mod parser;
+use self::{
+    bit_string::BitString, new_trait::DerDecodable, object_identifier::ObjectIdentifier,
+    octet_string::OctetString, option::IdentifierDeserializer, prefix::Prefix,
+};
+
+*/
 
 use std::{fmt, num, result};
 
@@ -19,23 +27,16 @@ use crate::{
     error::{Error, Result},
     identifier::BerIdentifier,
 };
-use self::{
-    bit_string::BitString,
-    object_identifier::ObjectIdentifier,
-    option::IdentifierDeserializer,
-    octet_string::OctetString,
-    prefix::Prefix,
-};
+
+pub use self::new_trait::DerDecodable;
 
 /// Deserialize an instance of `T` from bytes of ASN.1 DER.
-pub fn from_slice<'a, T>(bytes: &'a [u8]) -> Result<T>
+pub fn from_slice<T>(bytes: &[u8]) -> Result<T>
 where
-    T: Deserialize<'a>,
+    T: DerDecodable,
 {
     log::trace!("Starting deserialisation: {:?}", bytes);
-    let mut deserializer = Deserializer::from_slice(bytes);
-
-    T::deserialize(&mut deserializer)
+    Ok(T::parse_der(bytes).map(|(_, value)| value)?)
 }
 
 /// An untyped ASN.1 value.
@@ -47,7 +48,10 @@ pub(crate) struct Value<'a> {
 
 impl<'a> Value<'a> {
     fn new<I: Into<BerIdentifier>>(identifier: I, contents: &'a [u8]) -> Self {
-        Self { identifier: identifier.into(), contents }
+        Self {
+            identifier: identifier.into(),
+            contents,
+        }
     }
 }
 
@@ -60,7 +64,11 @@ pub(crate) struct Deserializer<'de> {
 impl<'de> Deserializer<'de> {
     fn from_slice(input: &'de [u8]) -> Self {
         log::trace!("New Deserializer with input: {:?}", input);
-        Self { input, enumerated: false, type_check: true, }
+        Self {
+            input,
+            enumerated: false,
+            type_check: true,
+        }
     }
 
     /// Looks for the next tag but doesn't advance the slice.
@@ -83,7 +91,7 @@ impl<'de> Deserializer<'de> {
             if let Some(expected) = expected {
                 let actual = *value.identifier;
                 if expected != actual {
-                    return Err(Error::IncorrectType { expected, actual })
+                    return Err(Error::IncorrectType { expected, actual });
                 }
             }
         } else {
@@ -95,8 +103,6 @@ impl<'de> Deserializer<'de> {
 
         Ok(value)
     }
-
-    fn parse_decodable(&mut self, slice: &[u8])
 
     fn parse_bool(&mut self) -> Result<bool> {
         let value = self.parse_value(Some(Identifier::BOOL))?;
@@ -125,6 +131,7 @@ impl<'de> Deserializer<'de> {
     }
 }
 
+/*
 impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = Error;
 
@@ -145,101 +152,6 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             Identifier::UTF8_STRING => self.deserialize_str(visitor),
             _ => self.deserialize_seq(visitor),
         }
-    }
-
-    fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising bool.");
-        visitor.visit_bool(self.parse_bool()?)
-    }
-
-    fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising i8.");
-        let value = self.parse_integer(true)?
-                       .to_i8()
-                       .ok_or_else(|| Error::IntegerOverflow("i8".into()))?;
-
-        visitor.visit_i8(value)
-    }
-
-    fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising i16.");
-        let value = self.parse_integer(true)?
-                        .to_i16()
-                        .ok_or_else(|| Error::IntegerOverflow("i16".into()))?;
-
-        visitor.visit_i16(value)
-    }
-
-    fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising i32.");
-        let value = self.parse_integer(true)?
-                        .to_i32()
-                        .ok_or_else(|| Error::IntegerOverflow("i32".into()))?;
-
-        visitor.visit_i32(value)
-    }
-
-    fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising i64.");
-        let value = self.parse_integer(true)?
-                        .to_i64()
-                        .ok_or_else(|| Error::IntegerOverflow("i64".into()))?;
-
-        visitor.visit_i64(value)
-    }
-
-    fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising i128.");
-        let value = self.parse_integer(true)?
-                        .to_i128()
-                        .ok_or_else(|| Error::IntegerOverflow("i128".into()))?;
-
-        visitor.visit_i128(value)
-    }
-
-    fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising u8.");
-        let value = self.parse_integer(true)?
-                        .to_u8()
-                        .ok_or_else(|| Error::IntegerOverflow("u8".into()))?;
-
-        visitor.visit_u8(value)
-    }
-
-    fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising u16.");
-        let value = self.parse_integer(true)?
-                        .to_u16()
-                        .ok_or_else(|| Error::IntegerOverflow("u16".into()))?;
-
-        visitor.visit_u16(value)
-    }
-
-    fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising u32.");
-        let value = self.parse_integer(true)?
-                        .to_u32()
-                        .ok_or_else(|| Error::IntegerOverflow("u32".into()))?;
-
-        visitor.visit_u32(value)
-    }
-
-    fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising u64.");
-        let value = self.parse_integer(true)?
-                        .to_u64()
-                        .ok_or_else(|| Error::IntegerOverflow("u64".into()))?;
-
-        visitor.visit_u64(value)
-    }
-
-    fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        log::trace!("Deserialising u128.");
-        let value = self.parse_integer(true)?
-                        .to_u128()
-                        .ok_or_else(|| Error::IntegerOverflow("u128".into()))?;
-
-        visitor.visit_u128(value)
     }
 
     fn deserialize_f32<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
@@ -408,8 +320,9 @@ impl<'a, 'de> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             identifier.tag
         };
 
-        let variant = variants.get(variant_index as usize)
-                              .ok_or(Error::NoVariantFound(variant_index))?;
+        let variant = variants
+            .get(variant_index as usize)
+            .ok_or(Error::NoVariantFound(variant_index))?;
 
         log::trace!("Attempting to deserialise to {}::{}", name, variant);
         visitor.visit_enum(Enum::new(variant, self))
@@ -565,70 +478,12 @@ impl<'de, T> Visitor<'de> for Inspector<T> {
         let is_constructed: bool = visitor.next_element()?.unwrap();
         let tag: u32 = visitor.next_element()?.unwrap();
 
-        Ok(BerIdentifier::new(core::identifier::Class::from_u8(class), is_constructed, tag))
+        Ok(BerIdentifier::new(
+            core::identifier::Class::from_u8(class),
+            is_constructed,
+            tag,
+        ))
     }
 }
+*/
 
-#[cfg(test)]
-mod tests {
-    use super::from_slice;
-    use core::types::*;
-    use core::identifier::constant::*;
-    use typenum::consts::*;
-    use serde_derive::Deserialize;
-
-    #[test]
-    fn bool() {
-        let yes: bool = super::from_slice(&[0x1, 0x1, 0xFF][..]).unwrap();
-        let no: bool = super::from_slice(&[0x1, 0x1, 0x0][..]).unwrap();
-
-        assert!(yes);
-        assert!(!no);
-    }
-
-    #[test]
-    fn choice() {
-        #[derive(Clone, Debug, Deserialize, PartialEq)]
-        enum Foo {
-            Ein,
-            Zwei,
-            Drei,
-        }
-
-        assert_eq!(Foo::Ein, from_slice(&[0x80, 0][..]).unwrap());
-        assert_eq!(Foo::Zwei, from_slice(&[0x81, 0][..]).unwrap());
-        assert_eq!(Foo::Drei, from_slice(&[0x82, 0][..]).unwrap());
-    }
-
-    #[test]
-    fn fixed_array_as_sequence() {
-        let array = [8u8; 4];
-        let raw = &[48, 4 * 3, 2, 1, 8, 2, 1, 8, 2, 1, 8, 2, 1, 8][..];
-        assert_eq!(array, from_slice::<[u8; 4]>(&raw).unwrap());
-    }
-
-    #[test]
-    fn choice_newtype_variant() {
-        #[derive(Clone, Debug, Deserialize, PartialEq)]
-        enum Foo {
-            Bar(Implicit<Context, U0, bool>),
-            Baz(Implicit<Context, U1, OctetString>),
-        }
-
-        let os = OctetString::from(vec![1, 2, 3, 4, 5]);
-
-        assert_eq!(Foo::Bar(Implicit::new(true)), from_slice(&[0x80, 1, 0xff][..]).unwrap());
-        assert_eq!(Foo::Baz(Implicit::new(os)), from_slice(&[0x81, 5, 1, 2, 3, 4, 5][..]).unwrap());
-    }
-
-    /*
-    #[test]
-    fn oid_from_bytes() {
-        let oid = ObjectIdentifier::new(vec![1, 2, 840, 113549]).unwrap();
-        let from_raw =
-            crate::from_slice(&[0x6, 0x6, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d][..]).unwrap();
-
-        assert_eq!(oid, from_raw);
-    }
-    */
-}

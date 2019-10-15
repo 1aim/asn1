@@ -2,11 +2,8 @@ use std::fmt;
 
 use num_bigint::BigInt;
 use serde::{
-    Deserialize,
-    Deserializer,
-    Serialize,
-    Serializer,
     de::{Error, SeqAccess, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 
 /// A representation of the `INTEGER` ASN.1 data type. `Integer` is a wrapper

@@ -164,8 +164,6 @@ mod tests {
         a.push_field_list(c);
         dbg!(&a);
 
-
-
         assert_eq!(&[01, 00, 02, 03][..], &*a.to_bytes());
     }
 }

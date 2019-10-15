@@ -22,8 +22,12 @@ impl<'de> SeqAccess<'de> for ObjectIdentifier<'de> {
         T: DeserializeSeed<'de>,
     {
         let (input, root_octets) = super::parser::parse_encoded_number(self.contents)?;
-        let second = (&root_octets % 40u8).to_u32().expect("Second root component greater than `u32`");
-        let first = ((root_octets - second) / 40u8).to_u32().expect("first root component greater than `u32`");
+        let second = (&root_octets % 40u8)
+            .to_u32()
+            .expect("Second root component greater than `u32`");
+        let first = ((root_octets - second) / 40u8)
+            .to_u32()
+            .expect("first root component greater than `u32`");
         let mut buffer = vec![first, second];
 
         let mut input = input;

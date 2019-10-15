@@ -25,7 +25,7 @@ impl BerIdentifier {
     pub fn tag(self, tag: u32) -> Self {
         Self {
             identifier: self.identifier.set_tag(tag),
-            is_constructed: self.is_constructed
+            is_constructed: self.is_constructed,
         }
     }
 }
@@ -43,13 +43,9 @@ impl From<Identifier> for BerIdentifier {
         Self {
             identifier,
             is_constructed: match identifier {
-                Identifier::SEQUENCE |
-                Identifier::SET |
-                Identifier::EXTERNAL => true,
+                Identifier::SEQUENCE | Identifier::SET | Identifier::EXTERNAL => true,
                 _ => false,
-            }
+            },
         }
     }
 }
-
-

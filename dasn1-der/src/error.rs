@@ -30,7 +30,7 @@ pub enum Error {
         /// Tag that was expected.
         expected: Identifier,
         /// Tag that was found.
-        actual: Identifier
+        actual: Identifier,
     },
 }
 
@@ -57,7 +57,9 @@ impl fmt::Display for Error {
             Error::NoVariantFound(index) => write!(f, "No variant found with index '{}'.", index),
             Error::Parser(msg) => write!(f, "Parsing: {}", msg),
             Error::IntegerOverflow(number) => write!(f, "Couldn't cast big int to {}", number),
-            Error::IncorrectType { expected, actual } => write!(f, "Found {:?}, expected: {:?}", actual, expected),
+            Error::IncorrectType { expected, actual } => {
+                write!(f, "Found {:?}, expected: {:?}", actual, expected)
+            }
         }
     }
 }

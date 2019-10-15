@@ -32,7 +32,7 @@ pub struct Enum {
 pub enum VariantKind {
     Unit,
     Tuple,
-    Struct
+    Struct,
 }
 
 impl VariantKind {
@@ -67,7 +67,7 @@ impl From<syn::Variant> for Variant {
             attrs: var.attrs,
             ident: var.ident,
             kind: VariantKind::from(&var.fields),
-            fields: var.fields
+            fields: var.fields,
         }
     }
 }
@@ -83,17 +83,38 @@ impl super::AsnTypeGenerator for Enum {
 
     fn generate_identifier_impl(&self) -> TokenStream {
         match self.kind {
-            EnumKind::Enumerable => quote!(dasn1::identifier::Identifier::ENUMERATED),
-            EnumKind::Choice => self.create_pattern_match(|i, _, _| {
-                let i = i as u32;
+            EnumKind::Enumerable => {
+                quote! {
+                    fn identifier() -> dasn1::Identifier {
+                        dasn1::Identifier::ENUMERATED
+                    }
+                }
+
+            },
+            EnumKind::Choice =>  {
+                let match_expr = self.create_pattern_match(|i, _, _| {
+                    let i = i as u32;
+                    quote! {
+                        dasn1::Identifier::new(
+                            dasn1::identifier::Class::Context,
+                            #i
+                        )
+                    }
+                });
 
                 quote!(
-                    dasn1::identifier::Identifier::new(
-                        dasn1::identifier::Class::Context,
-                        #i
-                    )
+                    fn identifier() -> dasn1::Identifier {
+                        dasn1::Identifier::new(
+                            dasn1::identifier::Class::Context,
+                            0
+                        )
+                    }
+
+                    fn choice_identifier(&self) -> Option<dasn1::Identifier> {
+                        Some(#match_expr)
+                    }
                 )
-            })
+            },
         }
     }
 
@@ -119,7 +140,14 @@ impl super::AsnTypeGenerator for Enum {
         }
     }
 
-    fn generate_der_impl(&self) -> TokenStream {
+    fn gen_der_decodable_impl(&self, input: &Ident) -> TokenStream {
+        match self.kind {
+            EnumKind::Enumerable => self.gen_der_decode_enum(input),
+            EnumKind::Choice => self.gen_der_decode_choice(input),
+        }
+    }
+
+    fn gen_der_encodable_impl(&self) -> TokenStream {
         let buf = format_ident!("buffer");
 
         let encode_enum = match self.kind {
@@ -137,7 +165,11 @@ impl super::AsnTypeGenerator for Enum {
 
 impl Enum {
     pub fn new(ident: Ident, generics: Generics, attrs: &[syn::Attribute], data: DataEnum) -> Self {
-        let variants = data.variants.into_iter().map(Variant::from).collect::<Vec<_>>();
+        let variants = data
+            .variants
+            .into_iter()
+            .map(Variant::from)
+            .collect::<Vec<_>>();
 
         Self {
             attributes: EnumAttributes::from_syn(attrs),
@@ -148,7 +180,7 @@ impl Enum {
         }
     }
 
-    /// Generates a match expression for `match_ident`, and calls
+    /// Generates a match expression for `self`, and calls
     /// `variant_arm_generator` for each arm of the match expression, providing
     /// the function with the index of each variant as well as list of `Ident`s
     /// for that variant's fields. An empty list is equivalvent to a
@@ -213,6 +245,35 @@ impl Enum {
             }
         })
     }
+
+    pub fn gen_der_decode_enum(&self, input: &Ident) -> TokenStream {
+        let variants = self.variants.iter().enumerate().map(|(i, v)| {
+            let i = i as u32;
+            let ident = &v.ident;
+            quote!(#i => Self::#ident)
+        });
+
+        quote! {
+            match #input[0] {
+                #(#variants),*
+            }
+        }
+    }
+
+    pub fn gen_der_decode_choice(&self, input: &Ident) -> TokenStream {
+        let variants = self.variants.iter().enumerate().map(|(i, v)| {
+            let i = i as u32;
+            let ident = &v.ident;
+            quote!(#i => Self::#ident)
+        });
+
+        quote! {
+            match #input[0] {
+                #(#variants),*
+            }
+        }
+    }
+
 
     pub fn generate_choice_der(&self, buf: &Ident) -> TokenStream {
         self.create_pattern_match(|_, variant, fields| {

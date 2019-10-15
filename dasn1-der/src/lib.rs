@@ -8,11 +8,11 @@
 
 mod decoder;
 mod encoder;
-pub mod identifier;
 pub mod error;
+pub mod identifier;
 
-pub use decoder::from_slice;
-pub use encoder::{to_vec, DerEncodable, encode_length};
+pub use decoder::{from_slice, DerDecodable};
+pub use encoder::{encode_length, to_vec, DerEncodable};
 pub use error::Result;
 
 /*

@@ -1,6 +1,6 @@
 use core::identifier::Identifier;
 use serde::{
-    de::{self, SeqAccess, Visitor, Deserializer},
+    de::{self, Deserializer, SeqAccess, Visitor},
     forward_to_deserialize_any,
 };
 
@@ -12,18 +12,17 @@ pub(crate) struct IdentifierDeserializer<'a, 'de> {
 }
 
 impl<'a, 'de: 'a> IdentifierDeserializer<'a, 'de> {
-    pub fn new(identifier: Option<Identifier>, de: &'a mut super::Deserializer<'de>)
-        -> Self
-    {
-        Self {
-            identifier,
-            de
-        }
+    pub fn new(identifier: Option<Identifier>, de: &'a mut super::Deserializer<'de>) -> Self {
+        Self { identifier, de }
     }
 
-    pub fn check_and_deserialize<V>(&mut self, identifier: Identifier, visitor: V)
-        -> Result<V::Value>
-        where V: Visitor<'de>
+    pub fn check_and_deserialize<V>(
+        &mut self,
+        identifier: Identifier,
+        visitor: V,
+    ) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
     {
         log::trace!("Comparing {:?} == {:?}", self.identifier, identifier);
         if self.identifier.map(|i| i == identifier).unwrap_or(false) {
@@ -78,7 +77,7 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut IdentifierDeserializer<'a, '
 
     fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         self.deserialize_i8(visitor)
-}
+    }
 
     fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         self.deserialize_i8(visitor)
@@ -199,4 +198,3 @@ impl<'a, 'de: 'a> de::Deserializer<'de> for &'a mut IdentifierDeserializer<'a, '
         ignored_any identifier
     }
 }
-

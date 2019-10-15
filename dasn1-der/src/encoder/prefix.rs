@@ -1,11 +1,8 @@
 use core::identifier::Class;
-use serde::{
-    ser,
-    Serialize,
-};
+use serde::{ser, Serialize};
 
-use crate::error::{Error, Result};
 use super::Serializer;
+use crate::error::{Error, Result};
 
 /// Serializer used solely to encode octet strings properly.
 pub(crate) struct PrefixSerializer {
@@ -117,7 +114,10 @@ impl<'a> ser::Serializer for &'a mut PrefixSerializer {
         self.output.serialize_none()
     }
 
-    fn serialize_some<T>(self, v: &T) -> Result<()> where T: ?Sized + Serialize, {
+    fn serialize_some<T>(self, v: &T) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
         self.output.serialize_some(v)
     }
 
@@ -133,12 +133,22 @@ impl<'a> ser::Serializer for &'a mut PrefixSerializer {
     }
 
     fn serialize_newtype_struct<T>(self, n: &'static str, v: &T) -> Result<()>
-        where T: ?Sized + Serialize
+    where
+        T: ?Sized + Serialize,
     {
         self.output.serialize_newtype_struct(n, v)
     }
 
-    fn serialize_newtype_variant<T>(self, n: &'static str, v_i: u32, vn: &'static str, v: &T) -> Result<()> where T: ?Sized + Serialize, {
+    fn serialize_newtype_variant<T>(
+        self,
+        n: &'static str,
+        v_i: u32,
+        vn: &'static str,
+        v: &T,
+    ) -> Result<()>
+    where
+        T: ?Sized + Serialize,
+    {
         self.output.serialize_newtype_variant(n, v_i, vn, v)
     }
 
@@ -150,11 +160,21 @@ impl<'a> ser::Serializer for &'a mut PrefixSerializer {
         self.output.serialize_seq(Some(l))
     }
 
-    fn serialize_tuple_struct(self, n: &'static str, l: usize,) -> Result<Self::SerializeTupleStruct> {
+    fn serialize_tuple_struct(
+        self,
+        n: &'static str,
+        l: usize,
+    ) -> Result<Self::SerializeTupleStruct> {
         self.output.serialize_tuple_struct(n, l)
     }
 
-    fn serialize_tuple_variant(self, n: &'static str, v_i: u32, v: &'static str, l: usize) -> Result<Self::SerializeTupleVariant> {
+    fn serialize_tuple_variant(
+        self,
+        n: &'static str,
+        v_i: u32,
+        v: &'static str,
+        l: usize,
+    ) -> Result<Self::SerializeTupleVariant> {
         self.output.serialize_tuple_variant(n, v_i, v, l)
     }
 
@@ -166,7 +186,13 @@ impl<'a> ser::Serializer for &'a mut PrefixSerializer {
         self.output.serialize_struct(n, l)
     }
 
-    fn serialize_struct_variant(self, n: &'static str, v_i: u32, v: &'static str, l: usize) -> Result<Self::SerializeStructVariant> {
+    fn serialize_struct_variant(
+        self,
+        n: &'static str,
+        v_i: u32,
+        v: &'static str,
+        l: usize,
+    ) -> Result<Self::SerializeStructVariant> {
         self.output.serialize_struct_variant(n, v_i, v, l)
     }
 }

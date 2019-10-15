@@ -76,10 +76,7 @@ impl Identifier {
     }
 
     pub const fn new(class: Class, tag: u32) -> Self {
-        Self {
-            class,
-            tag,
-        }
+        Self { class, tag }
     }
 
     pub fn set_tag(mut self, tag: u32) -> Self {
@@ -115,7 +112,9 @@ pub mod constant {
         const NAME: &'static str;
     }
 
-    pub trait ConstClass: Copy + Clone + Ord + PartialOrd + Eq + PartialEq + std::fmt::Debug {
+    pub trait ConstClass:
+        Copy + Clone + Ord + PartialOrd + Eq + PartialEq + std::fmt::Debug
+    {
         const CLASS: super::Class;
     }
 
@@ -133,7 +132,6 @@ pub mod constant {
     }
 
     classes!(Universal Application Context Private);
-
 
     macro_rules! prefixes {
         ($($name:ident = $value:expr),+) => {

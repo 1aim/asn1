@@ -1,9 +1,4 @@
-use serde::{
-    Deserialize,
-    de::Deserializer,
-    Serialize,
-    ser::Serializer,
-};
+use serde::{de::Deserializer, ser::Serializer, Deserialize, Serialize};
 
 use crate::AsnType;
 
@@ -19,7 +14,6 @@ impl<T: Serialize + AsnType> Serialize for Optional<T> {
     }
 }
 
-
 impl<'de, T: Deserialize<'de> + AsnType> Deserialize<'de> for Optional<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -33,11 +27,7 @@ impl<'de, T: Deserialize<'de> + AsnType> Deserialize<'de> for Optional<T> {
 
 impl<T: AsnType> From<Option<T>> for Optional<T> {
     fn from(option: Option<T>) -> Self {
-        let option = if option.is_none() {
-            None
-        } else {
-            Some(option)
-        };
+        let option = if option.is_none() { None } else { Some(option) };
 
         Optional(option)
     }

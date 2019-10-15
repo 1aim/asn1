@@ -1,5 +1,5 @@
-use dasn1_derive::AsnType;
 use dasn1::per::PerEncodable;
+use dasn1_derive::AsnType;
 
 #[test]
 fn fixed_sequence() {

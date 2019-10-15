@@ -1,22 +1,15 @@
 use std::{fmt, marker::PhantomData};
 
 use serde::{
-    Deserialize,
-    Deserializer,
-    Serialize,
-    Serializer,
     de::{self, SeqAccess, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 
 use typenum::marker_traits::Unsigned;
 
 use crate::{
+    identifier::{constant::*, Class, Identifier},
     AsnType,
-    identifier::{
-        Class,
-        Identifier,
-        constant::*,
-    }
 };
 
 pub type Implicit<C, N, T> = ConstPrefixed<ImplicitPrefix, C, N, T>;
@@ -72,12 +65,15 @@ impl<P: Prefix, C: ConstClass, N: Unsigned, T> ConstPrefixed<P, C, N, T> {
     }
 }
 
-impl<'de, P: Prefix, C: ConstClass, N: Unsigned, T: Deserialize<'de>> Deserialize<'de> for ConstPrefixed<P, C, N, T> {
+impl<'de, P: Prefix, C: ConstClass, N: Unsigned, T: Deserialize<'de>> Deserialize<'de>
+    for ConstPrefixed<P, C, N, T>
+{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let value = deserializer.deserialize_newtype_struct(Self::NAME, PrefixVisitor::<T>::new(Self::IDENTIFIER))?;
+        let value = deserializer
+            .deserialize_newtype_struct(Self::NAME, PrefixVisitor::<T>::new(Self::IDENTIFIER))?;
 
         Ok(Self::new(value))
     }
@@ -103,7 +99,10 @@ struct PrefixVisitor<T> {
 
 impl<T> PrefixVisitor<T> {
     fn new(identifier: Identifier) -> Self {
-        Self { phantom: PhantomData, identifier }
+        Self {
+            phantom: PhantomData,
+            identifier,
+        }
     }
 }
 
@@ -120,10 +119,14 @@ impl<'de, T: Deserialize<'de>> Visitor<'de> for PrefixVisitor<T> {
         let actual_identifier = Identifier::new(Class::from_u8(class), tag);
 
         if self.identifier != actual_identifier {
-            return Err(de::Error::custom(format!("{:?} != {:?}", self.identifier, actual_identifier)))
+            return Err(de::Error::custom(format!(
+                "{:?} != {:?}",
+                self.identifier, actual_identifier
+            )));
         }
 
-        Ok(visitor.next_element()?.expect("Couldn't deserialize to inner type"))
+        Ok(visitor
+            .next_element()?
+            .expect("Couldn't deserialize to inner type"))
     }
 }
-

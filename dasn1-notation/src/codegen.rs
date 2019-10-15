@@ -8,10 +8,7 @@ use failure::Fallible as Result;
 use heck::*;
 
 use self::{constant::Constant, imports::*, structs::*};
-use crate::{
-    parser::*,
-    semantics::SemanticChecker,
-};
+use crate::{parser::*, semantics::SemanticChecker};
 
 #[derive(Clone, Copy, Debug)]
 pub enum TagEnvironment {
@@ -72,10 +69,13 @@ impl Backend for Rust {
             // Unwrap currently needed as i haven't created the simplified AST without
             // `ComponentsOf` yet.
             let (ty, optional, default) = field.as_type().unwrap();
-            let field = FieldBuilder::new(ty.name.as_ref().unwrap().to_snake_case(), self.generate_type(&ty)?)
-                .optional(*optional)
-                .default_value(default.clone().and_then(|v| self.generate_value(&v).ok()))
-                .build();
+            let field = FieldBuilder::new(
+                ty.name.as_ref().unwrap().to_snake_case(),
+                self.generate_type(&ty)?,
+            )
+            .optional(*optional)
+            .default_value(default.clone().and_then(|v| self.generate_value(&v).ok()))
+            .build();
 
             generated_struct.add_field(field);
         }
@@ -143,13 +143,12 @@ impl Backend for Rust {
                 ));
 
                 String::from("Integer")
-            },
+            }
             BuiltinType::Prefixed(prefix, ty) => {
-
                 let kind = match prefix.kind {
                     TagKind::Implicit => TagEnvironment::Implicit,
                     TagKind::Explicit => TagEnvironment::Explicit,
-                    TagKind::Environment => self.environment
+                    TagKind::Environment => self.environment,
                 };
 
                 self.prelude.insert(Import::new(

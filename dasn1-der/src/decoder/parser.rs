@@ -45,7 +45,7 @@ fn parse_initial_octet(input: &[u8]) -> IResult<&[u8], Identifier> {
     Ok((input, Identifier::new(class, constructed, tag)))
 }
 
-fn parse_contents(input: &[u8]) -> IResult<&[u8], &[u8]> {
+pub(crate) fn parse_contents(input: &[u8]) -> IResult<&[u8], &[u8]> {
     let (input, length) = nom::bytes::streaming::take(1usize)(input)?;
     take_contents(input, length[0])
 }

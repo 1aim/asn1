@@ -1,4 +1,4 @@
-use core::{AsnType, Identifier, types};
+use core::{types, AsnType, Identifier};
 
 use super::Serializer;
 
@@ -26,7 +26,7 @@ pub fn encode_length(original_length: usize) -> Vec<u8> {
 
 pub trait DerEncodable: AsnType {
     fn encode_implicit(&self, identifier: Identifier) -> Vec<u8> {
-        let mut buffer = identifier.encode_der();
+        let mut buffer = encode_identifier(identifier);
         let mut value = dbg!(self.encode_value());
         buffer.append(&mut encode_length(value.len()));
         buffer.append(&mut value);
@@ -48,6 +48,12 @@ impl DerEncodable for bool {
 }
 
 impl DerEncodable for str {
+    fn encode_value(&self) -> Vec<u8> {
+        Serializer::serialize_to_vec(self, true).unwrap().output
+    }
+}
+
+impl DerEncodable for String {
     fn encode_value(&self) -> Vec<u8> {
         Serializer::serialize_to_vec(self, true).unwrap().output
     }
@@ -82,15 +88,11 @@ impl<T: DerEncodable + serde::Serialize> DerEncodable for Option<T> {
     }
 
     fn encode_value(&self) -> Vec<u8> {
-        self.as_ref()
-            .map(T::encode_value)
-            .unwrap_or_else(Vec::new)
+        self.as_ref().map(T::encode_value).unwrap_or_else(Vec::new)
     }
 
     fn encode_der(&self) -> Vec<u8> {
-        self.as_ref()
-            .map(T::encode_der)
-            .unwrap_or_else(Vec::new)
+        self.as_ref().map(T::encode_der).unwrap_or_else(Vec::new)
     }
 }
 
@@ -113,7 +115,6 @@ macro_rules! arrays {
     }
 }
 
-
 arrays! {
     1 2 3 4 5 6 7 8 9 10
     11 12 13 14 15 16 17 18 19 20
@@ -128,9 +129,7 @@ fn encode_identifier(ident: Identifier) -> Vec<u8> {
     // Constructed is a single bit.
     tag_byte <<= 1;
     tag_byte |= match ident {
-        Identifier::EXTERNAL |
-        Identifier::SEQUENCE |
-        Identifier::SET      => 1,
+        Identifier::EXTERNAL | Identifier::SEQUENCE | Identifier::SET => 1,
         _ => 0,
     };
 
@@ -160,7 +159,6 @@ fn encode_identifier(ident: Identifier) -> Vec<u8> {
     output
 }
 
-
 /*
 impl DerEncodable for core::Identifier {
     fn encode_der(&self) -> Vec<u8> {
@@ -177,4 +175,3 @@ impl DerEncodable for types::OctetString {
         (**self).clone()
     }
 }
-

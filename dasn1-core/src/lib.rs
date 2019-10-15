@@ -11,8 +11,19 @@ use self::identifier::TagEncoding;
 
 pub trait AsnType {
     fn identifier() -> Identifier;
+    // Exists because choice needs to know it's variant to be encoded.
+    fn choice_identifier(&self) -> Option<Identifier> {
+        None
+    }
+
     fn tag_encoding(&self) -> TagEncoding {
         TagEncoding::Untagged
+    }
+}
+
+impl<'a, T: AsnType> AsnType for &'a T {
+    fn identifier() -> Identifier {
+        T::identifier()
     }
 }
 
@@ -73,6 +84,12 @@ impl<T> AsnType for Vec<T> {
     }
 }
 
+impl<T: AsnType> AsnType for [T] {
+    fn identifier() -> Identifier {
+        T::identifier()
+    }
+}
+
 macro_rules! arrays {
     ($($num:tt)+) => {
         $(
@@ -89,4 +106,3 @@ arrays! {
     0 1 2 3 4 5 6 7 8 9 10
     11 12 13 14 15 16 17 18 19 20
 }
-

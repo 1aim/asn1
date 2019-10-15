@@ -1,5 +1,5 @@
-pub mod number;
 pub mod buffer;
+pub mod number;
 
 pub use self::buffer::Buffer;
 

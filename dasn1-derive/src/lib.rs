@@ -24,7 +24,9 @@ pub fn my_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         Data::Struct(struct_data) => {
             Struct::new(name, generics, &input.attrs, struct_data.fields).into_trait_impl()
         }
-        Data::Enum(enum_data) => Enum::new(name, generics, &input.attrs, enum_data).into_trait_impl(),
+        Data::Enum(enum_data) => {
+            Enum::new(name, generics, &input.attrs, enum_data).into_trait_impl()
+        }
         _ => unimplemented!(),
     };
 
@@ -39,7 +41,11 @@ trait AsnTypeGenerator: Sized {
         quote!()
     }
 
-    fn generate_der_impl(&self) -> TokenStream {
+    fn gen_der_decodable_impl(&self, input: &Ident) -> TokenStream {
+        quote!()
+    }
+
+    fn gen_der_encodable_impl(&self) -> TokenStream {
         quote!()
     }
 
@@ -54,11 +60,19 @@ trait AsnTypeGenerator: Sized {
         let tag_encoding = self.generate_tag_encoding_impl();
 
         let der_encoding = if cfg!(feature = "der") {
-            let der_impl = self.generate_der_impl();
+            let input = quote::format_ident!("input");
+            let encode_impl = self.gen_der_encodable_impl();
+            let decode_impl = self.gen_der_decodable_impl(&input);
             quote! {
                 impl #generics dasn1::der::DerEncodable for #name #generics {
                     fn encode_value(&self) -> Vec<u8> {
-                        #der_impl
+                        #encode_impl
+                    }
+                }
+
+                impl #generics dasn1::der::DerDecodable for #name #generics {
+                    fn parse_value(#input: &[u8]) -> dasn1::der::Result<Self> {
+                        #decode_impl
                     }
                 }
             }
@@ -93,9 +107,7 @@ trait AsnTypeGenerator: Sized {
 
         quote! {
             impl #generics dasn1::AsnType for #name #generics {
-                fn identifier(&self) -> dasn1::identifier::Identifier {
-                    #identifier
-                }
+                #identifier
 
                 #tag_encoding
             }
